@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { api } from '../api'
 import type { RecipeDoc, Ingredient } from '../types'
 
@@ -100,98 +102,104 @@ export default function RecipeForm() {
       <h1>{id ? 'Edit recipe' : 'New recipe'}</h1>
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
       <form onSubmit={handleSubmit}>
-        <p>
-          <label>
-            Name <input
+        <p className="mb-4">
+          <label className="mb-2 block font-medium">
+            Name <Input
               required
               value={doc.name}
               onChange={(e) => update({ name: e.target.value })}
-              style={{ width: '100%', padding: 8 }}
+              className="mt-1 w-full"
             />
           </label>
         </p>
-        <p>
-          <label>
+        <p className="mb-4">
+          <label className="mb-2 block font-medium">
             Description <textarea
               value={doc.description}
               onChange={(e) => update({ description: e.target.value })}
               rows={2}
-              style={{ width: '100%', padding: 8 }}
+              className="mt-1 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2"
             />
           </label>
         </p>
-        <p>
-          <label>
-            Servings <input
+        <p className="mb-4">
+          <label className="mb-2 block font-medium">
+            Servings <Input
               type="number"
               min={1}
               value={doc.servings}
               onChange={(e) => update({ servings: Number(e.target.value) || 1 })}
-              style={{ width: 80, padding: 8 }}
+              className="mt-1 w-20"
             />
           </label>
         </p>
-        <p>
-          <label>
+        <p className="mb-4">
+          <label className="mb-2 block font-medium">
             Tags (comma-separated){' '}
-            <input
+            <Input
               value={doc.tags.join(', ')}
               onChange={(e) =>
                 update({
                   tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean),
                 })
               }
-              style={{ width: '100%', padding: 8 }}
+              className="mt-1 w-full"
             />
           </label>
         </p>
 
         <h3>Ingredients</h3>
         {doc.ingredients.map((ing, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-            <input
+          <div key={i} className="mb-2 flex flex-wrap gap-2">
+            <Input
               placeholder="Name"
               value={ing.name}
               onChange={(e) => updateIngredient(i, { name: e.target.value })}
-              style={{ flex: 2, minWidth: 120, padding: 8 }}
+              className="min-w-32 flex-1"
             />
-            <input
+            <Input
               placeholder="Qty"
               value={ing.quantity}
               onChange={(e) => updateIngredient(i, { quantity: e.target.value })}
-              style={{ width: 80, padding: 8 }}
+              className="w-20"
             />
-            <input
+            <Input
               placeholder="Unit"
               value={ing.unit}
               onChange={(e) => updateIngredient(i, { unit: e.target.value })}
-              style={{ width: 80, padding: 8 }}
+              className="w-20"
             />
-            <button type="button" onClick={() => removeIngredient(i)}>
+            <Button type="button" variant="outline" size="sm" onClick={() => removeIngredient(i)}>
               Remove
-            </button>
+            </Button>
           </div>
         ))}
-        <button type="button" onClick={addIngredient}>Add ingredient</button>
+        <Button type="button" variant="secondary" size="sm" onClick={addIngredient}>
+          Add ingredient
+        </Button>
 
         <h3>Steps</h3>
         {doc.steps.map((step, i) => (
-          <div key={i} style={{ marginBottom: 8 }}>
+          <div key={i} className="mb-2">
             <textarea
               value={step}
               onChange={(e) => updateStep(i, e.target.value)}
               rows={2}
-              style={{ width: '100%', padding: 8 }}
+              className="w-full rounded-md border-2 border-input bg-background px-3 py-2 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2"
             />
-            <button type="button" onClick={() => removeStep(i)}>Remove</button>
+            <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => removeStep(i)}>
+              Remove
+            </Button>
           </div>
         ))}
-        <button type="button" onClick={addStep}>Add step</button>
+        <Button type="button" variant="secondary" size="sm" onClick={addStep}>
+          Add step
+        </Button>
 
-        <p style={{ marginTop: 24 }}>
-          <button type="submit" disabled={saving}>
+        <p className="mt-6">
+          <Button type="submit" disabled={saving}>
             {saving ? 'Saving…' : id ? 'Update' : 'Create'}
-          </button>
+          </Button>
         </p>
       </form>
     </div>

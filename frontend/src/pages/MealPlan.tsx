@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { api } from '../api'
 import type { MealPlanDoc, DayAssignment, Recipe } from '../types'
 
@@ -118,10 +119,10 @@ export default function MealPlan() {
           ))}
         </tbody>
       </table>
-      <p style={{ marginTop: 16 }}>
-        <button onClick={save} disabled={saving}>
+      <p className="mt-4">
+        <Button onClick={save} disabled={saving}>
           {saving ? 'Saving…' : 'Save plan'}
-        </button>
+        </Button>
       </p>
     </div>
   )

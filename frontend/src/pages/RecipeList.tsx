@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { api } from '../api'
 import type { Recipe } from '../types'
 
@@ -44,13 +46,13 @@ export default function RecipeList() {
   return (
     <div>
       <h1>Recipes</h1>
-      <p>
-        <input
+      <p className="mb-4">
+        <Input
           type="search"
           placeholder="Search by name"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: 8, width: 260 }}
+          className="w-64"
         />
       </p>
       <ul style={{ listStyle: 'none', padding: 0 }}>
@@ -82,13 +84,14 @@ export default function RecipeList() {
                 </span>
               )}
             </div>
-            <button
+            <Button
               type="button"
+              variant="destructive"
+              size="sm"
               onClick={() => handleDelete(r.id, r.doc.name)}
-              style={{ color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer' }}
             >
               Delete
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

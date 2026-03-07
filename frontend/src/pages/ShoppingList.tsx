@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
 import { api } from '../api'
 import type { ShoppingListDoc } from '../types'
 
@@ -93,9 +94,9 @@ export default function ShoppingList() {
               </li>
             ))}
           </ul>
-          <p style={{ marginTop: 16 }}>
-            <button onClick={exportText}>Export as TXT</button>
-            <button onClick={exportCsv} style={{ marginLeft: 8 }}>Export as CSV</button>
+          <p className="mt-4 flex gap-2">
+            <Button onClick={exportText} variant="secondary">Export as TXT</Button>
+            <Button onClick={exportCsv} variant="secondary">Export as CSV</Button>
           </p>
         </>
       ) : (
