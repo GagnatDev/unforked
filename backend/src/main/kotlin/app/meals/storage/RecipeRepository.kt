@@ -53,16 +53,14 @@ object RecipeRepository {
 
     fun insert(doc: RecipeDoc): UUID {
         return DatabaseFactory.query { conn ->
-            conn.prepareStatement(
-                "INSERT INTO recipes (doc) VALUES (?::jsonb) RETURNING id",
-                java.sql.Statement.RETURN_GENERATED_KEYS
-            ).use { ps ->
-                ps.setJsonb(1, doc.toJsonbString())
-                ps.executeQuery().use { rs ->
-                    rs.next()
-                    UUID.fromString(rs.getString("id"))
+            conn.prepareStatement("INSERT INTO recipes (doc) VALUES (?::jsonb) RETURNING id")
+                .use { ps ->
+                    ps.setJsonb(1, doc.toJsonbString())
+                    ps.executeQuery().use { rs ->
+                        check(rs.next()) { "INSERT RETURNING id must return one row" }
+                        UUID.fromString(rs.getString("id"))
+                    }
                 }
-            }
         }
     }
 

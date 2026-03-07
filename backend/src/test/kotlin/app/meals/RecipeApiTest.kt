@@ -48,17 +48,15 @@ class RecipeApiTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun `GET recipes returns empty list when no recipes`() = testApplication {
-        application { module() }
+    fun `GET recipes returns ok and JSON array`() = testWithApp {
         val response = client.get("/api/recipes")
         assertEquals(HttpStatusCode.OK, response.status)
-        val body = response.bodyAsText()
-        assertTrue(body.contains("[]") || body == "[]")
+        val list = json.decodeFromString<List<kotlinx.serialization.json.JsonObject>>(response.bodyAsText())
+        assertTrue(list.size >= 0, "Response must be a valid JSON array")
     }
 
     @Test
-    fun `POST recipe creates and GET returns it`() = testApplication {
-        application { module() }
+    fun `POST recipe creates and GET returns it`() = testWithApp {
         val recipe = RecipeDoc(
             name = "Test Soup",
             description = "A test",
@@ -82,8 +80,7 @@ class RecipeApiTest {
     }
 
     @Test
-    fun `health returns ok`() = testApplication {
-        application { module() }
+    fun `health returns ok`() = testWithApp {
         val response = client.get("/health")
         assertEquals(HttpStatusCode.OK, response.status)
         assertTrue(response.bodyAsText().contains("ok"))

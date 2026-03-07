@@ -51,8 +51,7 @@ class ShoppingListApiTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun `shopping list aggregates quantities for same ingredient`() = testApplication {
-        application { module() }
+    fun `shopping list aggregates quantities for same ingredient`() = testWithApp {
 
         val flour = Ingredient("flour", "200", "g")
         val recipe1 = RecipeDoc(
@@ -112,8 +111,7 @@ class ShoppingListApiTest {
     }
 
     @Test
-    fun `shopping list returns empty when no meal plan for week`() = testApplication {
-        application { module() }
+    fun `shopping list returns empty when no meal plan for week`() = testWithApp {
         val response = client.get("/api/shopping-lists?week=2020-W01")
         assertEquals(HttpStatusCode.OK, response.status)
         val list = json.decodeFromString(ShoppingListDoc.serializer(), response.bodyAsText())
