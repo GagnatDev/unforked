@@ -13,8 +13,7 @@ From the repo root:
 docker compose up --build
 ```
 
-- App: http://localhost:3000  
-- API: http://localhost:8080  
+- App + API: http://localhost:8080 (frontend and backend in one container)  
 - Postgres: localhost:5432 (user `meals`, password `meals`, db `meals`)
 
 ## Run locally (dev)
@@ -76,8 +75,8 @@ cd backend
 
 ## Build for production
 
-- **Backend:** `cd backend && ./gradlew shadowJar` → `build/libs/meal-planning-backend.jar`
-- **Frontend:** `cd frontend && npm run build` → `dist/`; serve with `node server.js` (set `BACKEND_URL`)
+- **Single image (recommended):** from repo root, `docker build -t meal-planning-app .` — builds frontend and backend, serves both on port 8080.
+- **Separate builds:** Backend: `cd backend && ./gradlew shadowJar` → `build/libs/meal-planning-backend.jar`. Frontend: `cd frontend && npm run build` → `dist/`; serve with `node server.js` (set `BACKEND_URL`).
 
 ## API
 
