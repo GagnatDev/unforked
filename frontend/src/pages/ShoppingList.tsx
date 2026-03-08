@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { getCurrentWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { ShoppingListDoc } from '../types'
@@ -63,25 +64,26 @@ export default function ShoppingList() {
     URL.revokeObjectURL(url)
   }
 
-  if (loading) return <p>Loading…</p>
-  if (error) return <p style={{ color: 'crimson' }}>{error}</p>
-
   return (
     <div>
       <h1>Shopping list</h1>
       <p>
-        <label>
+        <label className="flex items-center gap-2">
           Week{' '}
-          <input
+          <Input
             type="text"
             value={weekId}
             onChange={(e) => setWeekId(e.target.value)}
             placeholder="e.g. 2025-W10"
-            style={{ padding: 8 }}
+            className="w-auto min-w-[8rem]"
           />
         </label>
       </p>
-      {data && data.items.length > 0 ? (
+      {loading ? (
+        <p>Loading…</p>
+      ) : error ? (
+        <p style={{ color: 'crimson' }}>{error}</p>
+      ) : data && data.items.length > 0 ? (
         <>
           <ul style={{ listStyle: 'none', padding: 16, margin: 0, background: '#fff', borderRadius: 8 }}>
             {data.items.map((item, i) => (

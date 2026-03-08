@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { getCurrentWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { MealPlanDoc, DayAssignment, Recipe } from '../types'
@@ -65,61 +66,66 @@ export default function MealPlan() {
     }
   }
 
-  if (loading) return <p>Loading…</p>
-  if (error) return <p style={{ color: 'crimson' }}>{error}</p>
-
   return (
     <div>
       <h1>This week&apos;s dinners</h1>
       <p>
-        <label>
+        <label className="flex items-center gap-2">
           Week{' '}
-          <input
+          <Input
             type="text"
             value={weekId}
             onChange={(e) => setWeekId(e.target.value)}
             placeholder="e.g. 2025-W10"
-            style={{ padding: 8 }}
+            className="w-auto min-w-[8rem]"
           />
         </label>
       </p>
-      <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8 }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid #eee' }}>
-            <th style={{ textAlign: 'left', padding: 12 }}>Day</th>
-            <th style={{ textAlign: 'left', padding: 12 }}>Recipe</th>
-          </tr>
-        </thead>
-        <tbody>
-          {DAYS.map((day) => (
-            <tr key={day} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: 12, textTransform: 'capitalize' }}>{day}</td>
-              <td style={{ padding: 12 }}>
-                <select
-                  value={byDay[day]?.recipeId ?? ''}
-                  onChange={(e) => {
-                    const opt = e.target.selectedOptions[0]
-                    setAssignment(day, e.target.value || null, opt?.text ?? '')
-                  }}
-                  style={{ width: '100%', padding: 8 }}
-                >
-                  <option value="">—</option>
-                  {recipes.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.doc.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="mt-4">
-        <Button onClick={save} disabled={saving}>
-          {saving ? 'Saving…' : 'Save plan'}
-        </Button>
-      </p>
+      {loading ? (
+        <p>Loading…</p>
+      ) : error ? (
+        <p style={{ color: 'crimson' }}>{error}</p>
+      ) : (
+        <>
+          <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #eee' }}>
+                <th style={{ textAlign: 'left', padding: 12 }}>Day</th>
+                <th style={{ textAlign: 'left', padding: 12 }}>Recipe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {DAYS.map((day) => (
+                <tr key={day} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: 12, textTransform: 'capitalize' }}>{day}</td>
+                  <td style={{ padding: 12 }}>
+                    <select
+                      value={byDay[day]?.recipeId ?? ''}
+                      onChange={(e) => {
+                        const opt = e.target.selectedOptions[0]
+                        setAssignment(day, e.target.value || null, opt?.text ?? '')
+                      }}
+                      style={{ width: '100%', padding: 8 }}
+                    >
+                      <option value="">—</option>
+                      {recipes.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.doc.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-4">
+            <Button onClick={save} disabled={saving}>
+              {saving ? 'Saving…' : 'Save plan'}
+            </Button>
+          </p>
+        </>
+      )}
     </div>
   )
 }
