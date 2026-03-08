@@ -1,20 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { getCurrentWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { ShoppingListDoc } from '../types'
 
-function getCurrentWeekId(): string {
-  const now = new Date()
-  const start = new Date(now)
-  start.setDate(now.getDate() - now.getDay() + 1)
-  const oneJan = new Date(start.getFullYear(), 0, 1)
-  const week = Math.ceil(((start.getTime() - oneJan.getTime()) / 86400000 + oneJan.getDay() + 1) / 7)
-  return `${start.getFullYear()}-W${String(week).padStart(2, '0')}`
+function getInitialWeekId(): string {
+  return getCurrentWeekId()
 }
 
 export default function ShoppingList() {
-  const [weekId, setWeekId] = useState(getCurrentWeekId())
+  const [weekId, setWeekId] = useState(getInitialWeekId())
   const [data, setData] = useState<ShoppingListDoc | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

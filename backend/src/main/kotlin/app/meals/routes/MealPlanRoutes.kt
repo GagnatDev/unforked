@@ -7,8 +7,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import java.time.LocalDate
-import java.time.temporal.WeekFields
-import java.util.Locale
+import java.time.temporal.IsoFields
 
 fun Route.mealPlanRoutes() {
     route("/meal-plans") {
@@ -38,8 +37,7 @@ fun Route.mealPlanRoutes() {
 
 private fun currentWeekIdentifier(): String {
     val now = LocalDate.now()
-    val wf = WeekFields.of(Locale.getDefault())
-    val weekNumber = now.get(wf.weekOfWeekBasedYear())
-    val year = now.get(wf.weekBasedYear())
+    val weekNumber = now.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)
+    val year = now.get(IsoFields.WEEK_BASED_YEAR)
     return "%d-W%02d".format(year, weekNumber)
 }
