@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getCurrentWeekId } from '@/lib/utils'
@@ -11,6 +12,7 @@ function getInitialWeekId(): string {
 }
 
 export default function ShoppingList() {
+  const { t } = useTranslation()
   const [weekId, setWeekId] = useState(getInitialWeekId())
   const [data, setData] = useState<ShoppingListDoc | null>(null)
   const [loading, setLoading] = useState(true)
@@ -38,7 +40,7 @@ export default function ShoppingList() {
   const exportText = () => {
     if (!data) return
     const lines = [
-      `Shopping list – ${data.weekIdentifier}`,
+      t('shoppingList.exportTitle', { weekId: data.weekIdentifier }),
       '',
       ...data.items.map((i) => `- ${i.name} ${i.quantity} ${i.unit}`.trim()),
     ]
@@ -66,21 +68,21 @@ export default function ShoppingList() {
 
   return (
     <div>
-      <h1>Shopping list</h1>
+      <h1>{t('shoppingList.title')}</h1>
       <p className="mb-4">
         <label className="flex items-center gap-2">
-          Week{' '}
+          {t('shoppingList.week')}{' '}
           <Input
             type="text"
             value={weekId}
             onChange={(e) => setWeekId(e.target.value)}
-            placeholder="e.g. 2025-W10"
+            placeholder={t('shoppingList.weekPlaceholder')}
             className="w-auto min-w-[8rem]"
           />
         </label>
       </p>
       {loading ? (
-        <p>Loading…</p>
+        <p>{t('shoppingList.loading')}</p>
       ) : error ? (
         <p className="text-destructive">{error}</p>
       ) : data && data.items.length > 0 ? (
@@ -93,12 +95,14 @@ export default function ShoppingList() {
             ))}
           </ul>
           <p className="mt-4 flex gap-2">
-            <Button onClick={exportText} variant="secondary">Export as TXT</Button>
-            <Button onClick={exportCsv} variant="secondary">Export as CSV</Button>
+            <Button onClick={exportText} variant="secondary">{t('shoppingList.exportTxt')}</Button>
+            <Button onClick={exportCsv} variant="secondary">{t('shoppingList.exportCsv')}</Button>
           </p>
         </>
       ) : (
-        <p>No ingredients for this week. Assign recipes in <Link to="/meal-plan">This week</Link> first.</p>
+        <p>
+          <Trans i18nKey="shoppingList.noIngredients" components={{ 1: <Link to="/meal-plan" /> }} />
+        </p>
       )}
     </div>
   )

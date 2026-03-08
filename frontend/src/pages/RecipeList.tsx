@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '../api'
 import type { Recipe } from '../types'
 
 export default function RecipeList() {
+  const { t } = useTranslation()
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +33,7 @@ export default function RecipeList() {
   }, [search])
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"?`)) return
+    if (!confirm(t('recipes.deleteConfirm', { name }))) return
     try {
       await api.recipes.delete(id)
       setRecipes((prev) => prev.filter((r) => r.id !== id))
@@ -44,18 +46,18 @@ export default function RecipeList() {
 
   return (
     <div>
-      <h1>Recipes</h1>
+      <h1>{t('recipes.title')}</h1>
       <p className="mb-4">
         <Input
           type="search"
-          placeholder="Search by name"
+          placeholder={t('recipes.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-64"
         />
       </p>
       {loading ? (
-        <p>Loading recipes…</p>
+        <p>{t('recipes.loading')}</p>
       ) : (
         <>
           <ul className="list-none p-0 space-y-2">
@@ -70,7 +72,7 @@ export default function RecipeList() {
                 </Link>
                 {r.doc.servings > 0 && (
                   <span className="ml-2 text-muted-foreground">
-                    Serves {r.doc.servings}
+                    {t('recipes.serves', { count: r.doc.servings })}
                   </span>
                 )}
                 {r.doc.tags.length > 0 && (
@@ -85,12 +87,16 @@ export default function RecipeList() {
                 size="sm"
                 onClick={() => handleDelete(r.id, r.doc.name)}
               >
-                Delete
+                {t('recipes.delete')}
               </Button>
             </li>
             ))}
           </ul>
-          {recipes.length === 0 && <p>No recipes yet. <Link to="/recipes/new">Add one</Link>.</p>}
+          {recipes.length === 0 && (
+            <p>
+              <Trans i18nKey="recipes.noRecipes" components={{ 1: <Link to="/recipes/new" /> }} />
+            </p>
+          )}
         </>
       )}
     </div>

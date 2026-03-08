@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '../api'
@@ -17,6 +18,7 @@ const emptyDoc: RecipeDoc = {
 export default function RecipeForm() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [doc, setDoc] = useState<RecipeDoc>(emptyDoc)
   const [loading, setLoading] = useState(!!id)
   const [saving, setSaving] = useState(false)
@@ -95,16 +97,16 @@ export default function RecipeForm() {
     }
   }
 
-  if (loading) return <p>Loading…</p>
+  if (loading) return <p>{t('recipeForm.loading')}</p>
 
   return (
     <div>
-      <h1>{id ? 'Edit recipe' : 'New recipe'}</h1>
+      <h1>{id ? t('recipeForm.editRecipe') : t('recipeForm.newRecipe')}</h1>
       {error && <p className="text-destructive">{error}</p>}
       <form onSubmit={handleSubmit}>
         <p className="mb-4">
           <label className="mb-2 block font-medium">
-            Name <Input
+            {t('recipeForm.name')} <Input
               required
               value={doc.name}
               onChange={(e) => update({ name: e.target.value })}
@@ -114,7 +116,7 @@ export default function RecipeForm() {
         </p>
         <p className="mb-4">
           <label className="mb-2 block font-medium">
-            Description <textarea
+            {t('recipeForm.description')} <textarea
               value={doc.description}
               onChange={(e) => update({ description: e.target.value })}
               rows={2}
@@ -124,7 +126,7 @@ export default function RecipeForm() {
         </p>
         <p className="mb-4">
           <label className="mb-2 block font-medium">
-            Servings <Input
+            {t('recipeForm.servings')} <Input
               type="number"
               min={1}
               value={doc.servings}
@@ -135,12 +137,12 @@ export default function RecipeForm() {
         </p>
         <p className="mb-4">
           <label className="mb-2 block font-medium">
-            Tags (comma-separated){' '}
+            {t('recipeForm.tagsLabel')}{' '}
             <Input
               value={doc.tags.join(', ')}
               onChange={(e) =>
                 update({
-                  tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean),
+                  tags: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
                 })
               }
               className="mt-1 w-full"
@@ -148,37 +150,37 @@ export default function RecipeForm() {
           </label>
         </p>
 
-        <h3>Ingredients</h3>
+        <h3>{t('recipeForm.ingredients')}</h3>
         {doc.ingredients.map((ing, i) => (
           <div key={i} className="mb-2 flex flex-wrap gap-2">
             <Input
-              placeholder="Name"
+              placeholder={t('recipeForm.placeholderName')}
               value={ing.name}
               onChange={(e) => updateIngredient(i, { name: e.target.value })}
               className="min-w-32 flex-1"
             />
             <Input
-              placeholder="Qty"
+              placeholder={t('recipeForm.placeholderQty')}
               value={ing.quantity}
               onChange={(e) => updateIngredient(i, { quantity: e.target.value })}
               className="w-20"
             />
             <Input
-              placeholder="Unit"
+              placeholder={t('recipeForm.placeholderUnit')}
               value={ing.unit}
               onChange={(e) => updateIngredient(i, { unit: e.target.value })}
               className="w-20"
             />
             <Button type="button" variant="outline" size="sm" onClick={() => removeIngredient(i)}>
-              Remove
+              {t('recipeForm.remove')}
             </Button>
           </div>
         ))}
         <Button type="button" variant="secondary" size="sm" onClick={addIngredient}>
-          Add ingredient
+          {t('recipeForm.addIngredient')}
         </Button>
 
-        <h3>Steps</h3>
+        <h3>{t('recipeForm.steps')}</h3>
         {doc.steps.map((step, i) => (
           <div key={i} className="mb-2">
             <textarea
@@ -188,17 +190,17 @@ export default function RecipeForm() {
               className="w-full rounded-md border-2 border-input bg-background px-3 py-2 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2"
             />
             <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => removeStep(i)}>
-              Remove
+              {t('recipeForm.remove')}
             </Button>
           </div>
         ))}
         <Button type="button" variant="secondary" size="sm" onClick={addStep}>
-          Add step
+          {t('recipeForm.addStep')}
         </Button>
 
         <p className="mt-6">
           <Button type="submit" disabled={saving}>
-            {saving ? 'Saving…' : id ? 'Update' : 'Create'}
+            {saving ? t('recipeForm.saving') : id ? t('recipeForm.update') : t('recipeForm.create')}
           </Button>
         </p>
       </form>

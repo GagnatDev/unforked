@@ -1,0 +1,80 @@
+{
+  "nav": {
+    "recipes": "Recipes",
+    "newRecipe": "New recipe",
+    "thisWeek": "This week",
+    "shoppingList": "Shopping list"
+  },
+  "recipes": {
+    "title": "Recipes",
+    "searchPlaceholder": "Search by name",
+    "loading": "Loading recipes…",
+    "delete": "Delete",
+    "deleteConfirm": "Delete \"{{name}}\"?",
+    "serves": "Serves {{count}}",
+    "noRecipes": "No recipes yet. <1>Add one</1>.",
+    "addOne": "Add one"
+  },
+  "recipeForm": {
+    "editRecipe": "Edit recipe",
+    "newRecipe": "New recipe",
+    "name": "Name",
+    "description": "Description",
+    "servings": "Servings",
+    "tagsLabel": "Tags (comma-separated)",
+    "ingredients": "Ingredients",
+    "steps": "Steps",
+    "placeholderName": "Name",
+    "placeholderQty": "Qty",
+    "placeholderUnit": "Unit",
+    "remove": "Remove",
+    "addIngredient": "Add ingredient",
+    "addStep": "Add step",
+    "saving": "Saving…",
+    "update": "Update",
+    "create": "Create",
+    "loading": "Loading…"
+  },
+  "mealPlan": {
+    "title": "This week's dinners",
+    "week": "Week",
+    "weekPlaceholder": "e.g. 2025-W10",
+    "loading": "Loading…",
+    "day": "Day",
+    "recipe": "Recipe",
+    "saving": "Saving…",
+    "savePlan": "Save plan",
+    "noRecipe": "—",
+    "days": {
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday",
+      "sunday": "Sunday"
+    }
+  },
+  "shoppingList": {
+    "title": "Shopping list",
+    "week": "Week",
+    "weekPlaceholder": "e.g. 2025-W10",
+    "loading": "Loading…",
+    "exportTitle": "Shopping list – {{weekId}}",
+    "exportTxt": "Export as TXT",
+    "exportCsv": "Export as CSV",
+    "noIngredients": "No ingredients for this week. Assign recipes in <1>This week</1> first.",
+    "thisWeekLink": "This week"
+  },
+  "common": {
+    "loading": "Loading…"
+  },
+  "theme": {
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode"
+  },
+  "language": {
+    "en": "English",
+    "nb": "Norsk"
+  }
+}

@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getCurrentWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { MealPlanDoc, DayAssignment, Recipe } from '../types'
 
-const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
 
 function getInitialWeekId(): string {
   return getCurrentWeekId()
 }
 
 export default function MealPlan() {
+  const { t } = useTranslation()
   const [weekId, setWeekId] = useState(getInitialWeekId())
   const [plan, setPlan] = useState<MealPlanDoc | null>(null)
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -68,21 +70,21 @@ export default function MealPlan() {
 
   return (
     <div>
-      <h1>This week&apos;s dinners</h1>
+      <h1>{t('mealPlan.title')}</h1>
       <p className="mb-4">
         <label className="flex items-center gap-2">
-          Week{' '}
+          {t('mealPlan.week')}{' '}
           <Input
             type="text"
             value={weekId}
             onChange={(e) => setWeekId(e.target.value)}
-            placeholder="e.g. 2025-W10"
+            placeholder={t('mealPlan.weekPlaceholder')}
             className="w-auto min-w-[8rem]"
           />
         </label>
       </p>
       {loading ? (
-        <p>Loading…</p>
+        <p>{t('mealPlan.loading')}</p>
       ) : error ? (
         <p className="text-destructive">{error}</p>
       ) : (
@@ -91,14 +93,14 @@ export default function MealPlan() {
             <table className="w-full border-collapse text-foreground">
               <thead>
                 <tr className="border-b-2 border-border">
-                  <th className="text-left p-3">Day</th>
-                  <th className="text-left p-3">Recipe</th>
+                  <th className="text-left p-3">{t('mealPlan.day')}</th>
+                  <th className="text-left p-3">{t('mealPlan.recipe')}</th>
                 </tr>
               </thead>
               <tbody>
                 {DAYS.map((day) => (
                   <tr key={day} className="border-b border-border">
-                    <td className="p-3 capitalize">{day}</td>
+                    <td className="p-3">{t(`mealPlan.days.${day}`)}</td>
                     <td className="p-3">
                       <select
                         value={byDay[day]?.recipeId ?? ''}
@@ -108,7 +110,7 @@ export default function MealPlan() {
                         }}
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-foreground"
                       >
-                      <option value="">—</option>
+                      <option value="">{t('mealPlan.noRecipe')}</option>
                       {recipes.map((r) => (
                         <option key={r.id} value={r.id}>
                           {r.doc.name}
@@ -123,7 +125,7 @@ export default function MealPlan() {
           </div>
           <p className="mt-4">
             <Button onClick={save} disabled={saving}>
-              {saving ? 'Saving…' : 'Save plan'}
+              {saving ? t('mealPlan.saving') : t('mealPlan.savePlan')}
             </Button>
           </p>
         </>

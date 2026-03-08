@@ -1,0 +1,80 @@
+{
+  "nav": {
+    "recipes": "Oppskrifter",
+    "newRecipe": "Ny oppskrift",
+    "thisWeek": "Denne uken",
+    "shoppingList": "Handleliste"
+  },
+  "recipes": {
+    "title": "Oppskrifter",
+    "searchPlaceholder": "Søk på navn",
+    "loading": "Laster oppskrifter…",
+    "delete": "Slett",
+    "deleteConfirm": "Slette \"{{name}}\"?",
+    "serves": "Porsjoner: {{count}}",
+    "noRecipes": "Ingen oppskrifter ennå. <1>Legg til en</1>.",
+    "addOne": "Legg til en"
+  },
+  "recipeForm": {
+    "editRecipe": "Rediger oppskrift",
+    "newRecipe": "Ny oppskrift",
+    "name": "Navn",
+    "description": "Beskrivelse",
+    "servings": "Porsjoner",
+    "tagsLabel": "Nøkkelord (kommaseparert)",
+    "ingredients": "Ingredienser",
+    "steps": "Trinn",
+    "placeholderName": "Navn",
+    "placeholderQty": "Ant.",
+    "placeholderUnit": "Enhet",
+    "remove": "Fjern",
+    "addIngredient": "Legg til ingrediens",
+    "addStep": "Legg til trinn",
+    "saving": "Lagrer…",
+    "update": "Oppdater",
+    "create": "Opprett",
+    "loading": "Laster…"
+  },
+  "mealPlan": {
+    "title": "Middager denne uken",
+    "week": "Uke",
+    "weekPlaceholder": "f.eks. 2025-W10",
+    "loading": "Laster…",
+    "day": "Dag",
+    "recipe": "Oppskrift",
+    "saving": "Lagrer…",
+    "savePlan": "Lagre plan",
+    "noRecipe": "—",
+    "days": {
+      "monday": "Mandag",
+      "tuesday": "Tirsdag",
+      "wednesday": "Onsdag",
+      "thursday": "Torsdag",
+      "friday": "Fredag",
+      "saturday": "Lørdag",
+      "sunday": "Søndag"
+    }
+  },
+  "shoppingList": {
+    "title": "Handleliste",
+    "week": "Uke",
+    "weekPlaceholder": "f.eks. 2025-W10",
+    "loading": "Laster…",
+    "exportTitle": "Handleliste – {{weekId}}",
+    "exportTxt": "Eksporter som TXT",
+    "exportCsv": "Eksporter som CSV",
+    "noIngredients": "Ingen ingredienser denne uken. Legg til oppskrifter under <1>Denne uken</1> først.",
+    "thisWeekLink": "Denne uken"
+  },
+  "common": {
+    "loading": "Laster…"
+  },
+  "theme": {
+    "switchToLight": "Bytt til lys modus",
+    "switchToDark": "Bytt til mørk modus"
+  },
+  "language": {
+    "en": "English",
+    "nb": "Norsk"
+  }
+}

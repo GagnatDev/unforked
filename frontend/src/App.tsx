@@ -1,5 +1,7 @@
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { buttonVariants } from '@/components/ui/button'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
 import RecipeList from './pages/RecipeList'
@@ -8,23 +10,26 @@ import MealPlan from './pages/MealPlan'
 import ShoppingList from './pages/ShoppingList'
 
 function App() {
+  const { t } = useTranslation()
+
   return (
     <BrowserRouter>
       <div className="max-w-[900px] mx-auto p-6">
         <nav className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
           <Link to="/" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-            Recipes
+            {t('nav.recipes')}
           </Link>
           <Link to="/recipes/new" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-            New recipe
+            {t('nav.newRecipe')}
           </Link>
           <Link to="/meal-plan" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-            This week
+            {t('nav.thisWeek')}
           </Link>
           <Link to="/shopping-list" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-            Shopping list
+            {t('nav.shoppingList')}
           </Link>
-          <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-2">
+            <LanguageSwitcher />
             <ThemeToggle />
           </span>
         </nav>
