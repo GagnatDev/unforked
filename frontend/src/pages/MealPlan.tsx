@@ -87,26 +87,27 @@ export default function MealPlan() {
         <p style={{ color: 'crimson' }}>{error}</p>
       ) : (
         <>
-          <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8 }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #eee' }}>
-                <th style={{ textAlign: 'left', padding: 12 }}>Day</th>
-                <th style={{ textAlign: 'left', padding: 12 }}>Recipe</th>
-              </tr>
-            </thead>
-            <tbody>
-              {DAYS.map((day) => (
-                <tr key={day} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: 12, textTransform: 'capitalize' }}>{day}</td>
-                  <td style={{ padding: 12 }}>
-                    <select
-                      value={byDay[day]?.recipeId ?? ''}
-                      onChange={(e) => {
-                        const opt = e.target.selectedOptions[0]
-                        setAssignment(day, e.target.value || null, opt?.text ?? '')
-                      }}
-                      style={{ width: '100%', padding: 8 }}
-                    >
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
+            <table className="w-full border-collapse text-foreground">
+              <thead>
+                <tr className="border-b-2 border-border">
+                  <th className="text-left p-3">Day</th>
+                  <th className="text-left p-3">Recipe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {DAYS.map((day) => (
+                  <tr key={day} className="border-b border-border">
+                    <td className="p-3 capitalize">{day}</td>
+                    <td className="p-3">
+                      <select
+                        value={byDay[day]?.recipeId ?? ''}
+                        onChange={(e) => {
+                          const opt = e.target.selectedOptions[0]
+                          setAssignment(day, e.target.value || null, opt?.text ?? '')
+                        }}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-foreground"
+                      >
                       <option value="">—</option>
                       {recipes.map((r) => (
                         <option key={r.id} value={r.id}>
@@ -118,7 +119,8 @@ export default function MealPlan() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
           <p className="mt-4">
             <Button onClick={save} disabled={saving}>
               {saving ? 'Saving…' : 'Save plan'}

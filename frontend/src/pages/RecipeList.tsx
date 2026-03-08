@@ -55,31 +55,23 @@ export default function RecipeList() {
           className="w-64"
         />
       </p>
-      <ul style={{ listStyle: 'none', padding: 0 }}>
+      <ul className="list-none p-0 space-y-2">
         {recipes.map((r) => (
           <li
             key={r.id}
-            style={{
-              padding: 12,
-              marginBottom: 8,
-              background: '#fff',
-              borderRadius: 8,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
+            className="flex justify-between items-center gap-2 rounded-lg bg-card border border-border px-3 py-3 text-card-foreground"
           >
             <div>
-              <Link to={`/recipes/${r.id}/edit`} style={{ fontWeight: 600 }}>
+              <Link to={`/recipes/${r.id}/edit`} className="font-semibold">
                 {r.doc.name}
               </Link>
               {r.doc.servings > 0 && (
-                <span style={{ color: '#666', marginLeft: 8 }}>
+                <span className="ml-2 text-muted-foreground">
                   Serves {r.doc.servings}
                 </span>
               )}
               {r.doc.tags.length > 0 && (
-                <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>
+                <span className="ml-2 text-xs text-muted-foreground">
                   {r.doc.tags.join(', ')}
                 </span>
               )}

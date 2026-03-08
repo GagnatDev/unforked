@@ -1,5 +1,6 @@
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import { buttonVariants } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
 import RecipeList from './pages/RecipeList'
 import RecipeForm from './pages/RecipeForm'
@@ -10,7 +11,7 @@ function App() {
   return (
     <BrowserRouter>
       <div className="max-w-[900px] mx-auto p-6">
-        <nav className="mb-6 flex flex-wrap gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
+        <nav className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
           <Link to="/" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
             Recipes
           </Link>
@@ -23,6 +24,9 @@ function App() {
           <Link to="/shopping-list" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
             Shopping list
           </Link>
+          <span className="ml-auto">
+            <ThemeToggle />
+          </span>
         </nav>
         <Routes>
           <Route path="/" element={<RecipeList />} />

@@ -85,9 +85,9 @@ export default function ShoppingList() {
         <p style={{ color: 'crimson' }}>{error}</p>
       ) : data && data.items.length > 0 ? (
         <>
-          <ul style={{ listStyle: 'none', padding: 16, margin: 0, background: '#fff', borderRadius: 8 }}>
+          <ul className="list-none p-4 m-0 rounded-lg border border-border bg-card text-card-foreground">
             {data.items.map((item, i) => (
-              <li key={i} style={{ padding: '8px 0', borderBottom: '1px solid #eee' }}>
+              <li key={i} className="py-2 border-b border-border last:border-b-0">
                 <strong>{item.name}</strong> {item.quantity} {item.unit}
               </li>
             ))}

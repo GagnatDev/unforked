@@ -15,6 +15,12 @@ a {
 a:hover {
   text-decoration: underline;
 }
+.dark a {
+  color: oklch(0.7 0.2 264);
+}
+.dark a:hover {
+  color: oklch(0.8 0.18 264);
+}
 
 @layer base {
   * {
