@@ -41,7 +41,6 @@ export default function RecipeList() {
   }
 
   if (error) return <p className="text-destructive">{error}</p>
-  if (loading) return <p>Loading recipes…</p>
 
   return (
     <div>
@@ -55,39 +54,45 @@ export default function RecipeList() {
           className="w-64"
         />
       </p>
-      <ul className="list-none p-0 space-y-2">
-        {recipes.map((r) => (
-          <li
-            key={r.id}
-            className="flex justify-between items-center gap-2 rounded-lg bg-card border border-border px-3 py-3 text-card-foreground"
-          >
-            <div>
-              <Link to={`/recipes/${r.id}/edit`} className="font-semibold">
-                {r.doc.name}
-              </Link>
-              {r.doc.servings > 0 && (
-                <span className="ml-2 text-muted-foreground">
-                  Serves {r.doc.servings}
-                </span>
-              )}
-              {r.doc.tags.length > 0 && (
-                <span className="ml-2 text-xs text-muted-foreground">
-                  {r.doc.tags.join(', ')}
-                </span>
-              )}
-            </div>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => handleDelete(r.id, r.doc.name)}
+      {loading ? (
+        <p>Loading recipes…</p>
+      ) : (
+        <>
+          <ul className="list-none p-0 space-y-2">
+            {recipes.map((r) => (
+              <li
+              key={r.id}
+              className="flex justify-between items-center gap-2 rounded-lg bg-card border border-border px-3 py-3 text-card-foreground"
             >
-              Delete
-            </Button>
-          </li>
-        ))}
-      </ul>
-      {recipes.length === 0 && <p>No recipes yet. <Link to="/recipes/new">Add one</Link>.</p>}
+              <div>
+                <Link to={`/recipes/${r.id}/edit`} className="font-semibold">
+                  {r.doc.name}
+                </Link>
+                {r.doc.servings > 0 && (
+                  <span className="ml-2 text-muted-foreground">
+                    Serves {r.doc.servings}
+                  </span>
+                )}
+                {r.doc.tags.length > 0 && (
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    {r.doc.tags.join(', ')}
+                  </span>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => handleDelete(r.id, r.doc.name)}
+              >
+                Delete
+              </Button>
+            </li>
+            ))}
+          </ul>
+          {recipes.length === 0 && <p>No recipes yet. <Link to="/recipes/new">Add one</Link>.</p>}
+        </>
+      )}
     </div>
   )
 }
