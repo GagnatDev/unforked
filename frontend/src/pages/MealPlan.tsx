@@ -69,7 +69,7 @@ export default function MealPlan() {
   return (
     <div>
       <h1>This week&apos;s dinners</h1>
-      <p>
+      <p className="mb-4">
         <label className="flex items-center gap-2">
           Week{' '}
           <Input

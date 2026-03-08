@@ -67,7 +67,7 @@ export default function ShoppingList() {
   return (
     <div>
       <h1>Shopping list</h1>
-      <p>
+      <p className="mb-4">
         <label className="flex items-center gap-2">
           Week{' '}
           <Input
