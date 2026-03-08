@@ -40,7 +40,7 @@ export default function RecipeList() {
     }
   }
 
-  if (error) return <p style={{ color: 'crimson' }}>{error}</p>
+  if (error) return <p className="text-destructive">{error}</p>
   if (loading) return <p>Loading recipes…</p>
 
   return (

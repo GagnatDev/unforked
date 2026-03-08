@@ -19,6 +19,8 @@ export default {
         accent: { DEFAULT: 'var(--accent)', foreground: 'var(--accent-foreground)' },
         popover: { DEFAULT: 'var(--popover)', foreground: 'var(--popover-foreground)' },
         card: { DEFAULT: 'var(--card)', foreground: 'var(--card-foreground)' },
+        link: 'var(--link)',
+        'link-hover': 'var(--link-hover)',
       },
       borderRadius: {
         lg: 'var(--radius)',

@@ -8,19 +8,6 @@
 #root {
   min-height: 100vh;
 }
-a {
-  color: oklch(0.488 0.243 264.376);
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-}
-.dark a {
-  color: oklch(0.7 0.2 264);
-}
-.dark a:hover {
-  color: oklch(0.8 0.18 264);
-}
 
 @layer base {
   * {
@@ -51,6 +38,8 @@ a:hover {
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
     --radius: 0.625rem;
+    --link: var(--chart-4);
+    --link-hover: var(--chart-3);
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
@@ -91,7 +80,9 @@ a:hover {
     --sidebar-accent: oklch(0.269 0 0);
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+    --link: oklch(0.7 0.2 264);
+    --link-hover: oklch(0.8 0.18 264);
   }
   .theme {
     --font-sans: 'Geist Variable', sans-serif;
@@ -108,6 +99,14 @@ a:hover {
   }
   html {
     @apply font-sans;
+  }
+  a {
+    color: var(--link);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--link-hover);
+    text-decoration: underline;
   }
   /* Ensure our button utilities override preflight's transparent background */
   button.bg-primary,

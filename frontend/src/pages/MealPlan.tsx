@@ -84,7 +84,7 @@ export default function MealPlan() {
       {loading ? (
         <p>Loading…</p>
       ) : error ? (
-        <p style={{ color: 'crimson' }}>{error}</p>
+        <p className="text-destructive">{error}</p>
       ) : (
         <>
           <div className="overflow-hidden rounded-lg border border-border bg-card">

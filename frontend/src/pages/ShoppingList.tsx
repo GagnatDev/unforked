@@ -82,7 +82,7 @@ export default function ShoppingList() {
       {loading ? (
         <p>Loading…</p>
       ) : error ? (
-        <p style={{ color: 'crimson' }}>{error}</p>
+        <p className="text-destructive">{error}</p>
       ) : data && data.items.length > 0 ? (
         <>
           <ul className="list-none p-4 m-0 rounded-lg border border-border bg-card text-card-foreground">

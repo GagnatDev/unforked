@@ -100,7 +100,7 @@ export default function RecipeForm() {
   return (
     <div>
       <h1>{id ? 'Edit recipe' : 'New recipe'}</h1>
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="text-destructive">{error}</p>}
       <form onSubmit={handleSubmit}>
         <p className="mb-4">
           <label className="mb-2 block font-medium">
