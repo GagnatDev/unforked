@@ -3,7 +3,25 @@
     "recipes": "Recipes",
     "newRecipe": "New recipe",
     "thisWeek": "This week",
-    "shoppingList": "Shopping list"
+    "shoppingList": "Shopping list",
+    "users": "Users"
+  },
+  "auth": {
+    "loginTitle": "Log in",
+    "setupTitle": "Create admin account",
+    "email": "Email",
+    "password": "Password",
+    "logIn": "Log in",
+    "logOut": "Log out",
+    "createAccount": "Create account",
+    "firstTimeCreateAdmin": "First time? Create admin account",
+    "backToLogin": "Back to log in",
+    "addUser": "Add user",
+    "role": "Role",
+    "roleUser": "User",
+    "roleAdmin": "Admin",
+    "userCreated": "User created.",
+    "adminOnly": "Admin only."
   },
   "recipes": {
     "title": "Recipes",

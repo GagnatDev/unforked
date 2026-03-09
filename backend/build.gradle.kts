@@ -24,6 +24,10 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json-jvm:2.3.9")
     implementation("io.ktor:ktor-server-cors-jvm:2.3.9")
     implementation("io.ktor:ktor-server-status-pages-jvm:2.3.9")
+    implementation("io.ktor:ktor-server-auth-jvm:2.3.9")
+    implementation("io.ktor:ktor-server-auth-jwt-jvm:2.3.9")
+    implementation("at.favre.lib:bcrypt:0.10.2")
+    implementation("com.auth0:java-jwt:4.4.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.postgresql:postgresql:42.7.3")
     implementation("org.flywaydb:flyway-core:10.14.0")
@@ -41,6 +45,10 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    environment("JWT_SECRET", "test-secret")
+    environment("JWT_ISSUER", "test-issuer")
+    environment("JWT_AUDIENCE", "test-audience")
+    environment("DISABLE_AUTH", "true")
 }
 
 kotlin {

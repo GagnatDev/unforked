@@ -1,11 +1,19 @@
+import { getAuthDisabled, getToken, triggerUnauthorized } from '@/lib/authStore'
+
 const base = import.meta.env.VITE_API_URL ?? ''
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${base}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  })
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string>),
+  }
+  if (!getAuthDisabled()) {
+    const token = getToken()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+  }
+  const res = await fetch(`${base}${path}`, { ...options, headers })
   if (!res.ok) {
+    if (res.status === 401 && !getAuthDisabled()) triggerUnauthorized()
     const text = await res.text()
     throw new Error(text || `HTTP ${res.status}`)
   }
@@ -54,4 +62,11 @@ export const api = {
     request<import('./types').ShoppingListDoc>(
       `/api/shopping-lists${week ? `?week=${encodeURIComponent(week)}` : ''}`
     ),
+  users: {
+    create: (body: { email: string; password: string; role: string }) =>
+      request<{ id: string; email: string; role: string }>('/api/users', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
 }

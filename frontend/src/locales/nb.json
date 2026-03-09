@@ -3,7 +3,25 @@
     "recipes": "Oppskrifter",
     "newRecipe": "Ny oppskrift",
     "thisWeek": "Denne uken",
-    "shoppingList": "Handleliste"
+    "shoppingList": "Handleliste",
+    "users": "Brukere"
+  },
+  "auth": {
+    "loginTitle": "Logg inn",
+    "setupTitle": "Opprett admin-konto",
+    "email": "E-post",
+    "password": "Passord",
+    "logIn": "Logg inn",
+    "logOut": "Logg ut",
+    "createAccount": "Opprett konto",
+    "firstTimeCreateAdmin": "Første gang? Opprett admin-konto",
+    "backToLogin": "Tilbake til innlogging",
+    "addUser": "Legg til bruker",
+    "role": "Rolle",
+    "roleUser": "Bruker",
+    "roleAdmin": "Admin",
+    "userCreated": "Bruker opprettet.",
+    "adminOnly": "Kun for administratorer."
   },
   "recipes": {
     "title": "Oppskrifter",
