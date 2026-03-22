@@ -20,8 +20,8 @@ fun Application.module() {
     configureStatusPages()
     configureAuthentication()
     configureDatabase()
-    val seedEnv = (System.getenv("SEED_TEST_DATA") ?: System.getProperty("SEED_TEST_DATA"))?.lowercase() == "true"
-    if (seedEnv) {
+    val seedTestData = environment.config.property("seed.testData").getString().lowercase() == "true"
+    if (seedTestData) {
         seedTestRecipesIfEmpty()
     }
     configureRouting()
