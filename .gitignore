@@ -66,6 +66,7 @@ Thumbs.db
 coverage/
 .nyc_output/
 *.lcov
+frontend/test-results/
 
 # Optional: uncomment if you don't commit lockfiles
 # package-lock.json

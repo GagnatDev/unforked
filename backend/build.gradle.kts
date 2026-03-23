@@ -51,6 +51,13 @@ tasks.test {
     environment("DISABLE_AUTH", "true")
 }
 
+tasks.register<JavaExec>("runE2eBackend") {
+    group = "verification"
+    description = "Run backend against Testcontainers PostgreSQL for Playwright e2e"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("app.meals.E2eBackendMainKt")
+}
+
 kotlin {
     jvmToolchain(21)
 }

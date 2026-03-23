@@ -16,13 +16,18 @@ import io.ktor.server.testing.testApplication
  */
 fun testWithApp(block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
     environment {
+        val baseConfig = if (System.getProperty("APP_PROFILE") == "test") {
+            ConfigFactory.parseResources("application-test.conf").withFallback(ConfigFactory.load())
+        } else {
+            ConfigFactory.load()
+        }
         val overrides = MapApplicationConfig().apply {
             put("ktor.application.modules", emptyList<String>())
             System.getProperty("DB_URL")?.let { put("storage.db.url", it) }
             System.getProperty("DB_USER")?.let { put("storage.db.user", it) }
             System.getProperty("DB_PASSWORD")?.let { put("storage.db.password", it) }
         }
-        config = HoconApplicationConfig(ConfigFactory.load()).mergeWith(overrides)
+        config = HoconApplicationConfig(baseConfig).mergeWith(overrides)
     }
     application { module() }
     block()

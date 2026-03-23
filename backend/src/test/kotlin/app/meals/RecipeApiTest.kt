@@ -12,40 +12,31 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.testcontainers.containers.PostgreSQLContainer
-import org.testcontainers.utility.DockerImageName
 
 class RecipeApiTest {
 
     companion object {
-        private val postgres = PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
-            .apply {
-                withDatabaseName("meals")
-                withUsername("meals")
-                withPassword("meals")
-            }
-
         @JvmStatic
         @BeforeAll
         fun startContainer() {
-            postgres.start()
-            System.setProperty("DB_URL", postgres.jdbcUrl)
-            System.setProperty("DB_USER", postgres.username)
-            System.setProperty("DB_PASSWORD", postgres.password)
+            TestDatabase.startIfNeeded()
         }
 
         @JvmStatic
         @AfterAll
         fun stopContainer() {
-            System.clearProperty("DB_URL")
-            System.clearProperty("DB_USER")
-            System.clearProperty("DB_PASSWORD")
-            postgres.stop()
+            TestDatabase.stopIfStarted()
         }
     }
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    @BeforeEach
+    fun resetDatabase() {
+        TestDatabase.resetSchema()
+    }
 
     @Test
     fun `GET recipes returns ok and JSON array`() = testWithApp {
