@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test'
 
 test('creates a recipe through the frontend form and persists via real backend', async ({ page }) => {
+  let pageError: Error | undefined
+  page.on('pageerror', (e) => {
+    pageError = e
+  })
+
   const recipeName = `Playwright Recipe ${Date.now()}`
   await page.goto('/recipes/new')
   await page.locator('form input').first().fill(recipeName)
@@ -17,4 +22,6 @@ test('creates a recipe through the frontend form and persists via real backend',
   expect(payload.doc?.name).toBe(recipeName)
 
   await expect(page).toHaveURL(new RegExp(`/recipes/${payload.id}/edit$`))
+  await expect(page.locator('form')).toBeVisible()
+  expect(pageError).toBeUndefined()
 })

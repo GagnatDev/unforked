@@ -7,6 +7,7 @@ import io.ktor.http.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.AfterAll
@@ -68,6 +69,27 @@ class RecipeApiTest {
         val getResponse = client.get("/api/recipes/$id")
         assertEquals(HttpStatusCode.OK, getResponse.status)
         assertTrue(getResponse.bodyAsText().contains("Test Soup"))
+    }
+
+    @Test
+    fun `POST recipe without tags returns tags as empty array`() = testWithApp {
+        val recipe = RecipeDoc(
+            name = "No Tag Recipe",
+            description = "No tags provided",
+            ingredients = emptyList(),
+            steps = emptyList(),
+            servings = 2,
+        )
+        val createResponse = client.post("/api/recipes") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(recipe))
+        }
+        assertEquals(HttpStatusCode.Created, createResponse.status)
+
+        val created = json.parseToJsonElement(createResponse.bodyAsText()).jsonObject
+        val doc = created["doc"]!!.jsonObject
+        assertTrue(doc.containsKey("tags"), "Response doc must include tags field")
+        assertEquals(0, doc["tags"]!!.jsonArray.size, "tags must be an empty array when omitted by user")
     }
 
     @Test

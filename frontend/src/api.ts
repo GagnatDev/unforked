@@ -2,6 +2,21 @@ import { getAuthDisabled, getToken, triggerUnauthorized } from '@/lib/authStore'
 
 const base = import.meta.env.VITE_API_URL ?? ''
 
+function normalizeRecipeDoc(doc: import('./types').RecipeDoc): import('./types').RecipeDoc
+function normalizeRecipeDoc(doc: Partial<import('./types').RecipeDoc>): import('./types').RecipeDoc
+function normalizeRecipeDoc(
+  doc: Partial<import('./types').RecipeDoc>
+): import('./types').RecipeDoc {
+  return {
+    name: doc.name ?? '',
+    description: doc.description ?? '',
+    ingredients: doc.ingredients ?? [],
+    steps: doc.steps ?? [],
+    servings: doc.servings ?? 4,
+    tags: doc.tags ?? [],
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -28,22 +43,24 @@ export const api = {
       if (params?.name) q.set('name', params.name)
       if (params?.tag) q.set('tag', params.tag)
       const query = q.toString()
-      return request<{ id: string; doc: import('./types').RecipeDoc }[]>(
+      return request<{ id: string; doc: Partial<import('./types').RecipeDoc> }[]>(
         `/api/recipes${query ? `?${query}` : ''}`
-      )
+      ).then((list) => list.map((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })))
     },
     get: (id: string) =>
-      request<{ id: string; doc: import('./types').RecipeDoc }>(`/api/recipes/${id}`),
+      request<{ id: string; doc: Partial<import('./types').RecipeDoc> }>(`/api/recipes/${id}`).then(
+        (r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })
+      ),
     create: (doc: import('./types').RecipeDoc) =>
-      request<{ id: string; doc: import('./types').RecipeDoc }>('/api/recipes', {
+      request<{ id: string; doc: Partial<import('./types').RecipeDoc> }>('/api/recipes', {
         method: 'POST',
         body: JSON.stringify(doc),
-      }),
+      }).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
     update: (id: string, doc: import('./types').RecipeDoc) =>
-      request<{ id: string; doc: import('./types').RecipeDoc }>(`/api/recipes/${id}`, {
+      request<{ id: string; doc: Partial<import('./types').RecipeDoc> }>(`/api/recipes/${id}`, {
         method: 'PUT',
         body: JSON.stringify(doc),
-      }),
+      }).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
     delete: (id: string) =>
       request<void>(`/api/recipes/${id}`, { method: 'DELETE' }),
   },

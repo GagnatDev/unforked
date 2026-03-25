@@ -15,7 +15,8 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: '../backend/gradlew runE2eBackend',
+      cwd: '../backend',
+      command: './gradlew runE2eBackend',
       url: `http://${backendHost}:${backendPort}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 180 * 1000,

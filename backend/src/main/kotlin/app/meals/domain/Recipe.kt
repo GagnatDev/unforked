@@ -1,5 +1,7 @@
 package app.meals.domain
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -13,11 +15,13 @@ data class Ingredient(
 )
 
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 data class RecipeDoc(
     val name: String,
     val description: String = "",
     val ingredients: List<Ingredient> = emptyList(),
     val steps: List<String> = emptyList(),
     val servings: Int = 4,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val tags: List<String> = emptyList()
 )
