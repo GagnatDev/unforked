@@ -48,10 +48,12 @@ API: http://localhost:8080
 
 ### 3. Frontend
 
+Uses **pnpm** ([Corepack](https://nodejs.org/api/corepack.html): run `corepack enable` once if `pnpm` is not on your PATH).
+
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Vite proxies `/api` to the backend. App: http://localhost:3000
@@ -60,8 +62,8 @@ Vite proxies `/api` to the backend. App: http://localhost:3000
 
 ```bash
 cd frontend
-npm run build
-BACKEND_URL=http://localhost:8080 npm run start
+pnpm run build
+BACKEND_URL=http://localhost:8080 pnpm run start
 ```
 
 ## Backend tests
@@ -76,7 +78,7 @@ cd backend
 ## Build for production
 
 - **Single image (recommended):** from repo root, `docker build -t meal-planning-app .` — builds frontend and backend, serves both on port 8080.
-- **Separate builds:** Backend: `cd backend && ./gradlew shadowJar` → `build/libs/meal-planning-backend.jar`. Frontend: `cd frontend && npm run build` → `dist/`; serve with `node server.js` (set `BACKEND_URL`).
+- **Separate builds:** Backend: `cd backend && ./gradlew shadowJar` → `build/libs/meal-planning-backend.jar`. Frontend: `cd frontend && pnpm run build` → `dist/`; serve with `node server.js` (set `BACKEND_URL`).
 
 ## API
 

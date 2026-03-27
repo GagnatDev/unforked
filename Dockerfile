@@ -4,11 +4,13 @@
 FROM node:20-alpine AS frontend-build
 WORKDIR /app
 
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
+RUN corepack enable
+
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY frontend/ .
-RUN npm run build
+RUN pnpm run build
 
 # -----------------------------------------------------------------------------
 # Stage 2: Build backend (Kotlin/Gradle)
