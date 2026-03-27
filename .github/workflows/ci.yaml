@@ -24,15 +24,17 @@ jobs:
         working-directory: backend
         run: ./gradlew test
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Enable Corepack
-        run: corepack enable
 
       - name: Frontend install and build
         working-directory: frontend
@@ -57,15 +59,17 @@ jobs:
         with:
           add-job-summary: never
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Enable Corepack
-        run: corepack enable
 
       - name: Install frontend dependencies
         working-directory: frontend
