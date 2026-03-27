@@ -15,11 +15,16 @@ const emptyDoc: RecipeDoc = {
   tags: [],
 }
 
+function parseTagsFromInput(value: string): string[] {
+  return value.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
 export default function RecipeForm() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { t } = useTranslation()
   const [doc, setDoc] = useState<RecipeDoc>(emptyDoc)
+  const [tagsInput, setTagsInput] = useState('')
   const [loading, setLoading] = useState(!!id)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +35,10 @@ export default function RecipeForm() {
     api.recipes
       .get(id)
       .then((r) => {
-        if (!cancelled) setDoc(r.doc)
+        if (!cancelled) {
+          setDoc(r.doc)
+          setTagsInput(r.doc.tags.join(', '))
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e.message)
@@ -79,15 +87,23 @@ export default function RecipeForm() {
     setDoc((d) => ({ ...d, steps: d.steps.filter((_, j) => j !== i) }))
   }
 
+  const commitTagsFromInput = () => {
+    const tags = parseTagsFromInput(tagsInput)
+    setDoc((d) => ({ ...d, tags }))
+    setTagsInput(tags.join(', '))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const tags = parseTagsFromInput(tagsInput)
+    const docToSave: RecipeDoc = { ...doc, tags }
     setSaving(true)
     setError(null)
     try {
       if (id) {
-        await api.recipes.update(id, doc)
+        await api.recipes.update(id, docToSave)
       } else {
-        const res = await api.recipes.create(doc)
+        const res = await api.recipes.create(docToSave)
         navigate(`/recipes/${res.id}/edit`, { replace: true })
       }
     } catch (e) {
@@ -139,12 +155,9 @@ export default function RecipeForm() {
           <label className="mb-2 block font-medium">
             {t('recipeForm.tagsLabel')}{' '}
             <Input
-              value={doc.tags.join(', ')}
-              onChange={(e) =>
-                update({
-                  tags: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                })
-              }
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              onBlur={commitTagsFromInput}
               className="mt-1 w-full"
             />
           </label>
