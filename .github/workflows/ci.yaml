@@ -51,6 +51,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          add-job-summary: never
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
