@@ -28,6 +28,11 @@ test.describe('recipe form (real API)', { tag: '@integration' }, () => {
   })
 
   test('accepts multiple comma-separated tags typed keystroke by keystroke', async ({ page }) => {
+    let pageError: Error | undefined
+    page.on('pageerror', (e) => {
+      pageError = e
+    })
+
     const recipeName = `Tagged Recipe ${Date.now()}`
     await page.goto('/recipes/new')
     await page.locator('form').getByRole('textbox').first().fill(recipeName)
@@ -48,5 +53,6 @@ test.describe('recipe form (real API)', { tag: '@integration' }, () => {
     const savedTags = [...(payload.doc?.tags ?? [])]
     expect(savedTags).toHaveLength(2)
     expect(savedTags).toEqual(expect.arrayContaining(['dinner', 'quick']))
+    expect(pageError).toBeUndefined()
   })
 })
