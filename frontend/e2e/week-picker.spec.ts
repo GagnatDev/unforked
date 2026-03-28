@@ -3,11 +3,8 @@ import { expect, test, type Route } from '@playwright/test'
 /** Frozen instant so `getCurrentWeekId()` is always 2026-W25 (see `timezoneId: 'UTC'` in config). */
 const FROZEN_NOW = new Date(Date.UTC(2026, 5, 15, 12, 0, 0))
 
-/** June 22, 2026 (UTC) is in ISO week 2026-W26; must match Calendar `data-day` (en-US). */
-const JUNE_22_DATA_DAY = new Date(Date.UTC(2026, 5, 22, 12, 0, 0)).toLocaleDateString(
-  'en-US',
-  { timeZone: 'UTC' }
-)
+/** June 22, 2026 is in ISO week 2026-W26; label matches react-day-picker + en-US locale. */
+const JUNE_22_DAY_BUTTON = /June 22nd, 2026/
 
 async function fulfillJson(route: Route, body: unknown) {
   await route.fulfill({
@@ -38,7 +35,7 @@ test.describe('week picker', () => {
     })
 
     await page.goto('/meal-plan')
-    await expect(page.locator('h1')).toBeVisible()
+    await expect(page.getByRole('heading', { name: "This week's dinners" })).toBeVisible()
 
     await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(1)
     expect(requestedUrls[0]).toContain('week=2026-W25')
@@ -47,9 +44,9 @@ test.describe('week picker', () => {
     await expect(trigger).toBeVisible()
     await trigger.click()
 
-    const popover = page.locator('[data-slot="popover-content"]')
-    await expect(popover).toBeVisible()
-    await popover.locator(`button[data-day="${JUNE_22_DATA_DAY}"]`).click()
+    const weekDialog = page.getByRole('dialog', { name: /select week/i })
+    await expect(weekDialog).toBeVisible()
+    await weekDialog.getByRole('button', { name: JUNE_22_DAY_BUTTON }).click()
 
     await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(2)
     expect(requestedUrls.at(-1)).toContain('week=2026-W26')
@@ -71,7 +68,7 @@ test.describe('week picker', () => {
     })
 
     await page.goto('/shopping-list')
-    await expect(page.locator('h1')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
 
     await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(1)
     expect(requestedUrls[0]).toContain('week=2026-W25')
@@ -80,9 +77,9 @@ test.describe('week picker', () => {
     await expect(trigger).toBeVisible()
     await trigger.click()
 
-    const popover = page.locator('[data-slot="popover-content"]')
-    await expect(popover).toBeVisible()
-    await popover.locator(`button[data-day="${JUNE_22_DATA_DAY}"]`).click()
+    const weekDialog = page.getByRole('dialog', { name: /select week/i })
+    await expect(weekDialog).toBeVisible()
+    await weekDialog.getByRole('button', { name: JUNE_22_DAY_BUTTON }).click()
 
     await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(2)
     expect(requestedUrls.at(-1)).toContain('week=2026-W26')

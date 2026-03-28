@@ -18,10 +18,10 @@ test('navigates to meal-plan page with mocked API dependencies', async ({ page }
   })
 
   await page.goto('/')
-  await page.locator('a[href="/meal-plan"]').click()
+  await page.getByRole('link', { name: 'This week' }).click()
 
   await expect(page).toHaveURL(/\/meal-plan$/)
-  await expect(page.locator('h1')).toBeVisible()
+  await expect(page.getByRole('heading', { name: "This week's dinners" })).toBeVisible()
 })
 
 test('navigates to shopping-list page with mocked API dependencies', async ({ page }) => {
@@ -42,8 +42,8 @@ test('navigates to shopping-list page with mocked API dependencies', async ({ pa
   })
 
   await page.goto('/')
-  await page.locator('a[href="/shopping-list"]').click()
+  await page.getByRole('link', { name: 'Shopping list' }).click()
 
   await expect(page).toHaveURL(/\/shopping-list$/)
-  await expect(page.locator('h1')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
 })
