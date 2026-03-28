@@ -2,6 +2,7 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -13,12 +14,6 @@ import { XIcon } from 'lucide-react'
 import { api } from '@/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import {
   Popover,
@@ -42,6 +37,7 @@ export type RecipeTagsInputProps = {
 export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInputProps>(
   function RecipeTagsInput({ id, tags, onChange, excludeRecipeId }, ref) {
     const { t } = useTranslation()
+    const listboxId = useId()
     const [draft, setDraft] = useState('')
     const [suggestions, setSuggestions] = useState<string[]>([])
     const [inputFocused, setInputFocused] = useState(false)
@@ -229,6 +225,16 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
               <Input
                 id={id}
                 type="text"
+                role="combobox"
+                aria-expanded={showPopover}
+                aria-haspopup="listbox"
+                aria-controls={listboxId}
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  showPopover && highlightIndex >= 0
+                    ? `${listboxId}-opt-${highlightIndex}`
+                    : undefined
+                }
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={onInputKeyDown}
@@ -252,23 +258,30 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
           sideOffset={4}
           initialFocus={false}
         >
-          <Command shouldFilter={false} className="rounded-lg">
-            <CommandList>
-              <CommandGroup>
-                {filtered.map((s, i) => (
-                  <CommandItem
-                    key={s}
-                    value={s}
-                    className={cn(i === highlightIndex && 'bg-muted')}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onSelect={() => commitTag(s)}
-                  >
-                    {s}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label={t('recipeForm.tagSuggestionsAria')}
+            className="no-scrollbar max-h-72 overflow-y-auto overflow-x-hidden rounded-lg p-1 outline-none"
+          >
+            {filtered.map((s, i) => (
+              <button
+                key={s}
+                type="button"
+                id={`${listboxId}-opt-${i}`}
+                role="option"
+                aria-selected={i === highlightIndex}
+                className={cn(
+                  'relative flex w-full cursor-default items-center rounded-sm px-2 py-1.5 text-left text-sm outline-none select-none',
+                  i === highlightIndex ? 'bg-muted text-foreground' : 'text-foreground'
+                )}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => commitTag(s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </PopoverContent>
       </Popover>
     )
