@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test'
 const backendHost = process.env.E2E_BACKEND_HOST ?? '127.0.0.1'
 const backendPort = process.env.E2E_BACKEND_PORT ?? '8080'
 
+// Recipe persistence specs are tagged @integration; run mocked-only with --grep-invert @integration
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
