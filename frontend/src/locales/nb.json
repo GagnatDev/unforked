@@ -2,12 +2,13 @@
   "nav": {
     "recipes": "Oppskrifter",
     "newRecipe": "Ny oppskrift",
-    "thisWeek": "Denne uken",
+    "weeklyMenu": "Ukemeny",
     "shoppingList": "Handleliste",
     "users": "Brukere"
   },
   "common": {
-    "loading": "Laster…"
+    "loading": "Laster…",
+    "selectWeek": "Velg uke"
   },
   "auth": {
     "loginTitle": "Logg inn",
@@ -89,12 +90,8 @@
     "exportTitle": "Handleliste – {{weekId}}",
     "exportTxt": "Eksporter som TXT",
     "exportCsv": "Eksporter som CSV",
-    "noIngredients": "Ingen ingredienser denne uken. Legg til oppskrifter under <1>Denne uken</1> først.",
-    "thisWeekLink": "Denne uken"
-  },
-  "common": {
-    "loading": "Laster…",
-    "selectWeek": "Velg uke"
+    "noIngredients": "Ingen ingredienser for valgt uke. Legg til oppskrifter under <1>Ukemeny</1> først.",
+    "thisWeekLink": "Ukemeny"
   },
   "theme": {
     "switchToLight": "Bytt til lys modus",

@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
-import { getCurrentWeekId } from '@/lib/utils'
+import { getNextWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { MealPlanDoc, DayAssignment, Recipe } from '../types'
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
 
 function getInitialWeekId(): string {
-  return getCurrentWeekId()
+  return getNextWeekId()
 }
 
 function parsePositiveInt(raw: string): number | null {

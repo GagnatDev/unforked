@@ -14,7 +14,7 @@ test('navigates to meal-plan page with mocked API dependencies', async ({ page }
   })
 
   await page.goto('/')
-  await page.getByRole('link', { name: 'This week' }).click()
+  await page.getByRole('link', { name: 'Weekly menu' }).click()
 
   await expect(page).toHaveURL(/\/meal-plan$/)
   await expect(page.getByRole('heading', { name: "This week's dinners" })).toBeVisible()

@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
-import { getCurrentWeekId } from '@/lib/utils'
+import { getNextWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { ShoppingListDoc } from '../types'
 
 function getInitialWeekId(): string {
-  return getCurrentWeekId()
+  return getNextWeekId()
 }
 
 export default function ShoppingList() {

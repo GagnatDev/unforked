@@ -77,7 +77,7 @@ test.describe('meal plan people (mocked)', () => {
         return
       }
       const week =
-        new URL(route.request().url()).searchParams.get('week') ?? '2026-W25'
+        new URL(route.request().url()).searchParams.get('week') ?? '2026-W26'
       await fulfillJson(route, {
         weekIdentifier: week,
         defaultPersons: 3,

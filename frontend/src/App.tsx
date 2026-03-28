@@ -35,7 +35,7 @@ function AppLayout() {
           {t('nav.newRecipe')}
         </Link>
         <Link to="/meal-plan" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          {t('nav.thisWeek')}
+          {t('nav.weeklyMenu')}
         </Link>
         <Link to="/shopping-list" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
           {t('nav.shoppingList')}

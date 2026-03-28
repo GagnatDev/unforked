@@ -1,3 +1,4 @@
+import { addWeeks } from "date-fns"
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -10,4 +11,9 @@ export function cn(...inputs: ClassValue[]) {
 /** ISO 8601 week id (Monday = first day of week), e.g. "2025-W10". */
 export function getCurrentWeekId(date: Date = new Date()): string {
   return weekIdFromDate(date)
+}
+
+/** ISO week id for the calendar week after `date` (same rules as {@link getCurrentWeekId}). */
+export function getNextWeekId(date: Date = new Date()): string {
+  return weekIdFromDate(addWeeks(date, 1))
 }

@@ -29,7 +29,7 @@ export default defineConfig({
       ],
     },
     trace: process.env.CI ? 'on-first-retry' : 'off',
-    /** Keeps `getCurrentWeekId()` / calendar `data-day` aligned with assertions in e2e. */
+    /** Keeps ISO week / calendar `data-day` aligned with assertions in e2e. */
     timezoneId: 'UTC',
   },
   webServer: [
