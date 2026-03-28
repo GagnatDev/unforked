@@ -44,6 +44,7 @@
     "description": "Description",
     "servings": "Servings",
     "tagsLabel": "Tags",
+    "tagSuggestionsAria": "Tag suggestions",
     "tagsPlaceholder": "Type a tag and press Enter",
     "removeTagAria": "Remove tag {{tag}}",
     "ingredients": "Ingredients",

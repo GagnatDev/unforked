@@ -42,7 +42,7 @@ test.describe('recipe form (real API)', { tag: '@integration' }, () => {
     await page.goto('/recipes/new')
     await page.locator('form').getByRole('textbox').first().fill(recipeName)
 
-    const tags = page.getByRole('textbox', { name: /^Tags$/i })
+    const tags = page.getByRole('combobox', { name: /^Tags$/i })
     await tags.pressSequentially('dinner', { delay: 25 })
     await tags.press('Enter')
     await tags.pressSequentially('quick', { delay: 25 })
@@ -85,7 +85,7 @@ test.describe('recipe form (real API)', { tag: '@integration' }, () => {
     await page.goto('/recipes/new')
     await page.locator('form').getByRole('textbox').first().fill(recipeName)
 
-    const tags = page.getByRole('textbox', { name: /^Tags$/i })
+    const tags = page.getByRole('combobox', { name: /^Tags$/i })
     await tags.fill('veg')
     const option = page.getByRole('option', { name: 'vegetarian' })
     await expect(option).toBeVisible({ timeout: 10_000 })
@@ -125,7 +125,7 @@ test.describe('recipe form (real API)', { tag: '@integration' }, () => {
     await page.goto(`/recipes/${id}/edit`)
     await expect(page.getByText('dinner', { exact: true })).toBeVisible()
 
-    const tags = page.getByRole('textbox', { name: /^Tags$/i })
+    const tags = page.getByRole('combobox', { name: /^Tags$/i })
     await tags.pressSequentially('quick', { delay: 25 })
     await tags.press('Enter')
 
