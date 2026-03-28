@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
+import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { getCurrentWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { ShoppingListDoc } from '../types'
@@ -12,7 +12,7 @@ function getInitialWeekId(): string {
 }
 
 export default function ShoppingList() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [weekId, setWeekId] = useState(getInitialWeekId())
   const [data, setData] = useState<ShoppingListDoc | null>(null)
   const [loading, setLoading] = useState(true)
@@ -69,18 +69,13 @@ export default function ShoppingList() {
   return (
     <div>
       <h1>{t('shoppingList.title')}</h1>
-      <p className="mb-4">
-        <label className="flex items-center gap-2">
-          {t('shoppingList.week')}{' '}
-          <Input
-            type="text"
-            value={weekId}
-            onChange={(e) => setWeekId(e.target.value)}
-            placeholder={t('shoppingList.weekPlaceholder')}
-            className="w-auto min-w-[8rem]"
-          />
-        </label>
-      </p>
+      <div className="mb-4">
+        <WeekPicker
+          value={weekId}
+          onChange={setWeekId}
+          locale={i18n.resolvedLanguage ?? i18n.language}
+        />
+      </div>
       {loading ? (
         <p>{t('shoppingList.loading')}</p>
       ) : error ? (

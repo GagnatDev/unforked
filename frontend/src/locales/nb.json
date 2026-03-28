@@ -55,8 +55,6 @@
   },
   "mealPlan": {
     "title": "Middager denne uken",
-    "week": "Uke",
-    "weekPlaceholder": "f.eks. 2025-W10",
     "loading": "Laster…",
     "day": "Dag",
     "recipe": "Oppskrift",
@@ -75,8 +73,6 @@
   },
   "shoppingList": {
     "title": "Handleliste",
-    "week": "Uke",
-    "weekPlaceholder": "f.eks. 2025-W10",
     "loading": "Laster…",
     "exportTitle": "Handleliste – {{weekId}}",
     "exportTxt": "Eksporter som TXT",
@@ -85,7 +81,8 @@
     "thisWeekLink": "Denne uken"
   },
   "common": {
-    "loading": "Laster…"
+    "loading": "Laster…",
+    "selectWeek": "Velg uke"
   },
   "theme": {
     "switchToLight": "Bytt til lys modus",

@@ -55,8 +55,6 @@
   },
   "mealPlan": {
     "title": "This week's dinners",
-    "week": "Week",
-    "weekPlaceholder": "e.g. 2025-W10",
     "loading": "Loading…",
     "day": "Day",
     "recipe": "Recipe",
@@ -75,8 +73,6 @@
   },
   "shoppingList": {
     "title": "Shopping list",
-    "week": "Week",
-    "weekPlaceholder": "e.g. 2025-W10",
     "loading": "Loading…",
     "exportTitle": "Shopping list – {{weekId}}",
     "exportTxt": "Export as TXT",
@@ -85,7 +81,8 @@
     "thisWeekLink": "This week"
   },
   "common": {
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "selectWeek": "Select week"
   },
   "theme": {
     "switchToLight": "Switch to light mode",

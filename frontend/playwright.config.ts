@@ -12,6 +12,8 @@ export default defineConfig({
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173',
     trace: process.env.CI ? 'on-first-retry' : 'off',
+    /** Keeps `getCurrentWeekId()` / calendar `data-day` aligned with assertions in e2e. */
+    timezoneId: 'UTC',
   },
   webServer: [
     {
