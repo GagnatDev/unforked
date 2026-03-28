@@ -1,5 +1,7 @@
 import { expect, test, type Route } from '@playwright/test'
 
+import { mockEmptyRecipes } from './mock-api'
+
 /** Frozen instant so `getCurrentWeekId()` is always 2026-W25 (see `timezoneId: 'UTC'` in config). */
 const FROZEN_NOW = new Date(Date.UTC(2026, 5, 15, 12, 0, 0))
 
@@ -17,7 +19,7 @@ async function fulfillJson(route: Route, body: unknown) {
 test.describe('week picker', () => {
   test.beforeEach(async ({ page }) => {
     await page.clock.install({ time: FROZEN_NOW })
-    await page.route('**/api/recipes**', (route) => fulfillJson(route, []))
+    await mockEmptyRecipes(page)
   })
 
   test('meal plan: changing week refetches with new ?week= and updates trigger label', async ({

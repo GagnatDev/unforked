@@ -1,14 +1,10 @@
 import { expect, test } from '@playwright/test'
 
+import { mockEmptyRecipes } from './mock-api'
+
 test('navigates to meal-plan page with mocked API dependencies', async ({ page }) => {
   // Keep this flow deterministic in phase 3 by mocking only required endpoints.
-  await page.route('**/api/recipes**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: '[]',
-    })
-  })
+  await mockEmptyRecipes(page)
   await page.route('**/api/meal-plans/current**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -26,13 +22,7 @@ test('navigates to meal-plan page with mocked API dependencies', async ({ page }
 
 test('navigates to shopping-list page with mocked API dependencies', async ({ page }) => {
   // Keep this flow deterministic in phase 3 by mocking only required endpoints.
-  await page.route('**/api/recipes**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: '[]',
-    })
-  })
+  await mockEmptyRecipes(page)
   await page.route('**/api/shopping-lists**', async (route) => {
     await route.fulfill({
       status: 200,
