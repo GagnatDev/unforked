@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 const backendHost = process.env.E2E_BACKEND_HOST ?? '127.0.0.1'
 const backendPort = process.env.E2E_BACKEND_PORT ?? '8080'
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173'
 
 // Recipe persistence specs are tagged @integration; run mocked-only with --grep-invert @integration
 export default defineConfig({
@@ -11,7 +12,17 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173',
+    baseURL,
+    /** Assertions assume English UI; locks i18next before first navigation. */
+    locale: 'en-US',
+    storageState: {
+      origins: [
+        {
+          origin: baseURL,
+          localStorage: [{ name: 'i18nextLng', value: 'en' }],
+        },
+      ],
+    },
     trace: process.env.CI ? 'on-first-retry' : 'off',
     /** Keeps `getCurrentWeekId()` / calendar `data-day` aligned with assertions in e2e. */
     timezoneId: 'UTC',
