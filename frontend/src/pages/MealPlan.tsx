@@ -1,16 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MealPlanWeekAssignments } from '@/components/meal-plan/MealPlanWeekAssignments'
+import { DAYS } from '@/components/meal-plan/constants'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
 import { getNextWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { MealPlanDoc, DayAssignment, Recipe } from '../types'
-
-const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
-
-function getInitialWeekId(): string {
-  return getNextWeekId()
-}
 
 function parsePositiveInt(raw: string): number | null {
   if (raw.trim() === '') return null
@@ -21,7 +17,7 @@ function parsePositiveInt(raw: string): number | null {
 
 export default function MealPlan() {
   const { t, i18n } = useTranslation()
-  const [weekId, setWeekId] = useState(getInitialWeekId())
+  const [weekId, setWeekId] = useState(getNextWeekId)
   const [plan, setPlan] = useState<MealPlanDoc | null>(null)
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
@@ -133,55 +129,13 @@ export default function MealPlan() {
             />
             <p className="text-sm text-muted-foreground">{t('mealPlan.defaultPeopleHint')}</p>
           </div>
-          <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <table className="w-full border-collapse text-foreground">
-              <thead>
-                <tr className="border-b-2 border-border">
-                  <th className="text-left p-3">{t('mealPlan.day')}</th>
-                  <th className="text-left p-3">{t('mealPlan.recipe')}</th>
-                  <th className="text-left p-3 w-36">{t('mealPlan.people')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DAYS.map((day) => (
-                  <tr key={day} className="border-b border-border">
-                    <td className="p-3">{t(`mealPlan.days.${day}`)}</td>
-                    <td className="p-3">
-                      <select
-                        value={byDay[day]?.recipeId ?? ''}
-                        onChange={(e) => {
-                          const opt = e.target.selectedOptions[0]
-                          setAssignment(day, e.target.value || null, opt?.text ?? '')
-                        }}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-foreground"
-                      >
-                        <option value="">{t('mealPlan.noRecipe')}</option>
-                        {recipes.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.doc.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        disabled={!byDay[day]?.recipeId}
-                        aria-label={t('mealPlan.dayPeopleAriaLabel', {
-                          day: t(`mealPlan.days.${day}`),
-                        })}
-                        value={byDay[day]?.persons ?? ''}
-                        onChange={(e) => setDayPeople(day, e.target.value)}
-                        className="w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-foreground disabled:opacity-50"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <MealPlanWeekAssignments
+            t={t}
+            byDay={byDay}
+            recipes={recipes}
+            setAssignment={setAssignment}
+            setDayPeople={setDayPeople}
+          />
           <p className="mt-4">
             <Button onClick={save} disabled={saving}>
               {saving ? t('mealPlan.saving') : t('mealPlan.savePlan')}

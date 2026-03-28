@@ -72,6 +72,7 @@
     "defaultPeople": "People (default for the week)",
     "defaultPeopleHint": "Leave empty to use full recipe amounts on the shopping list (no scaling by servings).",
     "dayPeopleAriaLabel": "People for {{day}} (optional override)",
+    "recipeForDay": "Recipe for {{day}}",
     "saving": "Saving…",
     "savePlan": "Save plan",
     "noRecipe": "—",

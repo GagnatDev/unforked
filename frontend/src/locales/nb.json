@@ -72,6 +72,7 @@
     "defaultPeople": "Personer (standard for uken)",
     "defaultPeopleHint": "La feltet stå tomt for å bruke oppskriftsmengder på handlelisten (ingen skalering etter porsjoner).",
     "dayPeopleAriaLabel": "Personer for {{day}} (valgfritt overstyr)",
+    "recipeForDay": "Oppskrift for {{day}}",
     "saving": "Lagrer…",
     "savePlan": "Lagre plan",
     "noRecipe": "—",
