@@ -12,6 +12,13 @@ function getInitialWeekId(): string {
   return getCurrentWeekId()
 }
 
+function parsePositiveInt(raw: string): number | null {
+  if (raw.trim() === '') return null
+  const n = Number.parseInt(raw, 10)
+  if (!Number.isFinite(n) || n < 1) return null
+  return n
+}
+
 export default function MealPlan() {
   const { t, i18n } = useTranslation()
   const [weekId, setWeekId] = useState(getInitialWeekId())
@@ -46,13 +53,40 @@ export default function MealPlan() {
   const byDay = Object.fromEntries(assignments.map((a) => [a.day, a]))
 
   const setAssignment = (day: string, recipeId: string | null, recipeName: string) => {
+    if (!plan) return
+    const prev = byDay[day]
     const next: DayAssignment[] = DAYS.map((d) => {
       if (d !== day) return byDay[d] ?? { day: d, recipeId: '', recipeName: '' }
       if (!recipeId) return { day, recipeId: '', recipeName: '' }
-      return { day, recipeId, recipeName }
+      return { day, recipeId, recipeName, persons: prev?.persons ?? null }
     }).filter((a) => a.recipeId)
-    const doc: MealPlanDoc = { weekIdentifier: weekId, assignments: next }
+    const doc: MealPlanDoc = {
+      weekIdentifier: weekId,
+      defaultPersons: plan.defaultPersons ?? null,
+      assignments: next,
+    }
     setPlan(doc)
+  }
+
+  const setDefaultPeople = (raw: string) => {
+    if (!plan) return
+    setPlan({
+      ...plan,
+      defaultPersons: parsePositiveInt(raw),
+    })
+  }
+
+  const setDayPeople = (day: string, raw: string) => {
+    if (!plan) return
+    const assignment = byDay[day]
+    if (!assignment?.recipeId) return
+    const persons = parsePositiveInt(raw)
+    setPlan({
+      ...plan,
+      assignments: plan.assignments.map((a) =>
+        a.day === day ? { ...a, persons } : a
+      ),
+    })
   }
 
   const save = async () => {
@@ -84,12 +118,28 @@ export default function MealPlan() {
         <p className="text-destructive">{error}</p>
       ) : (
         <>
+          <div className="mb-4 max-w-md space-y-1">
+            <label htmlFor="meal-plan-default-people" className="text-sm font-medium">
+              {t('mealPlan.defaultPeople')}
+            </label>
+            <input
+              id="meal-plan-default-people"
+              type="number"
+              min={1}
+              step={1}
+              value={plan?.defaultPersons ?? ''}
+              onChange={(e) => setDefaultPeople(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-foreground"
+            />
+            <p className="text-sm text-muted-foreground">{t('mealPlan.defaultPeopleHint')}</p>
+          </div>
           <div className="overflow-hidden rounded-lg border border-border bg-card">
             <table className="w-full border-collapse text-foreground">
               <thead>
                 <tr className="border-b-2 border-border">
                   <th className="text-left p-3">{t('mealPlan.day')}</th>
                   <th className="text-left p-3">{t('mealPlan.recipe')}</th>
+                  <th className="text-left p-3 w-36">{t('mealPlan.people')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -105,17 +155,31 @@ export default function MealPlan() {
                         }}
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-foreground"
                       >
-                      <option value="">{t('mealPlan.noRecipe')}</option>
-                      {recipes.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.doc.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+                        <option value="">{t('mealPlan.noRecipe')}</option>
+                        {recipes.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.doc.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        disabled={!byDay[day]?.recipeId}
+                        aria-label={t('mealPlan.dayPeopleAriaLabel', {
+                          day: t(`mealPlan.days.${day}`),
+                        })}
+                        value={byDay[day]?.persons ?? ''}
+                        onChange={(e) => setDayPeople(day, e.target.value)}
+                        className="w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-foreground disabled:opacity-50"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
           <p className="mt-4">

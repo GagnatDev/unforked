@@ -6,11 +6,13 @@ import kotlinx.serialization.Serializable
 data class DayAssignment(
     val day: String,
     val recipeId: String,
-    val recipeName: String
+    val recipeName: String,
+    val persons: Int? = null,
 )
 
 @Serializable
 data class MealPlanDoc(
     val weekIdentifier: String,
-    val assignments: List<DayAssignment> = emptyList()
+    val defaultPersons: Int? = null,
+    val assignments: List<DayAssignment> = emptyList(),
 )

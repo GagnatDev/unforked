@@ -22,10 +22,12 @@ export interface DayAssignment {
   day: string
   recipeId: string
   recipeName: string
+  persons?: number | null
 }
 
 export interface MealPlanDoc {
   weekIdentifier: string
+  defaultPersons?: number | null
   assignments: DayAssignment[]
 }
 

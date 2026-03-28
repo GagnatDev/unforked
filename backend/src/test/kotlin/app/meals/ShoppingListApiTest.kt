@@ -109,4 +109,81 @@ class ShoppingListApiTest {
         assertEquals("2020-W01", list.weekIdentifier)
         assertTrue(list.items.isEmpty())
     }
+
+    @Test
+    fun `shopping list scales ingredients by defaultPersons over recipe servings`() = testWithApp {
+        val recipe = RecipeDoc(
+            name = "Scaled soup",
+            description = "",
+            ingredients = listOf(Ingredient("flour", "400", "g")),
+            steps = emptyList(),
+            servings = 4,
+            tags = emptyList()
+        )
+        val create = client.post("/api/recipes") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(RecipeDoc.serializer(), recipe))
+        }
+        assertEquals(HttpStatusCode.Created, create.status)
+        val id = json.parseToJsonElement(create.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+
+        val weekId = "2026-W11"
+        val plan = MealPlanDoc(
+            weekIdentifier = weekId,
+            defaultPersons = 2,
+            assignments = listOf(DayAssignment("monday", id, "Scaled soup"))
+        )
+        client.put("/api/meal-plans/current?week=$weekId") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(MealPlanDoc.serializer(), plan))
+        }.let { assertEquals(HttpStatusCode.OK, it.status) }
+
+        val list = json.decodeFromString(
+            ShoppingListDoc.serializer(),
+            client.get("/api/shopping-lists?week=$weekId").bodyAsText()
+        )
+        val flour = list.items.find { it.name.equals("flour", ignoreCase = true) }
+        assertNotNull(flour)
+        assertEquals("200", flour!!.quantity, "400g × (2 people / 4 servings)")
+    }
+
+    @Test
+    fun `shopping list applies per-day persons override when aggregating`() = testWithApp {
+        val recipe = RecipeDoc(
+            name = "Pasta",
+            description = "",
+            ingredients = listOf(Ingredient("flour", "400", "g")),
+            steps = emptyList(),
+            servings = 4,
+            tags = emptyList()
+        )
+        val create = client.post("/api/recipes") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(RecipeDoc.serializer(), recipe))
+        }
+        assertEquals(HttpStatusCode.Created, create.status)
+        val id = json.parseToJsonElement(create.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+
+        val weekId = "2026-W12"
+        val plan = MealPlanDoc(
+            weekIdentifier = weekId,
+            defaultPersons = 4,
+            assignments = listOf(
+                DayAssignment("monday", id, "Pasta", persons = 2),
+                DayAssignment("tuesday", id, "Pasta", persons = null)
+            )
+        )
+        client.put("/api/meal-plans/current?week=$weekId") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(MealPlanDoc.serializer(), plan))
+        }.let { assertEquals(HttpStatusCode.OK, it.status) }
+
+        val list = json.decodeFromString(
+            ShoppingListDoc.serializer(),
+            client.get("/api/shopping-lists?week=$weekId").bodyAsText()
+        )
+        val flour = list.items.find { it.name.equals("flour", ignoreCase = true) }
+        assertNotNull(flour)
+        assertEquals("600", flour!!.quantity, "200 + 400 from two days")
+    }
 }

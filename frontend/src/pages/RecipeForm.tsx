@@ -164,18 +164,21 @@ export default function RecipeForm() {
           <div key={i} className="mb-2 flex flex-wrap gap-2">
             <Input
               placeholder={t('recipeForm.placeholderName')}
+              aria-label={t('recipeForm.ingredientNameAria')}
               value={ing.name}
               onChange={(e) => updateIngredient(i, { name: e.target.value })}
               className="min-w-32 flex-1"
             />
             <Input
               placeholder={t('recipeForm.placeholderQty')}
+              aria-label={t('recipeForm.ingredientQtyAria')}
               value={ing.quantity}
               onChange={(e) => updateIngredient(i, { quantity: e.target.value })}
               className="w-20"
             />
             <Input
               placeholder={t('recipeForm.placeholderUnit')}
+              aria-label={t('recipeForm.ingredientUnitAria')}
               value={ing.unit}
               onChange={(e) => updateIngredient(i, { unit: e.target.value })}
               className="w-20"
