@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import {
+  RecipeTagsInput,
+  type RecipeTagsInputHandle,
+} from '@/components/RecipeTagsInput'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '../api'
@@ -15,16 +19,13 @@ const emptyDoc: RecipeDoc = {
   tags: [],
 }
 
-function parseTagsFromInput(value: string): string[] {
-  return value.split(',').map((s) => s.trim()).filter(Boolean)
-}
-
 export default function RecipeForm() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const tagsFieldId = useId()
+  const tagsInputRef = useRef<RecipeTagsInputHandle>(null)
   const [doc, setDoc] = useState<RecipeDoc>(emptyDoc)
-  const [tagsInput, setTagsInput] = useState('')
   const [loading, setLoading] = useState(!!id)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,7 +38,6 @@ export default function RecipeForm() {
       .then((r) => {
         if (!cancelled) {
           setDoc(r.doc)
-          setTagsInput(r.doc.tags.join(', '))
         }
       })
       .catch((e) => {
@@ -87,15 +87,9 @@ export default function RecipeForm() {
     setDoc((d) => ({ ...d, steps: d.steps.filter((_, j) => j !== i) }))
   }
 
-  const commitTagsFromInput = () => {
-    const tags = parseTagsFromInput(tagsInput)
-    setDoc((d) => ({ ...d, tags }))
-    setTagsInput(tags.join(', '))
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const tags = parseTagsFromInput(tagsInput)
+    const tags = tagsInputRef.current?.commitPending() ?? doc.tags
     const docToSave: RecipeDoc = { ...doc, tags }
     setSaving(true)
     setError(null)
@@ -152,15 +146,17 @@ export default function RecipeForm() {
           </label>
         </p>
         <p className="mb-4">
-          <label className="mb-2 block font-medium">
-            {t('recipeForm.tagsLabel')}{' '}
-            <Input
-              value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              onBlur={commitTagsFromInput}
-              className="mt-1 w-full"
-            />
+          <label htmlFor={tagsFieldId} className="mb-2 block font-medium">
+            {t('recipeForm.tagsLabel')}
           </label>
+          <RecipeTagsInput
+            key={id ?? 'new'}
+            ref={tagsInputRef}
+            id={tagsFieldId}
+            tags={doc.tags}
+            onChange={(tags) => update({ tags })}
+            excludeRecipeId={id}
+          />
         </p>
 
         <h3>{t('recipeForm.ingredients')}</h3>

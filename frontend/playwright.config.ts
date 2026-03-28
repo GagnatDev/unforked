@@ -2,8 +2,13 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const backendHost = process.env.E2E_BACKEND_HOST ?? '127.0.0.1'
-const backendPort = process.env.E2E_BACKEND_PORT ?? '8080'
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173'
+/** Default away from 8080 so local `./gradlew run` is not mistaken for the e2e backend when reusing servers. */
+const backendPort = process.env.E2E_BACKEND_PORT ?? '18080'
+/** Dedicated port avoids reusing a dev Vite that proxies to the wrong API. */
+const vitePort = process.env.E2E_VITE_PORT ?? '4174'
+const baseURL =
+  process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${vitePort}`
+const e2eApiOrigin = `http://${backendHost}:${backendPort}`
 
 // Recipe persistence specs are tagged @integration; run mocked-only with --grep-invert @integration
 export default defineConfig({
@@ -30,15 +35,14 @@ export default defineConfig({
   webServer: [
     {
       cwd: '../backend',
-      command: './gradlew runE2eBackend',
+      command: `E2E_BACKEND_HOST=${backendHost} E2E_BACKEND_PORT=${backendPort} ./gradlew runE2eBackend`,
       url: `http://${backendHost}:${backendPort}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 180 * 1000,
     },
     {
-      command:
-        'VITE_DISABLE_AUTH=true pnpm exec vite --host 127.0.0.1 --port 4173',
-      url: 'http://127.0.0.1:4173',
+      command: `VITE_DISABLE_AUTH=true VITE_API_URL=${e2eApiOrigin} pnpm exec vite --host 127.0.0.1 --port ${vitePort}`,
+      url: baseURL,
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },

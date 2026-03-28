@@ -56,6 +56,8 @@ tasks.register<JavaExec>("runE2eBackend") {
     description = "Run backend against Testcontainers PostgreSQL for Playwright e2e"
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("app.meals.E2eBackendMainKt")
+    // Ensure child JVM sees this even when the Gradle daemon was started without it.
+    environment("DISABLE_AUTH", "true")
 }
 
 kotlin {

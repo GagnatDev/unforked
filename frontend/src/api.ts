@@ -63,6 +63,15 @@ export const api = {
       }).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
     delete: (id: string) =>
       request<void>(`/api/recipes/${id}`, { method: 'DELETE' }),
+    tagSuggestions: (
+      q: string,
+      opts?: { excludeRecipeId?: string; signal?: AbortSignal }
+    ) => {
+      const params = new URLSearchParams()
+      params.set('q', q.trim())
+      if (opts?.excludeRecipeId) params.set('excludeRecipeId', opts.excludeRecipeId)
+      return request<string[]>(`/api/recipes/tags?${params}`, { signal: opts?.signal })
+    },
   },
   mealPlans: {
     getCurrent: (week?: string) =>

@@ -1,6 +1,7 @@
 package app.meals.storage
 
 import app.meals.domain.RecipeDoc
+import java.sql.Types
 import java.util.UUID
 
 object RecipeRepository {
@@ -79,6 +80,47 @@ object RecipeRepository {
             conn.prepareStatement("DELETE FROM recipes WHERE id = ?").use { ps ->
                 ps.setObject(1, id)
                 ps.executeUpdate() > 0
+            }
+        }
+    }
+
+    /**
+     * Distinct tags matching [prefix] (case-insensitive).
+     * When [excludeRecipeId] is set, only tags from other recipes are considered.
+     * Empty [prefix] (after trim) should be handled by the caller (return empty list without querying).
+     */
+    fun suggestTags(prefix: String, excludeRecipeId: UUID?, limit: Int = 20): List<String> {
+        val trimmed = prefix.trim()
+        if (trimmed.isEmpty()) return emptyList()
+        val pattern = "$trimmed%"
+        return DatabaseFactory.query { conn ->
+            val sql =
+                """
+                SELECT DISTINCT t.tag AS tag
+                FROM recipes r
+                CROSS JOIN LATERAL jsonb_array_elements_text(r.doc->'tags') AS t(tag)
+                WHERE (?::uuid IS NULL OR r.id <> ?::uuid)
+                  AND t.tag ILIKE ?
+                ORDER BY t.tag
+                LIMIT ?
+                """.trimIndent()
+            conn.prepareStatement(sql).use { ps ->
+                if (excludeRecipeId == null) {
+                    ps.setNull(1, Types.OTHER)
+                    ps.setNull(2, Types.OTHER)
+                } else {
+                    ps.setObject(1, excludeRecipeId)
+                    ps.setObject(2, excludeRecipeId)
+                }
+                ps.setString(3, pattern)
+                ps.setInt(4, limit)
+                ps.executeQuery().use { rs ->
+                    buildList {
+                        while (rs.next()) {
+                            add(rs.getString("tag"))
+                        }
+                    }
+                }
             }
         }
     }

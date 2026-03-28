@@ -10,6 +10,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll
@@ -97,5 +99,54 @@ class RecipeApiTest {
         val response = client.get("/health")
         assertEquals(HttpStatusCode.OK, response.status)
         assertTrue(response.bodyAsText().contains("ok"))
+    }
+
+    @Test
+    fun `GET recipes tags with empty q returns empty array`() = testWithApp {
+        val response = client.get("/api/recipes/tags")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val list = json.decodeFromString(ListSerializer(String.serializer()), response.bodyAsText())
+        assertEquals(0, list.size)
+    }
+
+    @Test
+    fun `GET recipes tags returns distinct tags matching prefix from other recipes`() = testWithApp {
+        val r1 = RecipeDoc(
+            name = "R1",
+            description = "",
+            ingredients = emptyList(),
+            steps = emptyList(),
+            servings = 2,
+            tags = listOf("vegetarian", "quick")
+        )
+        val r2 = RecipeDoc(
+            name = "R2",
+            description = "",
+            ingredients = emptyList(),
+            steps = emptyList(),
+            servings = 2,
+            tags = listOf("VEGetarian", "dinner")
+        )
+        val id1 = json.parseToJsonElement(
+            client.post("/api/recipes") {
+                contentType(ContentType.Application.Json)
+                setBody(json.encodeToString(r1))
+            }.bodyAsText()
+        ).jsonObject["id"]!!.jsonPrimitive.content
+
+        client.post("/api/recipes") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(r2))
+        }
+
+        val veg = client.get("/api/recipes/tags?q=veg")
+        assertEquals(HttpStatusCode.OK, veg.status)
+        val vegTags = json.decodeFromString(ListSerializer(String.serializer()), veg.bodyAsText())
+        assertEquals(2, vegTags.size)
+        assertTrue("vegetarian" in vegTags && "VEGetarian" in vegTags)
+
+        val exclude = client.get("/api/recipes/tags?q=veg&excludeRecipeId=$id1")
+        val excludeTags = json.decodeFromString(ListSerializer(String.serializer()), exclude.bodyAsText())
+        assertEquals(listOf("VEGetarian"), excludeTags)
     }
 }

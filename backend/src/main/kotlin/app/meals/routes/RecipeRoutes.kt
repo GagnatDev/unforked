@@ -17,6 +17,18 @@ fun Route.recipeRoutes() {
             val list = RecipeRepository.findAll(nameQuery = name, tagQuery = tag)
             call.respond(list.map { (id, doc) -> RecipeResponse(id.toString(), doc) })
         }
+        get("/tags") {
+            val q = call.request.queryParameters["q"] ?: ""
+            val excludeId = call.request.queryParameters["excludeRecipeId"]?.let {
+                runCatching { UUID.fromString(it) }.getOrNull()
+            }
+            if (q.isBlank()) {
+                call.respond(emptyList<String>())
+                return@get
+            }
+            val tags = RecipeRepository.suggestTags(q, excludeId)
+            call.respond(tags)
+        }
         get("/{id}") {
             val id = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
                 ?: return@get call.respond(status = io.ktor.http.HttpStatusCode.BadRequest, "Invalid ID")

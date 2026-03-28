@@ -25,7 +25,8 @@ fun main() {
         .withValue("storage.db.url", ConfigValueFactory.fromAnyRef(jdbcUrl))
         .withValue("storage.db.user", ConfigValueFactory.fromAnyRef(dbUser))
         .withValue("storage.db.password", ConfigValueFactory.fromAnyRef(dbPassword))
-        .withValue("auth.disabled", ConfigValueFactory.fromAnyRef(true))
+        // Typesafe Config + Ktor read this via getString(); a bare boolean override can be misread.
+        .withValue("auth.disabled", ConfigValueFactory.fromAnyRef("true"))
         .withValue("seed.testData", ConfigValueFactory.fromAnyRef(false))
 
     val server = embeddedServer(
