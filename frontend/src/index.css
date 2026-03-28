@@ -112,10 +112,4 @@
     color: var(--link-hover);
     text-decoration: underline;
   }
-  /* Ensure our button utilities override preflight's transparent background */
-  button.bg-primary,
-  button.bg-secondary,
-  button.bg-destructive {
-    background-image: none;
-  }
 }

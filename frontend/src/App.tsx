@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { buttonVariants } from '@/components/ui/button'
@@ -6,12 +7,13 @@ import { RequireAuth } from '@/components/RequireAuth'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
-import RecipeList from './pages/RecipeList'
-import RecipeForm from './pages/RecipeForm'
-import MealPlan from './pages/MealPlan'
-import ShoppingList from './pages/ShoppingList'
 import Login from './pages/Login'
-import Users from './pages/Users'
+
+const RecipeList = lazy(() => import('./pages/RecipeList'))
+const RecipeForm = lazy(() => import('./pages/RecipeForm'))
+const MealPlan = lazy(() => import('./pages/MealPlan'))
+const ShoppingList = lazy(() => import('./pages/ShoppingList'))
+const Users = lazy(() => import('./pages/Users'))
 
 function AppLayout() {
   const { t } = useTranslation()
@@ -57,15 +59,23 @@ function AppLayout() {
           <ThemeToggle />
         </span>
       </nav>
-      <Routes>
-        <Route path="/" element={<RecipeList />} />
-        <Route path="/recipes/new" element={<RecipeForm />} />
-        <Route path="/recipes/:id/edit" element={<RecipeForm />} />
-        <Route path="/meal-plan" element={<MealPlan />} />
-        <Route path="/shopping-list" element={<ShoppingList />} />
-        <Route path="/users" element={<Users />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense
+        fallback={
+          <p className="text-sm text-muted-foreground" role="status">
+            {t('common.loading')}
+          </p>
+        }
+      >
+        <Routes>
+          <Route path="/" element={<RecipeList />} />
+          <Route path="/recipes/new" element={<RecipeForm />} />
+          <Route path="/recipes/:id/edit" element={<RecipeForm />} />
+          <Route path="/meal-plan" element={<MealPlan />} />
+          <Route path="/shopping-list" element={<ShoppingList />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </div>
   )
 }

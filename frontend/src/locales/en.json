@@ -6,6 +6,9 @@
     "shoppingList": "Shopping list",
     "users": "Users"
   },
+  "common": {
+    "loading": "Loading…"
+  },
   "auth": {
     "loginTitle": "Log in",
     "setupTitle": "Create admin account",

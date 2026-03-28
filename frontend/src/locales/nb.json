@@ -6,6 +6,9 @@
     "shoppingList": "Handleliste",
     "users": "Brukere"
   },
+  "common": {
+    "loading": "Laster…"
+  },
   "auth": {
     "loginTitle": "Logg inn",
     "setupTitle": "Opprett admin-konto",
