@@ -186,4 +186,60 @@ class ShoppingListApiTest {
         assertNotNull(flour)
         assertEquals("600", flour!!.quantity, "200 + 400 from two days")
     }
+
+    @Test
+    fun `shopping list merges same ingredient across convertible volume units`() = testWithApp {
+        val recipe1 = RecipeDoc(
+            name = "Porridge",
+            description = "",
+            ingredients = listOf(Ingredient("milk", "2", "dl")),
+            steps = emptyList(),
+            servings = 2,
+            tags = emptyList(),
+        )
+        val recipe2 = RecipeDoc(
+            name = "Sauce",
+            description = "",
+            ingredients = listOf(Ingredient("milk", "1", "l")),
+            steps = emptyList(),
+            servings = 2,
+            tags = emptyList(),
+        )
+
+        val create1 = client.post("/api/recipes") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(RecipeDoc.serializer(), recipe1))
+        }
+        assertEquals(HttpStatusCode.Created, create1.status)
+        val id1 = json.parseToJsonElement(create1.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+
+        val create2 = client.post("/api/recipes") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(RecipeDoc.serializer(), recipe2))
+        }
+        assertEquals(HttpStatusCode.Created, create2.status)
+        val id2 = json.parseToJsonElement(create2.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+
+        val weekId = "2026-W20"
+        val plan = MealPlanDoc(
+            weekIdentifier = weekId,
+            assignments = listOf(
+                DayAssignment("monday", id1, "Porridge"),
+                DayAssignment("tuesday", id2, "Sauce"),
+            ),
+        )
+        client.put("/api/meal-plans/current?week=$weekId") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(MealPlanDoc.serializer(), plan))
+        }.let { assertEquals(HttpStatusCode.OK, it.status) }
+
+        val list = json.decodeFromString(
+            ShoppingListDoc.serializer(),
+            client.get("/api/shopping-lists?week=$weekId").bodyAsText(),
+        )
+        val milkItems = list.items.filter { it.name.equals("milk", ignoreCase = true) }
+        assertEquals(1, milkItems.size, "dl and l should merge into one line")
+        assertEquals("1.2", milkItems[0].quantity)
+        assertEquals("l", milkItems[0].unit)
+    }
 }

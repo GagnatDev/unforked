@@ -5,6 +5,9 @@ import app.meals.domain.MealPlanDoc
 import app.meals.domain.RecipeDoc
 import app.meals.domain.ShoppingListDoc
 import app.meals.domain.ShoppingListItem
+import app.meals.domain.UnitFamily
+import app.meals.domain.bestDisplayUnit
+import app.meals.domain.normalizeUnit
 import app.meals.storage.MealPlanRepository
 import app.meals.storage.RecipeRepository
 import io.ktor.server.application.*
@@ -26,28 +29,85 @@ fun Route.shoppingListRoutes() {
         val distinctIds = plan.assignments.map { it.recipeId }.distinct().map { UUID.fromString(it) }
         val recipes = RecipeRepository.findByIds(distinctIds)
         val recipeById = recipes.associateBy { it.first.toString() }
-        val aggregated = mutableMapOf<String, MutableList<Pair<String, String>>>() // key = normalized name+unit -> list of (quantity, recipeId)
-        for (assignment in plan.assignments) {
-            val recipeId = assignment.recipeId
-            val (recipeUuid, doc) = recipeById[recipeId] ?: continue
-            val scale = scaleForAssignment(plan, assignment, doc)
-            val idStr = recipeUuid.toString()
-            for (ing in doc.ingredients) {
-                val key = "${ing.name.lowercase().trim()}|${ing.unit}"
-                val list = aggregated.getOrPut(key) { mutableListOf() }
-                val scaledQty = scaledIngredientQuantity(ing.quantity, scale)
-                list.add(scaledQty to idStr)
-            }
-        }
-        val items = aggregated.map { (key, qtyList) ->
-            val (name, unit) = key.split("|", limit = 2)
-            val quantities = qtyList.map { it.first }.filter { it.isNotBlank() }
-            val combinedQty = summarizeQuantities(quantities)
-            val recipeIdsUsed = qtyList.map { it.second }.distinct()
-            ShoppingListItem(name = name.replaceFirstChar { it.uppercase() }, quantity = combinedQty, unit = unit, recipeIds = recipeIdsUsed)
-        }.sortedBy { it.name }
+        val items = buildAggregatedShoppingItems(plan, recipeById)
         call.respond(ShoppingListDoc(weekIdentifier = weekId, items = items))
     }
+}
+
+internal sealed class ShoppingContribution {
+    data class InFamily(val baseAmount: Double, val recipeId: String) : ShoppingContribution()
+
+    data class Raw(val quantity: String, val recipeId: String) : ShoppingContribution()
+}
+
+/**
+ * Aggregates ingredients across assignments; merges by known unit family (volume/weight) when quantity is numeric.
+ */
+internal fun buildAggregatedShoppingItems(
+    plan: MealPlanDoc,
+    recipeById: Map<String, Pair<UUID, RecipeDoc>>,
+): List<ShoppingListItem> {
+    val aggregated = mutableMapOf<String, MutableList<ShoppingContribution>>()
+    for (assignment in plan.assignments) {
+        val recipeId = assignment.recipeId
+        val (recipeUuid, doc) = recipeById[recipeId] ?: continue
+        val scale = scaleForAssignment(plan, assignment, doc)
+        val idStr = recipeUuid.toString()
+        for (ing in doc.ingredients) {
+            val name = ing.name.lowercase().trim()
+            val known = normalizeUnit(ing.unit)
+            val scaledQtyStr = scaledIngredientQuantity(ing.quantity, scale)
+            val parsed = parseQuantity(scaledQtyStr)
+            val key =
+                if (known != null && parsed != null) {
+                    "$name|${known.family.name}"
+                } else {
+                    "$name|${ing.unit}"
+                }
+            val list = aggregated.getOrPut(key) { mutableListOf() }
+            if (known != null && parsed != null) {
+                list.add(ShoppingContribution.InFamily(parsed * known.toBase, idStr))
+            } else {
+                list.add(ShoppingContribution.Raw(scaledQtyStr, idStr))
+            }
+        }
+    }
+    return aggregated.map { (key, contribs) ->
+        val (nameLower, second) = key.split("|", limit = 2).let { parts ->
+            parts[0] to parts.getOrElse(1) { "" }
+        }
+        val displayName = nameLower.replaceFirstChar { it.uppercase() }
+        val recipeIdsUsed = contribs.map { c ->
+            when (c) {
+                is ShoppingContribution.InFamily -> c.recipeId
+                is ShoppingContribution.Raw -> c.recipeId
+            }
+        }.distinct()
+        when (second) {
+            UnitFamily.VOLUME.name, UnitFamily.WEIGHT.name -> {
+                val family = UnitFamily.valueOf(second)
+                val sum = contribs.filterIsInstance<ShoppingContribution.InFamily>().sumOf { it.baseAmount }
+                val (displayVal, unit) = bestDisplayUnit(sum, family)
+                ShoppingListItem(
+                    name = displayName,
+                    quantity = formatQuantity(displayVal),
+                    unit = unit,
+                    recipeIds = recipeIdsUsed,
+                )
+            }
+            else -> {
+                val quantities =
+                    contribs.filterIsInstance<ShoppingContribution.Raw>().map { it.quantity }.filter { it.isNotBlank() }
+                val combinedQty = summarizeQuantities(quantities)
+                ShoppingListItem(
+                    name = displayName,
+                    quantity = combinedQty,
+                    unit = second,
+                    recipeIds = recipeIdsUsed,
+                )
+            }
+        }
+    }.sortedBy { it.name }
 }
 
 internal fun scaleForAssignment(plan: MealPlanDoc, assignment: DayAssignment, doc: RecipeDoc): Double {
