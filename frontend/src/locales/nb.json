@@ -4,6 +4,7 @@
     "newRecipe": "Ny oppskrift",
     "weeklyMenu": "Ukemeny",
     "shoppingList": "Handleliste",
+    "family": "Familie",
     "users": "Brukere"
   },
   "common": {
@@ -94,6 +95,31 @@
     "exportCsv": "Eksporter som CSV",
     "noIngredients": "Ingen ingredienser for valgt uke. Legg til oppskrifter under <1>Ukemeny</1> først.",
     "thisWeekLink": "Ukemeny"
+  },
+  "family": {
+    "title": "Familie",
+    "defaultMealPlanning": "Standard for måltidsplanlegging",
+    "defaultMealPlanningHint": "Brukes til å forhåndsutfylle «personer» på ukemenyen når en uke ikke har lagret verdi ennå.",
+    "defaultPeople": "Standard antall personer",
+    "defaultPeopleInvalid": "Oppgi et tall mellom 1 og 50.",
+    "save": "Lagre",
+    "members": "Medlemmer",
+    "inviteSomeone": "Inviter noen",
+    "inviteHint": "De får en lenke for å opprette konto og bli med i familien din (maks fem medlemmer).",
+    "createInvite": "Opprett invitasjon",
+    "inviteLinkReady": "Del denne lenken med personen du inviterte:",
+    "copyInviteLink": "Kopier lenke",
+    "pendingInvites": "Ventende invitasjoner",
+    "expires": "utløper",
+    "acceptInviteTitle": "Bli med i en annen familie",
+    "acceptInviteHint": "Hvis du ble invitert med en eksisterende konto, lim inn token fra invitasjonen her. Oppskriftene dine flyttes til den nye familien; ukemenyer og handlelister fra nåværende familie slettes.",
+    "inviteTokenPlaceholder": "Invitasjonstoken",
+    "joinFamily": "Bli med i familien",
+    "registerWithInviteTitle": "Godta invitasjon",
+    "registerWithInviteHint": "Opprett passord for å bli med i familien. Bruk samme e-post som invitasjonen ble sendt til.",
+    "inviteToken": "Invitasjonstoken",
+    "createAccountAndJoin": "Opprett konto og bli med",
+    "registerDisabledInDev": "Registrering med invitasjon er ikke tilgjengelig når autentisering er deaktivert."
   },
   "theme": {
     "switchToLight": "Bytt til lys modus",

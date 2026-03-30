@@ -64,4 +64,20 @@ object DatabaseFactory {
             conn.close()
         }
     }
+
+    fun <T> transaction(block: (Connection) -> T): T {
+        val conn = getConnection()
+        try {
+            conn.autoCommit = false
+            val result = block(conn)
+            conn.commit()
+            return result
+        } catch (e: Exception) {
+            conn.rollback()
+            throw e
+        } finally {
+            conn.autoCommit = true
+            conn.close()
+        }
+    }
 }

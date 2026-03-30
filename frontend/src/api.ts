@@ -2,6 +2,24 @@ import { getAuthDisabled, getToken, triggerUnauthorized } from '@/lib/authStore'
 
 const base = import.meta.env.VITE_API_URL ?? ''
 
+export type UserInfoWithFamily = { id: string; email: string; role: string; familyId: string }
+
+export type AuthSessionResponse = { token: string; user: UserInfoWithFamily }
+
+/** Unauthenticated JSON POST (login/setup/register) — no Bearer header, no 401 global handler. */
+async function publicRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string>),
+  }
+  const res = await fetch(`${base}${path}`, { ...options, headers })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
 function normalizeRecipeDoc(doc: import('./types').RecipeDoc): import('./types').RecipeDoc
 function normalizeRecipeDoc(doc: Partial<import('./types').RecipeDoc>): import('./types').RecipeDoc
 function normalizeRecipeDoc(
@@ -37,6 +55,23 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  auth: {
+    login: (body: { email: string; password: string }) =>
+      publicRequest<AuthSessionResponse>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    setup: (body: { email: string; password: string }) =>
+      publicRequest<AuthSessionResponse>('/api/auth/setup', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    registerWithInvite: (body: { token: string; email: string; password: string }) =>
+      publicRequest<AuthSessionResponse>('/api/auth/register-invite', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
   recipes: {
     list: (params?: { name?: string; tag?: string }) => {
       const q = new URLSearchParams()
@@ -90,9 +125,33 @@ export const api = {
     ),
   users: {
     create: (body: { email: string; password: string; role: string }) =>
-      request<{ id: string; email: string; role: string }>('/api/users', {
+      request<{ id: string; email: string; role: string; familyId: string }>('/api/users', {
         method: 'POST',
         body: JSON.stringify(body),
+      }),
+  },
+  family: {
+    get: () =>
+      request<{
+        id: string
+        defaultMealPlanPersons: number
+        members: { id: string; email: string }[]
+        pendingInvites: { id: string; inviteeEmail: string; token: string; expiresAt: string }[]
+      }>('/api/family'),
+    patchDefaultPersons: (defaultMealPlanPersons: number) =>
+      request<{ defaultMealPlanPersons: number }>('/api/family', {
+        method: 'PATCH',
+        body: JSON.stringify({ defaultMealPlanPersons }),
+      }),
+    createInvite: (email: string) =>
+      request<{ token: string; expiresAt: string }>('/api/family/invites', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
+    acceptInvite: (token: string) =>
+      request<{ familyId: string }>('/api/family/invites/accept', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
       }),
   },
 }

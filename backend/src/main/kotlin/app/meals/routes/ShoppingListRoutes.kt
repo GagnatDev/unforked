@@ -10,9 +10,10 @@ import app.meals.domain.bestDisplayUnit
 import app.meals.domain.normalizeUnit
 import app.meals.storage.MealPlanRepository
 import app.meals.storage.RecipeRepository
-import io.ktor.server.application.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.application.call
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import java.time.LocalDate
 import java.time.temporal.IsoFields
 import java.util.UUID
@@ -20,14 +21,15 @@ import kotlin.math.ceil
 
 fun Route.shoppingListRoutes() {
     get("/shopping-lists") {
+        val familyId = call.requireFamilyId() ?: return@get
         val weekParam = call.request.queryParameters["week"]
         val weekId = weekParam ?: currentWeekIdentifier()
-        val plan = MealPlanRepository.findByWeek(weekId)?.second ?: run {
+        val plan = MealPlanRepository.findByWeek(familyId, weekId)?.second ?: run {
             call.respond(ShoppingListDoc(weekIdentifier = weekId, items = emptyList()))
             return@get
         }
         val distinctIds = plan.assignments.map { it.recipeId }.distinct().map { UUID.fromString(it) }
-        val recipes = RecipeRepository.findByIds(distinctIds)
+        val recipes = RecipeRepository.findByIds(familyId, distinctIds)
         val recipeById = recipes.associateBy { it.first.toString() }
         val items = buildAggregatedShoppingItems(plan, recipeById)
         call.respond(ShoppingListDoc(weekIdentifier = weekId, items = items))

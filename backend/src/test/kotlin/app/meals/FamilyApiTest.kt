@@ -1,0 +1,153 @@
+package app.meals
+
+import app.meals.auth.AuthConfig
+import app.meals.domain.CreateFamilyInviteResponse
+import app.meals.domain.MealPlanDoc
+import app.meals.domain.RecipeDoc
+import app.meals.domain.UserInfo
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.put
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+
+class FamilyApiTest {
+
+    companion object {
+        @JvmStatic
+        @BeforeAll
+        fun startContainer() {
+            TestDatabase.startIfNeeded()
+        }
+
+        @JvmStatic
+        @AfterAll
+        fun stopContainer() {
+            TestDatabase.stopIfStarted()
+        }
+    }
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    @BeforeEach
+    fun resetDatabase() {
+        TestDatabase.resetSchema()
+    }
+
+    @Test
+    fun `recipes are isolated between families`() = testWithApp {
+        client.get("/health")
+        val createUserRes = client.post("/api/users") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"email":"b@other.test","password":"pw","role":"user"}""")
+        }
+        assertEquals(HttpStatusCode.Created, createUserRes.status, createUserRes.bodyAsText())
+        val userB = json.decodeFromString<UserInfo>(createUserRes.bodyAsText())
+        val tokenB = AuthConfig.createToken(userB.id, "user")
+
+        val soup = RecipeDoc(
+            name = "Soup",
+            description = "",
+            ingredients = emptyList(),
+            steps = emptyList(),
+            servings = 2,
+        )
+        val createDev = client.post("/api/recipes") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(soup))
+        }
+        assertEquals(HttpStatusCode.Created, createDev.status)
+        val devRecipeId = json.parseToJsonElement(createDev.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+
+        val listB = client.get("/api/recipes") {
+            header(HttpHeaders.Authorization, "Bearer $tokenB")
+        }
+        assertEquals(HttpStatusCode.OK, listB.status)
+        assertEquals(0, json.parseToJsonElement(listB.bodyAsText()).jsonArray.size)
+
+        val getForeign = client.get("/api/recipes/$devRecipeId") {
+            header(HttpHeaders.Authorization, "Bearer $tokenB")
+        }
+        assertEquals(HttpStatusCode.NotFound, getForeign.status)
+    }
+
+    @Test
+    fun `accepting invite moves recipes and drops meal plans from old family`() = testWithApp {
+        client.get("/health")
+        val createUserRes = client.post("/api/users") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"email":"joiner@test.com","password":"pw","role":"user"}""")
+        }
+        assertEquals(HttpStatusCode.Created, createUserRes.status, createUserRes.bodyAsText())
+        val joiner = json.decodeFromString<UserInfo>(createUserRes.bodyAsText())
+        val tokenB = AuthConfig.createToken(joiner.id, "user")
+
+        val bowl = RecipeDoc(
+            name = "Bowl",
+            description = "",
+            ingredients = emptyList(),
+            steps = emptyList(),
+            servings = 2,
+        )
+        client.post("/api/recipes") {
+            header(HttpHeaders.Authorization, "Bearer $tokenB")
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(bowl))
+        }
+
+        val week = "2099-W01"
+        val plan = MealPlanDoc(weekIdentifier = week, defaultPersons = 2, assignments = emptyList())
+        client.put("/api/meal-plans/current?week=$week") {
+            header(HttpHeaders.Authorization, "Bearer $tokenB")
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(plan))
+        }
+
+        val inviteRes = client.post("/api/family/invites") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"email":"joiner@test.com"}""")
+        }
+        assertEquals(HttpStatusCode.OK, inviteRes.status, inviteRes.bodyAsText())
+        val invite = json.decodeFromString<CreateFamilyInviteResponse>(inviteRes.bodyAsText())
+
+        val acceptRes = client.post("/api/family/invites/accept") {
+            header(HttpHeaders.Authorization, "Bearer $tokenB")
+            contentType(ContentType.Application.Json)
+            setBody("""{"token":"${invite.token}"}""")
+        }
+        assertEquals(HttpStatusCode.OK, acceptRes.status, acceptRes.bodyAsText())
+
+        val listAfter = client.get("/api/recipes") {
+            header(HttpHeaders.Authorization, "Bearer $tokenB")
+        }
+        val names = json.parseToJsonElement(listAfter.bodyAsText()).jsonArray.map {
+            it.jsonObject["doc"]!!.jsonObject["name"]!!.jsonPrimitive.content
+        }
+        assertTrue(names.contains("Bowl"))
+
+        val planAfter = client.get("/api/meal-plans/current?week=$week") {
+            header(HttpHeaders.Authorization, "Bearer $tokenB")
+        }
+        assertEquals(HttpStatusCode.OK, planAfter.status)
+        val planDoc = json.parseToJsonElement(planAfter.bodyAsText()).jsonObject
+        val assignmentCount = planDoc["assignments"]?.jsonArray?.size ?: 0
+        assertEquals(0, assignmentCount)
+    }
+}

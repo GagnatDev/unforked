@@ -7,14 +7,16 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { api } from '@/api'
 import * as authStore from '@/lib/authStore'
 
-export type UserInfo = { id: string; email: string; role: string }
+export type UserInfo = { id: string; email: string; role: string; familyId: string }
 
 const DEV_USER: UserInfo = {
-  id: 'dev-id',
-  email: 'dev@local',
+  id: '00000000-0000-4000-8000-000000000001',
+  email: 'dev@local.test',
   role: 'admin',
+  familyId: '00000000-0000-4000-8000-0000000000f1',
 }
 
 type AuthContextValue = {
@@ -24,28 +26,14 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   setup: (email: string, password: string) => Promise<void>
+  registerWithInvite: (token: string, email: string, password: string) => Promise<void>
+  refreshUser: () => Promise<void>
   authDisabled: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 const base = import.meta.env.VITE_API_URL ?? ''
-
-async function authRequest<T>(
-  path: string,
-  body: unknown
-): Promise<T> {
-  const res = await fetch(`${base}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-  return res.json()
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null)
@@ -110,10 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       if (authDisabled) return
-      const data = await authRequest<{ token: string; user: UserInfo }>(
-        '/api/auth/login',
-        { email, password }
-      )
+      const data = await api.auth.login({ email, password })
       setToken(data.token)
       setUser(data.user)
     },
@@ -130,15 +115,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setup = useCallback(
     async (email: string, password: string) => {
       if (authDisabled) return
-      const data = await authRequest<{ token: string; user: UserInfo }>(
-        '/api/auth/setup',
-        { email, password }
-      )
+      const data = await api.auth.setup({ email, password })
       setToken(data.token)
       setUser(data.user)
     },
     [authDisabled, setToken]
   )
+
+  const registerWithInvite = useCallback(
+    async (inviteToken: string, email: string, password: string) => {
+      if (authDisabled) return
+      const data = await api.auth.registerWithInvite({ token: inviteToken, email, password })
+      setToken(data.token)
+      setUser(data.user)
+    },
+    [authDisabled, setToken]
+  )
+
+  const refreshUser = useCallback(async () => {
+    if (authDisabled) return
+    const t = authStore.getToken()
+    if (!t) return
+    const res = await fetch(`${base}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${t}` },
+    })
+    if (res.ok) {
+      const u = (await res.json()) as UserInfo
+      setUser(u)
+    }
+  }, [authDisabled])
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -148,9 +153,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       setup,
+      registerWithInvite,
+      refreshUser,
       authDisabled,
     }),
-    [authDisabled, user, token, loading, login, logout, setup]
+    [authDisabled, user, token, loading, login, logout, setup, registerWithInvite, refreshUser]
   )
 
   return (

@@ -1,6 +1,7 @@
 package app.meals.plugins
 
 import app.meals.auth.AuthConfig
+import app.meals.auth.DevAuth
 import app.meals.domain.UserPrincipal
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
@@ -49,7 +50,7 @@ fun Application.configureAuthentication() {
                                 }
                             }
                         } else {
-                            context.principal(UserPrincipal("dev-id", "admin"))
+                            context.principal(UserPrincipal(DevAuth.USER_ID, "admin"))
                         }
                     }
                 }

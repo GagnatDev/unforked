@@ -2,6 +2,7 @@ package app.meals.seed
 
 import app.meals.domain.Ingredient
 import app.meals.domain.RecipeDoc
+import app.meals.storage.FamilyRepository
 import app.meals.storage.RecipeRepository
 
 private val testRecipes = listOf(
@@ -391,10 +392,11 @@ private val testRecipes = listOf(
 
 fun seedTestRecipesIfEmpty() {
     if (RecipeRepository.count() > 0) return
+    val familyId = FamilyRepository.findFirstFamilyId() ?: return
     var inserted = 0
     for (recipe in testRecipes) {
         try {
-            RecipeRepository.insert(recipe)
+            RecipeRepository.insert(familyId, recipe)
             inserted++
         } catch (e: Exception) {
             System.err.println("Seed data: failed to insert '${recipe.name}': ${e.message}")

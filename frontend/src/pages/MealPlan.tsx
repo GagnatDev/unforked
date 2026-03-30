@@ -27,10 +27,22 @@ export default function MealPlan() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    Promise.all([api.mealPlans.getCurrent(weekId), api.recipes.list()])
-      .then(([planData, recipesData]) => {
+    Promise.all([
+      api.mealPlans.getCurrent(weekId),
+      api.recipes.list(),
+      api.family.get().catch(() => null),
+    ])
+      .then(([planData, recipesData, familyData]) => {
         if (!cancelled) {
-          setPlan(planData)
+          let merged = planData
+          if (
+            merged.defaultPersons == null &&
+            familyData != null &&
+            familyData.defaultMealPlanPersons != null
+          ) {
+            merged = { ...merged, defaultPersons: familyData.defaultMealPlanPersons }
+          }
+          setPlan(merged)
           setRecipes(recipesData)
         }
       })

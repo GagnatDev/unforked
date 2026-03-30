@@ -2,19 +2,24 @@ package app.meals.routes
 
 import app.meals.domain.MealPlanDoc
 import app.meals.storage.MealPlanRepository
-import io.ktor.server.application.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.call
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
+import io.ktor.server.routing.put
+import io.ktor.server.routing.route
 import java.time.LocalDate
 import java.time.temporal.IsoFields
 
 fun Route.mealPlanRoutes() {
     route("/meal-plans") {
         get("/current") {
+            val familyId = call.requireFamilyId() ?: return@get
             val weekParam = call.request.queryParameters["week"]
             val weekId = weekParam ?: currentWeekIdentifier()
-            val plan = MealPlanRepository.findByWeek(weekId)
+            val plan = MealPlanRepository.findByWeek(familyId, weekId)
             if (plan == null) {
                 call.respond(MealPlanDoc(weekIdentifier = weekId, assignments = emptyList()))
             } else {
@@ -22,14 +27,15 @@ fun Route.mealPlanRoutes() {
             }
         }
         put("/current") {
+            val familyId = call.requireFamilyId() ?: return@put
             val weekParam = call.request.queryParameters["week"]
             val weekId = weekParam ?: currentWeekIdentifier()
             val body = call.receive<MealPlanDoc>()
             if (body.weekIdentifier != weekId) {
-                call.respond(status = io.ktor.http.HttpStatusCode.BadRequest, "weekIdentifier must match query week or current")
+                call.respond(status = HttpStatusCode.BadRequest, "weekIdentifier must match query week or current")
                 return@put
             }
-            MealPlanRepository.upsert(body)
+            MealPlanRepository.upsert(familyId, body)
             call.respond(body)
         }
     }

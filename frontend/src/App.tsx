@@ -14,6 +14,8 @@ const RecipeForm = lazy(() => import('./pages/RecipeForm'))
 const MealPlan = lazy(() => import('./pages/MealPlan'))
 const ShoppingList = lazy(() => import('./pages/ShoppingList'))
 const Users = lazy(() => import('./pages/Users'))
+const Family = lazy(() => import('./pages/Family'))
+const RegisterInvite = lazy(() => import('./pages/RegisterInvite'))
 
 function AppLayout() {
   const { t } = useTranslation()
@@ -39,6 +41,9 @@ function AppLayout() {
         </Link>
         <Link to="/shopping-list" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
           {t('nav.shoppingList')}
+        </Link>
+        <Link to="/family" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+          {t('nav.family')}
         </Link>
         {!authDisabled && user?.role === 'admin' && (
           <Link to="/users" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
@@ -73,6 +78,7 @@ function AppLayout() {
           <Route path="/meal-plan" element={<MealPlan />} />
           <Route path="/shopping-list" element={<ShoppingList />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/family" element={<Family />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
@@ -85,6 +91,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register-invite" element={<RegisterInvite />} />
         <Route
           path="/*"
           element={

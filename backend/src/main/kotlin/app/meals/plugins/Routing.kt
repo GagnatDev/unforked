@@ -3,6 +3,7 @@ package app.meals.plugins
 import app.meals.domain.UserInfo
 import app.meals.domain.UserPrincipal
 import app.meals.routes.authRoutes
+import app.meals.routes.familyRoutes
 import app.meals.routes.mealPlanRoutes
 import app.meals.routes.recipeRoutes
 import app.meals.routes.shoppingListRoutes
@@ -30,9 +31,17 @@ fun Application.configureRouting() {
                         ?: return@get call.respond(io.ktor.http.HttpStatusCode.Unauthorized, mapOf("error" to "Not authenticated"))
                     val user = UserRepository.findById(UUID.fromString(principal.userId))
                         ?: return@get call.respond(io.ktor.http.HttpStatusCode.NotFound, mapOf("error" to "User not found"))
-                    call.respond(UserInfo(principal.userId, user.email, user.role))
+                    call.respond(
+                        UserInfo(
+                            principal.userId,
+                            user.email,
+                            user.role,
+                            user.familyId.toString(),
+                        )
+                    )
                 }
                 userRoutes()
+                familyRoutes()
                 recipeRoutes()
                 mealPlanRoutes()
                 shoppingListRoutes()

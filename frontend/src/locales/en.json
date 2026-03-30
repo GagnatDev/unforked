@@ -4,6 +4,7 @@
     "newRecipe": "New recipe",
     "weeklyMenu": "Weekly menu",
     "shoppingList": "Shopping list",
+    "family": "Family",
     "users": "Users"
   },
   "common": {
@@ -94,6 +95,31 @@
     "exportCsv": "Export as CSV",
     "noIngredients": "No ingredients for the selected week. Assign recipes in <1>Weekly menu</1> first.",
     "thisWeekLink": "Weekly menu"
+  },
+  "family": {
+    "title": "Family",
+    "defaultMealPlanning": "Meal planning defaults",
+    "defaultMealPlanningHint": "Used to pre-fill “people” on the weekly menu when a week has no saved value yet.",
+    "defaultPeople": "Default number of people",
+    "defaultPeopleInvalid": "Enter a number between 1 and 50.",
+    "save": "Save",
+    "members": "Members",
+    "inviteSomeone": "Invite someone",
+    "inviteHint": "They will receive a link to create an account and join your family (up to five members).",
+    "createInvite": "Create invite",
+    "inviteLinkReady": "Share this link with the person you invited:",
+    "copyInviteLink": "Copy link",
+    "pendingInvites": "Pending invitations",
+    "expires": "expires",
+    "acceptInviteTitle": "Join another family",
+    "acceptInviteHint": "If you were invited with an existing account, paste the token from your invitation here. Your recipes will move to the new family; meal plans and shopping lists from your current family will be cleared.",
+    "inviteTokenPlaceholder": "Invitation token",
+    "joinFamily": "Join family",
+    "registerWithInviteTitle": "Accept invitation",
+    "registerWithInviteHint": "Create your password to join the family. Use the same email address the invitation was sent to.",
+    "inviteToken": "Invitation token",
+    "createAccountAndJoin": "Create account and join",
+    "registerDisabledInDev": "Registration with an invite is not available while authentication is disabled."
   },
   "theme": {
     "switchToLight": "Switch to light mode",
