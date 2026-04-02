@@ -12,6 +12,7 @@ import Login from './pages/Login'
 const RecipeList = lazy(() => import('./pages/RecipeList'))
 const RecipeForm = lazy(() => import('./pages/RecipeForm'))
 const MealPlan = lazy(() => import('./pages/MealPlan'))
+const Today = lazy(() => import('./pages/Today'))
 const ShoppingList = lazy(() => import('./pages/ShoppingList'))
 const Users = lazy(() => import('./pages/Users'))
 const Family = lazy(() => import('./pages/Family'))
@@ -32,6 +33,9 @@ function AppLayout() {
       <nav className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
         <Link to="/" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
           {t('nav.recipes')}
+        </Link>
+        <Link to="/today" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+          {t('nav.today')}
         </Link>
         <Link to="/recipes/new" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
           {t('nav.newRecipe')}
@@ -73,6 +77,7 @@ function AppLayout() {
       >
         <Routes>
           <Route path="/" element={<RecipeList />} />
+          <Route path="/today" element={<Today />} />
           <Route path="/recipes/new" element={<RecipeForm />} />
           <Route path="/recipes/:id/edit" element={<RecipeForm />} />
           <Route path="/meal-plan" element={<MealPlan />} />

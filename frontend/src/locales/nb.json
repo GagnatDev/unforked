@@ -1,6 +1,7 @@
 {
   "nav": {
     "recipes": "Oppskrifter",
+    "today": "I dag",
     "newRecipe": "Ny oppskrift",
     "weeklyMenu": "Ukemeny",
     "shoppingList": "Handleliste",
@@ -124,6 +125,18 @@
   "theme": {
     "switchToLight": "Bytt til lys modus",
     "switchToDark": "Bytt til mørk modus"
+  },
+  "today": {
+    "title": "I dag",
+    "week": "uke {{week}}",
+    "loading": "Laster…",
+    "noMealPlanned": "Ingen måltid planlagt for i dag.",
+    "goToMealPlan": "Gå til ukemeny",
+    "ingredients": "Ingredienser",
+    "steps": "Trinn",
+    "resetProgress": "Nullstill fremdrift",
+    "keepAwake": "Hold skjermen våken",
+    "keepAwakeUnsupported": "Ikke støttet av denne nettleseren."
   },
   "language": {
     "en": "English",
