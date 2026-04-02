@@ -1,12 +1,18 @@
 {
   "nav": {
     "recipes": "Oppskrifter",
+    "recipesMenu": "Oppskrifter",
+    "allRecipes": "Alle oppskrifter",
     "today": "I dag",
     "newRecipe": "Ny oppskrift",
     "weeklyMenu": "Ukemeny",
     "shoppingList": "Handleliste",
     "family": "Familie",
-    "users": "Brukere"
+    "users": "Brukere",
+    "more": "Mer",
+    "account": "Konto",
+    "accountLanguage": "Språk",
+    "accountTheme": "Tema"
   },
   "common": {
     "loading": "Laster…",
@@ -141,7 +147,10 @@
   },
   "theme": {
     "switchToLight": "Bytt til lys modus",
-    "switchToDark": "Bytt til mørk modus"
+    "switchToDark": "Bytt til mørk modus",
+    "light": "Lys",
+    "dark": "Mørk",
+    "system": "System"
   },
   "today": {
     "title": "I dag",

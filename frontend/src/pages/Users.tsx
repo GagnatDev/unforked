@@ -15,7 +15,7 @@ export default function Users() {
   const [success, setSuccess] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  if (user?.role !== 'admin') {
+  if (user?.role?.toLowerCase() !== 'admin') {
     return (
       <div className="text-destructive">
         {t('auth.adminOnly')}

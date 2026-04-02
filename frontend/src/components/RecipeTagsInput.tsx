@@ -196,6 +196,7 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
         }}
       >
         <PopoverTrigger
+          nativeButton={false}
           render={
             <div
               className={cn(
