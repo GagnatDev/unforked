@@ -10,6 +10,7 @@
   },
   "common": {
     "loading": "Laster…",
+    "cancel": "Avbryt",
     "selectWeek": "Velg uke"
   },
   "auth": {
@@ -44,6 +45,8 @@
     "newRecipe": "Ny oppskrift",
     "name": "Navn",
     "description": "Beskrivelse",
+    "sourceUrl": "Kilde-URL",
+    "sourceName": "Kilde",
     "servings": "Porsjoner",
     "tagsLabel": "Nøkkelord",
     "tagSuggestionsAria": "Forslag til nøkkelord",
@@ -63,7 +66,21 @@
     "saving": "Lagrer…",
     "update": "Oppdater",
     "create": "Opprett",
-    "loading": "Laster…"
+    "loading": "Laster…",
+    "importFromUrl": "Importer fra URL",
+    "importNotes": "Merknader fra import",
+    "dismissImportNotes": "Lukk"
+  },
+  "importRecipe": {
+    "title": "Importer oppskrift fra URL",
+    "subtitle": "Lim inn en lenke til en oppskriftside. Vi prøver å importere det vi kan, og du kan redigere før du lagrer.",
+    "urlLabel": "Oppskrifts-URL",
+    "urlPlaceholder": "https://eksempel.no/oppskrift",
+    "importCta": "Importer",
+    "importing": "Importerer…",
+    "unnamed": "Uten navn",
+    "previewCounts": "{{ingredients}} ingredienser, {{steps}} trinn",
+    "editBeforeSavingCta": "Rediger før lagring"
   },
   "mealPlan": {
     "title": "Middager denne uken",

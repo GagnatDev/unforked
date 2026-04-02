@@ -5,6 +5,8 @@ import {
   RecipeTagsInput,
   type RecipeTagsInputHandle,
 } from '@/components/RecipeTagsInput'
+import { RecipeImportUrlDialog } from '@/components/RecipeImportUrlDialog'
+import { RecipeSourceAttribution } from '@/components/RecipeSourceAttribution'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '../api'
@@ -13,6 +15,8 @@ import type { RecipeDoc, Ingredient } from '../types'
 const emptyDoc: RecipeDoc = {
   name: '',
   description: '',
+  sourceUrl: null,
+  sourceName: null,
   ingredients: [],
   steps: [],
   servings: 4,
@@ -29,6 +33,8 @@ export default function RecipeForm() {
   const [loading, setLoading] = useState(!!id)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importWarnings, setImportWarnings] = useState<string[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -112,6 +118,36 @@ export default function RecipeForm() {
   return (
     <div>
       <h1>{id ? t('recipeForm.editRecipe') : t('recipeForm.newRecipe')}</h1>
+      {!id && (
+        <>
+          <p className="mb-3">
+            <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+              {t('recipeForm.importFromUrl')}
+            </Button>
+          </p>
+          <RecipeImportUrlDialog
+            open={importOpen}
+            onOpenChange={setImportOpen}
+            onImported={({ doc: imported, warnings }) => {
+              setDoc(imported)
+              setImportWarnings(warnings)
+            }}
+          />
+        </>
+      )}
+      {!id && importWarnings.length > 0 && (
+        <div className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <p className="mb-1 font-medium text-foreground/80">{t('recipeForm.importNotes')}</p>
+          <ul className="mb-2 list-disc pl-5">
+            {importWarnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setImportWarnings([])}>
+            {t('recipeForm.dismissImportNotes')}
+          </Button>
+        </div>
+      )}
       {error && <p className="text-destructive">{error}</p>}
       <form onSubmit={handleSubmit}>
         <p className="mb-4">
@@ -134,6 +170,7 @@ export default function RecipeForm() {
             />
           </label>
         </p>
+        <RecipeSourceAttribution sourceUrl={doc.sourceUrl} sourceName={doc.sourceName} />
         <p className="mb-4">
           <label className="mb-2 block font-medium">
             {t('recipeForm.servings')} <Input

@@ -28,6 +28,8 @@ function normalizeRecipeDoc(
   return {
     name: doc.name ?? '',
     description: doc.description ?? '',
+    sourceUrl: doc.sourceUrl ?? null,
+    sourceName: doc.sourceName ?? null,
     ingredients: doc.ingredients ?? [],
     steps: doc.steps ?? [],
     servings: doc.servings ?? 4,
@@ -98,6 +100,14 @@ export const api = {
       }).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
     delete: (id: string) =>
       request<void>(`/api/recipes/${id}`, { method: 'DELETE' }),
+    importFromUrl: (url: string) =>
+      request<{ doc: Partial<import('./types').RecipeDoc>; warnings?: string[] }>(
+        `/api/recipes/import`,
+        { method: 'POST', body: JSON.stringify({ url }) }
+      ).then((r) => ({
+        doc: normalizeRecipeDoc(r.doc),
+        warnings: Array.isArray(r.warnings) ? r.warnings : [],
+      })),
     tagSuggestions: (
       q: string,
       opts?: { excludeRecipeId?: string; signal?: AbortSignal }

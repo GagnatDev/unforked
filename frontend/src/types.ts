@@ -7,6 +7,8 @@ export interface Ingredient {
 export interface RecipeDoc {
   name: string
   description: string
+  sourceUrl: string | null
+  sourceName: string | null
   ingredients: Ingredient[]
   steps: string[]
   servings: number

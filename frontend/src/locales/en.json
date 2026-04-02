@@ -10,6 +10,7 @@
   },
   "common": {
     "loading": "Loading…",
+    "cancel": "Cancel",
     "selectWeek": "Select week"
   },
   "auth": {
@@ -44,6 +45,8 @@
     "newRecipe": "New recipe",
     "name": "Name",
     "description": "Description",
+    "sourceUrl": "Source URL",
+    "sourceName": "Source",
     "servings": "Servings",
     "tagsLabel": "Tags",
     "tagSuggestionsAria": "Tag suggestions",
@@ -63,7 +66,21 @@
     "saving": "Saving…",
     "update": "Update",
     "create": "Create",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "importFromUrl": "Import from URL",
+    "importNotes": "Import notes",
+    "dismissImportNotes": "Dismiss"
+  },
+  "importRecipe": {
+    "title": "Import recipe from URL",
+    "subtitle": "Paste a link to a recipe page. We’ll do a best-effort import, and you can edit before saving.",
+    "urlLabel": "Recipe URL",
+    "urlPlaceholder": "https://example.com/recipe",
+    "importCta": "Import",
+    "importing": "Importing…",
+    "unnamed": "Untitled recipe",
+    "previewCounts": "{{ingredients}} ingredients, {{steps}} steps",
+    "editBeforeSavingCta": "Edit before saving"
   },
   "mealPlan": {
     "title": "This week's dinners",
