@@ -19,6 +19,8 @@ data class Ingredient(
 data class RecipeDoc(
     val name: String,
     val description: String = "",
+    val sourceUrl: String? = null,
+    val sourceName: String? = null,
     val ingredients: List<Ingredient> = emptyList(),
     val steps: List<String> = emptyList(),
     val servings: Int = 4,

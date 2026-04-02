@@ -1,5 +1,7 @@
 package app.meals.routes
 
+import app.meals.domain.ImportRecipeRequest
+import app.meals.importer.RecipeImporter
 import app.meals.domain.RecipeDoc
 import app.meals.domain.RecipeResponse
 import app.meals.storage.RecipeRepository
@@ -44,6 +46,18 @@ fun Route.recipeRoutes() {
             val doc = RecipeRepository.findById(familyId, id)
                 ?: return@get call.respond(status = HttpStatusCode.NotFound, "Recipe not found")
             call.respond(RecipeResponse(id.toString(), doc))
+        }
+        post("/import") {
+            call.requireFamilyId() ?: return@post
+            val body = call.receive<ImportRecipeRequest>()
+            val result = runCatching { RecipeImporter.importFromUrl(body.url) }.getOrElse { e ->
+                val msg = e.message ?: "Import failed"
+                return@post call.respond(
+                    status = HttpStatusCode.BadRequest,
+                    msg
+                )
+            }
+            call.respond(result)
         }
         post {
             val familyId = call.requireFamilyId() ?: return@post
