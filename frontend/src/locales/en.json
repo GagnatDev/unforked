@@ -1,6 +1,7 @@
 {
   "nav": {
     "recipes": "Recipes",
+    "today": "Today",
     "newRecipe": "New recipe",
     "weeklyMenu": "Weekly menu",
     "shoppingList": "Shopping list",
@@ -124,6 +125,18 @@
   "theme": {
     "switchToLight": "Switch to light mode",
     "switchToDark": "Switch to dark mode"
+  },
+  "today": {
+    "title": "Today",
+    "week": "week {{week}}",
+    "loading": "Loading…",
+    "noMealPlanned": "No meal planned for today.",
+    "goToMealPlan": "Go to weekly menu",
+    "ingredients": "Ingredients",
+    "steps": "Steps",
+    "resetProgress": "Reset progress",
+    "keepAwake": "Keep screen awake",
+    "keepAwakeUnsupported": "Not supported by this browser."
   },
   "language": {
     "en": "English",
