@@ -2,7 +2,6 @@ package app.meals.plugins
 
 import app.meals.auth.AuthConfig
 import app.meals.auth.DevAuth
-import app.meals.auth.INSECURE_JWT_SECRET_PLACEHOLDER
 import app.meals.domain.UserPrincipal
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
@@ -16,29 +15,30 @@ import io.ktor.server.auth.authentication
 import io.ktor.server.response.respond
 import kotlinx.coroutines.runBlocking
 
-internal fun requireJwtSecretConfiguredForProduction(jwtSecret: String) {
+internal fun requireJwtSecretConfiguredForProduction(jwtSecret: String, bundledInsecureDefault: String) {
     if (jwtSecret.isBlank()) {
         throw IllegalStateException(
             "JWT secret is missing or blank but auth is enabled (auth.disabled=false). " +
                 "Set the JWT_SECRET environment variable to a strong secret."
         )
     }
-    if (jwtSecret == INSECURE_JWT_SECRET_PLACEHOLDER) {
+    if (jwtSecret == bundledInsecureDefault) {
         throw IllegalStateException(
-            "JWT secret is still the default placeholder but auth is enabled (auth.disabled=false). " +
-                "Set JWT_SECRET to a strong, unique value; do not use the bundled default."
+            "JWT secret is still the bundled default (auth.jwt.bundled-insecure-default) but auth is enabled (auth.disabled=false). " +
+                "Set JWT_SECRET to a strong, unique value."
         )
     }
 }
 
 fun Application.configureAuthentication() {
     val jwtSecret = environment.config.property("auth.jwt.secret").getString()
+    val bundledInsecureDefault = environment.config.property("auth.jwt.bundled-insecure-default").getString()
     val issuer = environment.config.property("auth.jwt.issuer").getString()
     val audience = environment.config.property("auth.jwt.audience").getString()
     val authDisabled = environment.config.property("auth.disabled").getString().lowercase() == "true"
 
     if (!authDisabled) {
-        requireJwtSecretConfiguredForProduction(jwtSecret)
+        requireJwtSecretConfiguredForProduction(jwtSecret, bundledInsecureDefault)
     }
 
     AuthConfig.initFromEnvironment(jwtSecret, issuer, audience, authDisabled)

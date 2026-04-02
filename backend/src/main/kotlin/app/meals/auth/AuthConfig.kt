@@ -1,8 +1,5 @@
 package app.meals.auth
 
-/** Must match the default in `application.conf` before `${?JWT_SECRET}` override. */
-const val INSECURE_JWT_SECRET_PLACEHOLDER = "change-me-in-production-use-env"
-
 object AuthConfig {
     // These are initialized from environment/config in configureAuthentication.
     var jwtSecret: String = ""
