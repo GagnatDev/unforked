@@ -1,12 +1,9 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { buttonVariants } from '@/components/ui/button'
-import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { AppNav } from '@/components/AppNav'
 import { RequireAuth } from '@/components/RequireAuth'
-import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuth } from '@/contexts/AuthContext'
-import { cn } from '@/lib/utils'
 import Login from './pages/Login'
 
 const RecipeList = lazy(() => import('./pages/RecipeList'))
@@ -21,7 +18,7 @@ const RegisterInvite = lazy(() => import('./pages/RegisterInvite'))
 function AppLayout() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { user, logout, authDisabled } = useAuth()
+  const { logout } = useAuth()
 
   const handleLogout = () => {
     logout()
@@ -30,44 +27,7 @@ function AppLayout() {
 
   return (
     <div className="max-w-[900px] mx-auto p-6">
-      <nav className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
-        <Link to="/" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          {t('nav.recipes')}
-        </Link>
-        <Link to="/today" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          {t('nav.today')}
-        </Link>
-        <Link to="/recipes/new" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          {t('nav.newRecipe')}
-        </Link>
-        <Link to="/meal-plan" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          {t('nav.weeklyMenu')}
-        </Link>
-        <Link to="/shopping-list" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          {t('nav.shoppingList')}
-        </Link>
-        <Link to="/family" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          {t('nav.family')}
-        </Link>
-        {!authDisabled && user?.role === 'admin' && (
-          <Link to="/users" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-            {t('nav.users')}
-          </Link>
-        )}
-        <span className="ml-auto flex items-center gap-2">
-          {!authDisabled && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
-            >
-              {t('auth.logOut')}
-            </button>
-          )}
-          <LanguageSwitcher />
-          <ThemeToggle />
-        </span>
-      </nav>
+      <AppNav onLogout={handleLogout} />
       <Suspense
         fallback={
           <p className="text-sm text-muted-foreground" role="status">
@@ -76,8 +36,9 @@ function AppLayout() {
         }
       >
         <Routes>
-          <Route path="/" element={<RecipeList />} />
-          <Route path="/today" element={<Today />} />
+          <Route path="/" element={<Today />} />
+          <Route path="/today" element={<Navigate to="/" replace />} />
+          <Route path="/recipes" element={<RecipeList />} />
           <Route path="/recipes/new" element={<RecipeForm />} />
           <Route path="/recipes/:id/edit" element={<RecipeForm />} />
           <Route path="/meal-plan" element={<MealPlan />} />

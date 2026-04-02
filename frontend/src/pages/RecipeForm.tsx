@@ -182,7 +182,7 @@ export default function RecipeForm() {
             />
           </label>
         </p>
-        <p className="mb-4">
+        <div className="mb-4">
           <label htmlFor={tagsFieldId} className="mb-2 block font-medium">
             {t('recipeForm.tagsLabel')}
           </label>
@@ -194,7 +194,7 @@ export default function RecipeForm() {
             onChange={(tags) => update({ tags })}
             excludeRecipeId={id}
           />
-        </p>
+        </div>
 
         <h3>{t('recipeForm.ingredients')}</h3>
         {doc.ingredients.map((ing, i) => (

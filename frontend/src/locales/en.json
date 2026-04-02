@@ -1,12 +1,18 @@
 {
   "nav": {
     "recipes": "Recipes",
+    "recipesMenu": "Recipes",
+    "allRecipes": "All recipes",
     "today": "Today",
     "newRecipe": "New recipe",
     "weeklyMenu": "Weekly menu",
     "shoppingList": "Shopping list",
     "family": "Family",
-    "users": "Users"
+    "users": "Users",
+    "more": "More",
+    "account": "Account",
+    "accountLanguage": "Language",
+    "accountTheme": "Theme"
   },
   "common": {
     "loading": "Loading…",
@@ -141,7 +147,10 @@
   },
   "theme": {
     "switchToLight": "Switch to light mode",
-    "switchToDark": "Switch to dark mode"
+    "switchToDark": "Switch to dark mode",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
   },
   "today": {
     "title": "Today",
