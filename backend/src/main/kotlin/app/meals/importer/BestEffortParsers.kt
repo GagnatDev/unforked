@@ -48,9 +48,15 @@ internal object BestEffortParsers {
         val name = recipe["name"]?.asString()?.trim().orEmpty()
         val description = recipe["description"]?.asString()?.trim().orEmpty()
         val ingredients = recipe["recipeIngredient"]?.let { el ->
+            fun splitLines(s: String): List<String> =
+                s.lines().map { it.trim() }.filter { it.isNotBlank() }
             when (el) {
-                is JsonArray -> el.mapNotNull { it.asString()?.trim() }.filter { it.isNotBlank() }
-                else -> emptyList()
+                is JsonArray ->
+                    el.flatMap { item ->
+                        item.asString()?.trim()?.takeIf { it.isNotBlank() }?.let { splitLines(it) }.orEmpty()
+                    }
+                else ->
+                    el.asString()?.trim()?.takeIf { it.isNotBlank() }?.let { splitLines(it) }.orEmpty()
             }
         }.orEmpty()
 
@@ -58,7 +64,7 @@ internal object BestEffortParsers {
         val servings = recipe["recipeYield"]?.asString()?.let { parseFirstInt(it) }
         val sourceName = recipe["publisher"]?.asObject()?.get("name")?.asString()?.trim()
 
-        val ingObjs = ingredients.map { Ingredient(name = it, quantity = "", unit = "") }
+        val ingObjs = ingredients.map { IngredientLineParser.parseLine(it) }
         val steps = instructions.map { it.trim() }.filter { it.isNotBlank() }
 
         if (ingObjs.isEmpty()) warnings.add("JSON-LD present but no ingredients found.")
