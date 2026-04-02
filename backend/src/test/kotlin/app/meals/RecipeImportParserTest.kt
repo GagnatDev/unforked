@@ -51,6 +51,25 @@ class RecipeImportParserTest {
         assertTrue(out.ingredients.size >= 2)
         assertTrue(out.steps.size >= 2)
         assertTrue(out.servings == 4)
+        assertTrue(out.ingredients[0].quantity == "200" && out.ingredients[0].unit == "g" && out.ingredients[0].name == "carrots")
+        assertTrue(out.ingredients[1].quantity == "1" && out.ingredients[1].unit == "l" && out.ingredients[1].name == "water")
+    }
+
+    @Test
+    fun `json-ld recipeIngredient as single string splits on newlines`() {
+        val html =
+            """
+            <!DOCTYPE html><html><head>
+            <script type="application/ld+json">
+            {"@context":"https://schema.org","@type":"Recipe","name":"Multiline","recipeIngredient":"1 dl milk\n200 g flour"}
+            </script></head><body></body></html>
+            """.trimIndent()
+        val doc = Jsoup.parse(html, "https://example.com/r")
+        val warnings = mutableListOf<String>()
+        val out = BestEffortParsers.parse(doc, json, warnings)
+        assertTrue(out.ingredients.size == 2)
+        assertTrue(out.ingredients[0].quantity == "1" && out.ingredients[0].unit == "dl" && out.ingredients[0].name == "milk")
+        assertTrue(out.ingredients[1].quantity == "200" && out.ingredients[1].unit == "g" && out.ingredients[1].name == "flour")
     }
 
     private fun resourceText(path: String): String =
