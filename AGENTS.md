@@ -23,16 +23,16 @@ When the user pastes a **GitHub issue URL** (with or without a verb like "implem
 
 The main working tree is left untouched.
 
-### What "ship it" means
+### What "create pr" means
 
-When the user says **ship it** (or equivalent: ship work, ship this, etc.), do **all** of the following unless they explicitly narrow the scope:
+When the user says **create pr** (or equivalent: create a pr, open pr, open a pull request, etc.), do **all** of the following unless they explicitly narrow the scope:
 
 1. Ensure changes live on a **feature branch** (not directly on `main`). Create or use a branch from current `main` if needed.
 2. **Commit** on that branch with a message that follows [Commit messages](#commit-messages) below.
 3. **Push** the branch to `origin`.
 4. Open a **pull request** into `main` with `gh pr create` (or the same steps the user would use in the GitHub UI).
 
-Shipping work is **not** satisfied by a local commit only, or by committing on `main` without a PR, unless the user clearly says otherwise.
+This is **not** satisfied by a local commit only, or by committing on `main` without a PR, unless the user clearly says otherwise.
 
 ### Commit messages
 
