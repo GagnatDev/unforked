@@ -5,41 +5,18 @@ import app.meals.domain.Ingredient
 import app.meals.domain.MealPlanDoc
 import app.meals.domain.RecipeDoc
 import app.meals.domain.ShoppingListDoc
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.server.testing.*
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import org.junit.jupiter.api.AfterAll
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
+import kotlinx.serialization.decodeFromString
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 
+@ExtendWith(DatabaseExtension::class)
 class ShoppingListApiTest {
 
-    companion object {
-        @JvmStatic
-        @BeforeAll
-        fun startContainer() {
-            TestDatabase.startIfNeeded()
-        }
-
-        @JvmStatic
-        @AfterAll
-        fun stopContainer() {
-            TestDatabase.stopIfStarted()
-        }
-    }
-
-    private val json = Json { ignoreUnknownKeys = true }
-
-    @BeforeEach
-    fun resetDatabase() {
-        TestDatabase.resetSchema()
-    }
+    private val json = apiTestJson
 
     @Test
     fun `shopping list aggregates quantities for same ingredient`() = testWithApp {
@@ -51,7 +28,7 @@ class ShoppingListApiTest {
             ingredients = listOf(flour, Ingredient("salt", "1", "pinch")),
             steps = emptyList(),
             servings = 2,
-            tags = emptyList()
+            tags = emptyList(),
         )
         val recipe2 = RecipeDoc(
             name = "Recipe B",
@@ -59,35 +36,21 @@ class ShoppingListApiTest {
             ingredients = listOf(Ingredient("flour", "300", "g"), Ingredient("sugar", "50", "g")),
             steps = emptyList(),
             servings = 2,
-            tags = emptyList()
+            tags = emptyList(),
         )
 
-        val create1 = client.post("/api/recipes") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(RecipeDoc.serializer(), recipe1))
-        }
-        assertEquals(HttpStatusCode.Created, create1.status)
-        val id1 = json.parseToJsonElement(create1.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
-
-        val create2 = client.post("/api/recipes") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(RecipeDoc.serializer(), recipe2))
-        }
-        assertEquals(HttpStatusCode.Created, create2.status)
-        val id2 = json.parseToJsonElement(create2.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+        val id1 = createRecipe(client, recipe1, json)
+        val id2 = createRecipe(client, recipe2, json)
 
         val weekId = "2026-W10"
         val plan = MealPlanDoc(
             weekIdentifier = weekId,
             assignments = listOf(
                 DayAssignment("monday", id1, "Recipe A"),
-                DayAssignment("tuesday", id2, "Recipe B")
-            )
+                DayAssignment("tuesday", id2, "Recipe B"),
+            ),
         )
-        client.put("/api/meal-plans/current?week=$weekId") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(MealPlanDoc.serializer(), plan))
-        }.let { assertEquals(HttpStatusCode.OK, it.status) }
+        putMealPlanOk(client, weekId, plan, json)
 
         val listResponse = client.get("/api/shopping-lists?week=$weekId")
         assertEquals(HttpStatusCode.OK, listResponse.status)
@@ -118,29 +81,21 @@ class ShoppingListApiTest {
             ingredients = listOf(Ingredient("flour", "400", "g")),
             steps = emptyList(),
             servings = 4,
-            tags = emptyList()
+            tags = emptyList(),
         )
-        val create = client.post("/api/recipes") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(RecipeDoc.serializer(), recipe))
-        }
-        assertEquals(HttpStatusCode.Created, create.status)
-        val id = json.parseToJsonElement(create.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+        val id = createRecipe(client, recipe, json)
 
         val weekId = "2026-W11"
         val plan = MealPlanDoc(
             weekIdentifier = weekId,
             defaultPersons = 2,
-            assignments = listOf(DayAssignment("monday", id, "Scaled soup"))
+            assignments = listOf(DayAssignment("monday", id, "Scaled soup")),
         )
-        client.put("/api/meal-plans/current?week=$weekId") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(MealPlanDoc.serializer(), plan))
-        }.let { assertEquals(HttpStatusCode.OK, it.status) }
+        putMealPlanOk(client, weekId, plan, json)
 
         val list = json.decodeFromString(
             ShoppingListDoc.serializer(),
-            client.get("/api/shopping-lists?week=$weekId").bodyAsText()
+            client.get("/api/shopping-lists?week=$weekId").bodyAsText(),
         )
         val flour = list.items.find { it.name.equals("flour", ignoreCase = true) }
         assertNotNull(flour)
@@ -155,14 +110,9 @@ class ShoppingListApiTest {
             ingredients = listOf(Ingredient("flour", "400", "g")),
             steps = emptyList(),
             servings = 4,
-            tags = emptyList()
+            tags = emptyList(),
         )
-        val create = client.post("/api/recipes") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(RecipeDoc.serializer(), recipe))
-        }
-        assertEquals(HttpStatusCode.Created, create.status)
-        val id = json.parseToJsonElement(create.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+        val id = createRecipe(client, recipe, json)
 
         val weekId = "2026-W12"
         val plan = MealPlanDoc(
@@ -170,17 +120,14 @@ class ShoppingListApiTest {
             defaultPersons = 4,
             assignments = listOf(
                 DayAssignment("monday", id, "Pasta", persons = 2),
-                DayAssignment("tuesday", id, "Pasta", persons = null)
-            )
+                DayAssignment("tuesday", id, "Pasta", persons = null),
+            ),
         )
-        client.put("/api/meal-plans/current?week=$weekId") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(MealPlanDoc.serializer(), plan))
-        }.let { assertEquals(HttpStatusCode.OK, it.status) }
+        putMealPlanOk(client, weekId, plan, json)
 
         val list = json.decodeFromString(
             ShoppingListDoc.serializer(),
-            client.get("/api/shopping-lists?week=$weekId").bodyAsText()
+            client.get("/api/shopping-lists?week=$weekId").bodyAsText(),
         )
         val flour = list.items.find { it.name.equals("flour", ignoreCase = true) }
         assertNotNull(flour)
@@ -206,19 +153,8 @@ class ShoppingListApiTest {
             tags = emptyList(),
         )
 
-        val create1 = client.post("/api/recipes") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(RecipeDoc.serializer(), recipe1))
-        }
-        assertEquals(HttpStatusCode.Created, create1.status)
-        val id1 = json.parseToJsonElement(create1.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
-
-        val create2 = client.post("/api/recipes") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(RecipeDoc.serializer(), recipe2))
-        }
-        assertEquals(HttpStatusCode.Created, create2.status)
-        val id2 = json.parseToJsonElement(create2.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+        val id1 = createRecipe(client, recipe1, json)
+        val id2 = createRecipe(client, recipe2, json)
 
         val weekId = "2026-W20"
         val plan = MealPlanDoc(
@@ -228,10 +164,7 @@ class ShoppingListApiTest {
                 DayAssignment("tuesday", id2, "Sauce"),
             ),
         )
-        client.put("/api/meal-plans/current?week=$weekId") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(MealPlanDoc.serializer(), plan))
-        }.let { assertEquals(HttpStatusCode.OK, it.status) }
+        putMealPlanOk(client, weekId, plan, json)
 
         val list = json.decodeFromString(
             ShoppingListDoc.serializer(),
