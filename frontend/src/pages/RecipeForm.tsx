@@ -1,5 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import { useAsync } from '@/hooks/useAsync'
+import { useId, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -10,19 +9,11 @@ import { RecipeImportUrlDialog } from '@/components/RecipeImportUrlDialog'
 import { RecipeSourceAttribution } from '@/components/RecipeSourceAttribution'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { api } from '../api'
-import type { RecipeDoc, Ingredient } from '../types'
-
-const emptyDoc: RecipeDoc = {
-  name: '',
-  description: '',
-  sourceUrl: null,
-  sourceName: null,
-  ingredients: [],
-  steps: [],
-  servings: 4,
-  tags: [],
-}
+import { IngredientListEditor } from './recipe-form/IngredientListEditor'
+import { StepListEditor } from './recipe-form/StepListEditor'
+import { useRecipeFormState } from './recipe-form/useRecipeFormState'
 
 export default function RecipeForm() {
   const { id } = useParams()
@@ -30,70 +21,28 @@ export default function RecipeForm() {
   const { t } = useTranslation()
   const tagsFieldId = useId()
   const tagsInputRef = useRef<RecipeTagsInputHandle>(null)
-  const [doc, setDoc] = useState<RecipeDoc>(emptyDoc)
+  const {
+    doc,
+    setDoc,
+    loading,
+    error,
+    setError,
+    update,
+    addIngredient,
+    updateIngredient,
+    removeIngredient,
+    addStep,
+    updateStep,
+    removeStep,
+  } = useRecipeFormState(id)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importWarnings, setImportWarnings] = useState<string[]>([])
-
-  const { data: fetchedDoc, loading, error: loadError } = useAsync(
-    async (signal) => {
-      const r = await api.recipes.get(id!)
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      return r.doc
-    },
-    [id],
-    { enabled: !!id },
-  )
-
-  useEffect(() => {
-    if (!id) setDoc(emptyDoc)
-  }, [id])
-
-  useEffect(() => {
-    if (fetchedDoc) setDoc(fetchedDoc)
-  }, [fetchedDoc])
-
-  const update = (patch: Partial<RecipeDoc>) => setDoc((d) => ({ ...d, ...patch }))
-
-  const addIngredient = () => {
-    setDoc((d) => ({
-      ...d,
-      ingredients: [...d.ingredients, { name: '', quantity: '', unit: '' }],
-    }))
-  }
-  const updateIngredient = (i: number, patch: Partial<Ingredient>) => {
-    setDoc((d) => ({
-      ...d,
-      ingredients: d.ingredients.map((ing, j) =>
-        j === i ? { ...ing, ...patch } : ing
-      ),
-    }))
-  }
-  const removeIngredient = (i: number) => {
-    setDoc((d) => ({
-      ...d,
-      ingredients: d.ingredients.filter((_, j) => j !== i),
-    }))
-  }
-
-  const addStep = () => {
-    setDoc((d) => ({ ...d, steps: [...d.steps, ''] }))
-  }
-  const updateStep = (i: number, value: string) => {
-    setDoc((d) => ({
-      ...d,
-      steps: d.steps.map((s, j) => (j === i ? value : s)),
-    }))
-  }
-  const removeStep = (i: number) => {
-    setDoc((d) => ({ ...d, steps: d.steps.filter((_, j) => j !== i) }))
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const tags = tagsInputRef.current?.commitPending() ?? doc.tags
-    const docToSave: RecipeDoc = { ...doc, tags }
+    const docToSave = { ...doc, tags }
     setSaving(true)
     setError(null)
     try {
@@ -110,19 +59,18 @@ export default function RecipeForm() {
     }
   }
 
-  if (id && loading) return <p>{t('recipeForm.loading')}</p>
-  if (id && loadError) return <p className="text-destructive">{loadError}</p>
+  if (loading) return <p>{t('recipeForm.loading')}</p>
 
   return (
     <div>
       <h1>{id ? t('recipeForm.editRecipe') : t('recipeForm.newRecipe')}</h1>
       {!id && (
         <>
-          <p className="mb-3">
+          <div className="mb-3">
             <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
               {t('recipeForm.importFromUrl')}
             </Button>
-          </p>
+          </div>
           <RecipeImportUrlDialog
             open={importOpen}
             onOpenChange={setImportOpen}
@@ -146,9 +94,9 @@ export default function RecipeForm() {
           </Button>
         </div>
       )}
-      {error && <p className="text-destructive">{error}</p>}
+      {error && <div className="text-destructive">{error}</div>}
       <form onSubmit={handleSubmit}>
-        <p className="mb-4">
+        <div className="mb-4">
           <label className="mb-2 block font-medium">
             {t('recipeForm.name')} <Input
               required
@@ -157,19 +105,20 @@ export default function RecipeForm() {
               className="mt-1 w-full"
             />
           </label>
-        </p>
-        <p className="mb-4">
+        </div>
+        <div className="mb-4">
           <label className="mb-2 block font-medium">
-            {t('recipeForm.description')} <textarea
+            {t('recipeForm.description')}{' '}
+            <Textarea
               value={doc.description}
               onChange={(e) => update({ description: e.target.value })}
               rows={2}
-              className="mt-1 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2"
+              className="mt-1 w-full"
             />
           </label>
-        </p>
+        </div>
         <RecipeSourceAttribution sourceUrl={doc.sourceUrl} sourceName={doc.sourceName} />
-        <p className="mb-4">
+        <div className="mb-4">
           <label className="mb-2 block font-medium">
             {t('recipeForm.servings')} <Input
               type="number"
@@ -179,7 +128,7 @@ export default function RecipeForm() {
               className="mt-1 w-20"
             />
           </label>
-        </p>
+        </div>
         <div className="mb-4">
           <label htmlFor={tagsFieldId} className="mb-2 block font-medium">
             {t('recipeForm.tagsLabel')}
@@ -194,62 +143,25 @@ export default function RecipeForm() {
           />
         </div>
 
-        <h3>{t('recipeForm.ingredients')}</h3>
-        {doc.ingredients.map((ing, i) => (
-          <div key={i} className="mb-2 flex flex-wrap gap-2">
-            <Input
-              placeholder={t('recipeForm.placeholderName')}
-              aria-label={t('recipeForm.ingredientNameAria')}
-              value={ing.name}
-              onChange={(e) => updateIngredient(i, { name: e.target.value })}
-              className="min-w-32 flex-1"
-            />
-            <Input
-              placeholder={t('recipeForm.placeholderQty')}
-              aria-label={t('recipeForm.ingredientQtyAria')}
-              value={ing.quantity}
-              onChange={(e) => updateIngredient(i, { quantity: e.target.value })}
-              className="w-20"
-            />
-            <Input
-              placeholder={t('recipeForm.placeholderUnit')}
-              aria-label={t('recipeForm.ingredientUnitAria')}
-              value={ing.unit}
-              onChange={(e) => updateIngredient(i, { unit: e.target.value })}
-              className="w-20"
-            />
-            <Button type="button" variant="outline" size="sm" onClick={() => removeIngredient(i)}>
-              {t('recipeForm.remove')}
-            </Button>
-          </div>
-        ))}
-        <Button type="button" variant="secondary" size="sm" onClick={addIngredient}>
-          {t('recipeForm.addIngredient')}
-        </Button>
+        <IngredientListEditor
+          ingredients={doc.ingredients}
+          onAdd={addIngredient}
+          onUpdate={updateIngredient}
+          onRemove={removeIngredient}
+        />
 
-        <h3>{t('recipeForm.steps')}</h3>
-        {doc.steps.map((step, i) => (
-          <div key={i} className="mb-2">
-            <textarea
-              value={step}
-              onChange={(e) => updateStep(i, e.target.value)}
-              rows={2}
-              className="w-full rounded-md border-2 border-input bg-background px-3 py-2 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2"
-            />
-            <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => removeStep(i)}>
-              {t('recipeForm.remove')}
-            </Button>
-          </div>
-        ))}
-        <Button type="button" variant="secondary" size="sm" onClick={addStep}>
-          {t('recipeForm.addStep')}
-        </Button>
+        <StepListEditor
+          steps={doc.steps}
+          onAdd={addStep}
+          onUpdate={updateStep}
+          onRemove={removeStep}
+        />
 
-        <p className="mt-6">
+        <div className="mt-6">
           <Button type="submit" disabled={saving}>
             {saving ? t('recipeForm.saving') : id ? t('recipeForm.update') : t('recipeForm.create')}
           </Button>
-        </p>
+        </div>
       </form>
     </div>
   )
