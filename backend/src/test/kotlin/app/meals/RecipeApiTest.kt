@@ -1,5 +1,6 @@
 package app.meals
 
+import app.meals.domain.Ingredient
 import app.meals.domain.RecipeDoc
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -148,5 +149,174 @@ class RecipeApiTest {
         val exclude = client.get("/api/recipes/tags?q=veg&excludeRecipeId=$id1")
         val excludeTags = json.decodeFromString(ListSerializer(String.serializer()), exclude.bodyAsText())
         assertEquals(listOf("VEGetarian"), excludeTags)
+    }
+
+    @Test
+    fun `PUT recipe updates and GET returns updated`() = testWithApp {
+        val id = createRecipe(
+            client,
+            RecipeDoc(
+                name = "Soup",
+                description = "old",
+                ingredients = emptyList(),
+                steps = emptyList(),
+                servings = 2,
+                tags = listOf("easy"),
+            ),
+            json,
+        )
+        val updated = RecipeDoc(
+            name = "Chowder",
+            description = "new",
+            ingredients = listOf(Ingredient("water", "1", "l")),
+            steps = listOf("Boil"),
+            servings = 3,
+            tags = listOf("hearty"),
+        )
+        val putRes = client.put("/api/recipes/$id") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(RecipeDoc.serializer(), updated))
+        }
+        assertEquals(HttpStatusCode.OK, putRes.status, putRes.bodyAsText())
+        val getRes = client.get("/api/recipes/$id")
+        assertEquals(HttpStatusCode.OK, getRes.status)
+        val doc = json.parseToJsonElement(getRes.bodyAsText()).jsonObject["doc"]!!.jsonObject
+        assertEquals("Chowder", doc["name"]!!.jsonPrimitive.content)
+        assertEquals("new", doc["description"]!!.jsonPrimitive.content)
+        assertEquals(3, doc["servings"]!!.jsonPrimitive.content.toInt())
+    }
+
+    @Test
+    fun `PUT recipe returns 404 for nonexistent ID`() = testWithApp {
+        val missing = "00000000-0000-4000-8000-00000000dead"
+        val body = RecipeDoc(
+            name = "X",
+            description = "",
+            ingredients = emptyList(),
+            steps = emptyList(),
+            servings = 1,
+        )
+        val putRes = client.put("/api/recipes/$missing") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(RecipeDoc.serializer(), body))
+        }
+        assertEquals(HttpStatusCode.NotFound, putRes.status)
+    }
+
+    @Test
+    fun `PUT recipe returns 400 for invalid UUID`() = testWithApp {
+        val body = RecipeDoc(
+            name = "X",
+            description = "",
+            ingredients = emptyList(),
+            steps = emptyList(),
+            servings = 1,
+        )
+        val putRes = client.put("/api/recipes/not-a-uuid") {
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(RecipeDoc.serializer(), body))
+        }
+        assertEquals(HttpStatusCode.BadRequest, putRes.status)
+    }
+
+    @Test
+    fun `DELETE recipe returns 204 and GET returns 404`() = testWithApp {
+        val id = createRecipe(
+            client,
+            RecipeDoc(
+                name = "Gone",
+                description = "",
+                ingredients = emptyList(),
+                steps = emptyList(),
+                servings = 2,
+            ),
+            json,
+        )
+        val del = client.delete("/api/recipes/$id")
+        assertEquals(HttpStatusCode.NoContent, del.status)
+        val getRes = client.get("/api/recipes/$id")
+        assertEquals(HttpStatusCode.NotFound, getRes.status)
+    }
+
+    @Test
+    fun `DELETE recipe returns 404 for nonexistent ID`() = testWithApp {
+        val del = client.delete("/api/recipes/00000000-0000-4000-8000-00000000dead")
+        assertEquals(HttpStatusCode.NotFound, del.status)
+    }
+
+    @Test
+    fun `GET recipe returns 404 for nonexistent ID`() = testWithApp {
+        val getRes = client.get("/api/recipes/00000000-0000-4000-8000-00000000dead")
+        assertEquals(HttpStatusCode.NotFound, getRes.status)
+    }
+
+    @Test
+    fun `GET recipe returns 400 for malformed UUID`() = testWithApp {
+        val getRes = client.get("/api/recipes/not-a-uuid")
+        assertEquals(HttpStatusCode.BadRequest, getRes.status)
+    }
+
+    @Test
+    fun `GET recipes filters by name query parameter`() = testWithApp {
+        createRecipe(
+            client,
+            RecipeDoc(
+                name = "Tomato Soup",
+                description = "",
+                ingredients = emptyList(),
+                steps = emptyList(),
+                servings = 2,
+            ),
+            json,
+        )
+        createRecipe(
+            client,
+            RecipeDoc(
+                name = "Green Salad",
+                description = "",
+                ingredients = emptyList(),
+                steps = emptyList(),
+                servings = 2,
+            ),
+            json,
+        )
+        val response = client.get("/api/recipes?name=soup")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val arr = json.parseToJsonElement(response.bodyAsText()).jsonArray
+        assertEquals(1, arr.size)
+        assertTrue(arr[0].jsonObject["doc"]!!.jsonObject["name"]!!.jsonPrimitive.content.contains("Soup", ignoreCase = true))
+    }
+
+    @Test
+    fun `GET recipes filters by tag query parameter`() = testWithApp {
+        createRecipe(
+            client,
+            RecipeDoc(
+                name = "A",
+                description = "",
+                ingredients = emptyList(),
+                steps = emptyList(),
+                servings = 2,
+                tags = listOf("easy"),
+            ),
+            json,
+        )
+        createRecipe(
+            client,
+            RecipeDoc(
+                name = "B",
+                description = "",
+                ingredients = emptyList(),
+                steps = emptyList(),
+                servings = 2,
+                tags = listOf("hard"),
+            ),
+            json,
+        )
+        val response = client.get("/api/recipes?tag=easy")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val arr = json.parseToJsonElement(response.bodyAsText()).jsonArray
+        assertEquals(1, arr.size)
+        assertEquals("A", arr[0].jsonObject["doc"]!!.jsonObject["name"]!!.jsonPrimitive.content)
     }
 }
