@@ -1,5 +1,7 @@
 # Meal Planning App
 
+[![codecov](https://codecov.io/gh/GagnatDev/unforked/graph/badge.svg)](https://codecov.io/gh/GagnatDev/unforked)
+
 Plan meals for the week: manage recipes, assign dinners by day, and export shopping lists.
 
 - **Backend:** Kotlin, Ktor, PostgreSQL (JSONB)

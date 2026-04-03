@@ -3,6 +3,7 @@ plugins {
     kotlin("plugin.serialization") version "1.9.24"
     application
     id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("org.jetbrains.kotlinx.kover") version "0.9.1"
 }
 
 group = "app.meals"
