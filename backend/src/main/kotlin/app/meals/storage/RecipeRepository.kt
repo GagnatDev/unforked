@@ -22,8 +22,7 @@ object RecipeRepository {
             val sql = buildString {
                 append("SELECT id, doc FROM recipes WHERE family_id = ? ")
                 if (!nameQuery.isNullOrBlank()) append("AND doc->>'name' ILIKE ? ")
-                // Use @> jsonb_build_array(?) instead of doc->'tags' ? tag: JDBC treats "?" as bind placeholders,
-                // which breaks the jsonb "contains key/element" operator in prepared statements.
+                // jsonb_build_array(?) avoids the bare `?` operator that JDBC misinterprets as a bind placeholder
                 if (!tagQuery.isNullOrBlank()) append("AND doc->'tags' @> jsonb_build_array(?) ")
                 append("ORDER BY doc->>'name'")
             }
