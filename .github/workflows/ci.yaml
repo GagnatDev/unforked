@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   verify:
@@ -20,9 +23,16 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Backend tests
+      - name: Backend tests with coverage
         working-directory: backend
-        run: ./gradlew test
+        run: ./gradlew koverXmlReport
+
+      - name: Upload backend coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: backend/build/reports/kover/report.xml
+          flags: backend
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
