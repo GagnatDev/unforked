@@ -41,8 +41,7 @@ fun Route.recipeRoutes() {
         }
         get("/{id}") {
             val familyId = call.requireFamilyId() ?: return@get
-            val id = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-                ?: return@get call.respond(status = HttpStatusCode.BadRequest, "Invalid ID")
+            val id = call.requireUuidParam("id") ?: return@get
             val doc = RecipeRepository.findById(familyId, id)
                 ?: return@get call.respond(status = HttpStatusCode.NotFound, "Recipe not found")
             call.respond(RecipeResponse(id.toString(), doc))
@@ -67,8 +66,7 @@ fun Route.recipeRoutes() {
         }
         put("/{id}") {
             val familyId = call.requireFamilyId() ?: return@put
-            val id = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-                ?: return@put call.respond(status = HttpStatusCode.BadRequest, "Invalid ID")
+            val id = call.requireUuidParam("id") ?: return@put
             val body = call.receive<RecipeDoc>()
             val updated = RecipeRepository.update(familyId, id, body)
             if (!updated) return@put call.respond(status = HttpStatusCode.NotFound, "Recipe not found")
@@ -76,8 +74,7 @@ fun Route.recipeRoutes() {
         }
         delete("/{id}") {
             val familyId = call.requireFamilyId() ?: return@delete
-            val id = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-                ?: return@delete call.respond(status = HttpStatusCode.BadRequest, "Invalid ID")
+            val id = call.requireUuidParam("id") ?: return@delete
             val deleted = RecipeRepository.delete(familyId, id)
             if (!deleted) return@delete call.respond(status = HttpStatusCode.NotFound, "Recipe not found")
             call.respond(status = HttpStatusCode.NoContent, Unit)

@@ -36,3 +36,19 @@ suspend fun ApplicationCall.requireUserAndFamily(): Pair<UserRow, UUID>? {
     }
     return pair
 }
+
+/**
+ * Parses a UUID path parameter by [name], responding 400 with a standardized error body on failure.
+ * Returns `null` when the parameter is missing or not a valid UUID (after responding).
+ */
+suspend fun ApplicationCall.requireUuidParam(name: String): UUID? {
+    val raw = parameters[name]
+    if (raw == null) {
+        respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing parameter '$name'"))
+        return null
+    }
+    return runCatching { UUID.fromString(raw) }.getOrElse {
+        respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid UUID for parameter '$name'"))
+        null
+    }
+}
