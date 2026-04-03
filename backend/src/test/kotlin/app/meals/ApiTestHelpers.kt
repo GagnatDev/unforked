@@ -30,6 +30,19 @@ import java.time.temporal.IsoFields
 /** Shared JSON config for API integration tests. */
 val apiTestJson = Json { ignoreUnknownKeys = true }
 
+/** UUID that is valid but not present in the test DB (404 scenarios). */
+const val NONEXISTENT_UUID = "00000000-0000-4000-8000-00000000dead"
+
+fun minimalRecipe(name: String, tags: List<String> = emptyList()): RecipeDoc =
+    RecipeDoc(
+        name = name,
+        description = "",
+        ingredients = emptyList(),
+        steps = emptyList(),
+        servings = 2,
+        tags = tags,
+    )
+
 fun tokenFor(userId: String, role: String): String = AuthConfig.createToken(userId, role)
 
 fun currentIsoWeekIdentifier(): String {
