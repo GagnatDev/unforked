@@ -6,41 +6,21 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.testing.*
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
-import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 
+@ExtendWith(DatabaseExtension::class)
 class RecipeApiTest {
 
-    companion object {
-        @JvmStatic
-        @BeforeAll
-        fun startContainer() {
-            TestDatabase.startIfNeeded()
-        }
-
-        @JvmStatic
-        @AfterAll
-        fun stopContainer() {
-            TestDatabase.stopIfStarted()
-        }
-    }
-
-    private val json = Json { ignoreUnknownKeys = true }
-
-    @BeforeEach
-    fun resetDatabase() {
-        TestDatabase.resetSchema()
-    }
+    private val json = apiTestJson
 
     @Test
     fun `GET recipes returns ok and JSON array`() = testWithApp {
@@ -52,23 +32,18 @@ class RecipeApiTest {
 
     @Test
     fun `POST recipe creates and GET returns it`() = testWithApp {
-        val recipe = RecipeDoc(
-            name = "Test Soup",
-            description = "A test",
-            ingredients = emptyList(),
-            steps = listOf("Step 1"),
-            servings = 2,
-            tags = listOf("easy")
+        val id = createRecipe(
+            client,
+            RecipeDoc(
+                name = "Test Soup",
+                description = "A test",
+                ingredients = emptyList(),
+                steps = listOf("Step 1"),
+                servings = 2,
+                tags = listOf("easy"),
+            ),
+            json,
         )
-        val createResponse = client.post("/api/recipes") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(recipe))
-        }
-        assertEquals(HttpStatusCode.Created, createResponse.status)
-        val createBody = createResponse.bodyAsText()
-        assertTrue(createBody.contains("Test Soup"))
-        val id = json.parseToJsonElement(createBody).jsonObject["id"]!!.jsonPrimitive.content
-
         val getResponse = client.get("/api/recipes/$id")
         assertEquals(HttpStatusCode.OK, getResponse.status)
         assertTrue(getResponse.bodyAsText().contains("Test Soup"))
@@ -76,21 +51,14 @@ class RecipeApiTest {
 
     @Test
     fun `POST recipe without tags returns tags as empty array`() = testWithApp {
-        val recipe = RecipeDoc(
-            name = "No Tag Recipe",
-            description = "No tags provided",
-            ingredients = emptyList(),
-            steps = emptyList(),
-            servings = 2,
+        val id = createRecipe(
+            client,
+            minimalRecipe("No Tag Recipe").copy(description = "No tags provided"),
+            json,
         )
-        val createResponse = client.post("/api/recipes") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(recipe))
-        }
-        assertEquals(HttpStatusCode.Created, createResponse.status)
-
-        val created = json.parseToJsonElement(createResponse.bodyAsText()).jsonObject
-        val doc = created["doc"]!!.jsonObject
+        val getResponse = client.get("/api/recipes/$id")
+        assertEquals(HttpStatusCode.OK, getResponse.status)
+        val doc = json.parseToJsonElement(getResponse.bodyAsText()).jsonObject["doc"]!!.jsonObject
         assertTrue(doc.containsKey("tags"), "Response doc must include tags field")
         assertEquals(0, doc["tags"]!!.jsonArray.size, "tags must be an empty array when omitted by user")
     }
@@ -118,7 +86,7 @@ class RecipeApiTest {
             ingredients = emptyList(),
             steps = emptyList(),
             servings = 2,
-            tags = listOf("vegetarian", "quick")
+            tags = listOf("vegetarian", "quick"),
         )
         val r2 = RecipeDoc(
             name = "R2",
@@ -126,19 +94,10 @@ class RecipeApiTest {
             ingredients = emptyList(),
             steps = emptyList(),
             servings = 2,
-            tags = listOf("VEGetarian", "dinner")
+            tags = listOf("VEGetarian", "dinner"),
         )
-        val id1 = json.parseToJsonElement(
-            client.post("/api/recipes") {
-                contentType(ContentType.Application.Json)
-                setBody(json.encodeToString(r1))
-            }.bodyAsText()
-        ).jsonObject["id"]!!.jsonPrimitive.content
-
-        client.post("/api/recipes") {
-            contentType(ContentType.Application.Json)
-            setBody(json.encodeToString(r2))
-        }
+        val id1 = createRecipe(client, r1, json)
+        createRecipe(client, r2, json)
 
         val veg = client.get("/api/recipes/tags?q=veg")
         assertEquals(HttpStatusCode.OK, veg.status)
@@ -155,14 +114,7 @@ class RecipeApiTest {
     fun `PUT recipe updates and GET returns updated`() = testWithApp {
         val id = createRecipe(
             client,
-            RecipeDoc(
-                name = "Soup",
-                description = "old",
-                ingredients = emptyList(),
-                steps = emptyList(),
-                servings = 2,
-                tags = listOf("easy"),
-            ),
+            minimalRecipe("Soup", tags = listOf("easy")).copy(description = "old"),
             json,
         )
         val updated = RecipeDoc(
@@ -188,15 +140,8 @@ class RecipeApiTest {
 
     @Test
     fun `PUT recipe returns 404 for nonexistent ID`() = testWithApp {
-        val missing = "00000000-0000-4000-8000-00000000dead"
-        val body = RecipeDoc(
-            name = "X",
-            description = "",
-            ingredients = emptyList(),
-            steps = emptyList(),
-            servings = 1,
-        )
-        val putRes = client.put("/api/recipes/$missing") {
+        val body = minimalRecipe("X").copy(servings = 1)
+        val putRes = client.put("/api/recipes/$NONEXISTENT_UUID") {
             contentType(ContentType.Application.Json)
             setBody(json.encodeToString(RecipeDoc.serializer(), body))
         }
@@ -205,13 +150,7 @@ class RecipeApiTest {
 
     @Test
     fun `PUT recipe returns 400 for invalid UUID`() = testWithApp {
-        val body = RecipeDoc(
-            name = "X",
-            description = "",
-            ingredients = emptyList(),
-            steps = emptyList(),
-            servings = 1,
-        )
+        val body = minimalRecipe("X").copy(servings = 1)
         val putRes = client.put("/api/recipes/not-a-uuid") {
             contentType(ContentType.Application.Json)
             setBody(json.encodeToString(RecipeDoc.serializer(), body))
@@ -221,17 +160,7 @@ class RecipeApiTest {
 
     @Test
     fun `DELETE recipe returns 204 and GET returns 404`() = testWithApp {
-        val id = createRecipe(
-            client,
-            RecipeDoc(
-                name = "Gone",
-                description = "",
-                ingredients = emptyList(),
-                steps = emptyList(),
-                servings = 2,
-            ),
-            json,
-        )
+        val id = createRecipe(client, minimalRecipe("Gone"), json)
         val del = client.delete("/api/recipes/$id")
         assertEquals(HttpStatusCode.NoContent, del.status)
         val getRes = client.get("/api/recipes/$id")
@@ -240,13 +169,13 @@ class RecipeApiTest {
 
     @Test
     fun `DELETE recipe returns 404 for nonexistent ID`() = testWithApp {
-        val del = client.delete("/api/recipes/00000000-0000-4000-8000-00000000dead")
+        val del = client.delete("/api/recipes/$NONEXISTENT_UUID")
         assertEquals(HttpStatusCode.NotFound, del.status)
     }
 
     @Test
     fun `GET recipe returns 404 for nonexistent ID`() = testWithApp {
-        val getRes = client.get("/api/recipes/00000000-0000-4000-8000-00000000dead")
+        val getRes = client.get("/api/recipes/$NONEXISTENT_UUID")
         assertEquals(HttpStatusCode.NotFound, getRes.status)
     }
 
@@ -258,28 +187,8 @@ class RecipeApiTest {
 
     @Test
     fun `GET recipes filters by name query parameter`() = testWithApp {
-        createRecipe(
-            client,
-            RecipeDoc(
-                name = "Tomato Soup",
-                description = "",
-                ingredients = emptyList(),
-                steps = emptyList(),
-                servings = 2,
-            ),
-            json,
-        )
-        createRecipe(
-            client,
-            RecipeDoc(
-                name = "Green Salad",
-                description = "",
-                ingredients = emptyList(),
-                steps = emptyList(),
-                servings = 2,
-            ),
-            json,
-        )
+        createRecipe(client, minimalRecipe("Tomato Soup"), json)
+        createRecipe(client, minimalRecipe("Green Salad"), json)
         val response = client.get("/api/recipes?name=soup")
         assertEquals(HttpStatusCode.OK, response.status)
         val arr = json.parseToJsonElement(response.bodyAsText()).jsonArray
@@ -289,30 +198,8 @@ class RecipeApiTest {
 
     @Test
     fun `GET recipes filters by tag query parameter`() = testWithApp {
-        createRecipe(
-            client,
-            RecipeDoc(
-                name = "A",
-                description = "",
-                ingredients = emptyList(),
-                steps = emptyList(),
-                servings = 2,
-                tags = listOf("easy"),
-            ),
-            json,
-        )
-        createRecipe(
-            client,
-            RecipeDoc(
-                name = "B",
-                description = "",
-                ingredients = emptyList(),
-                steps = emptyList(),
-                servings = 2,
-                tags = listOf("hard"),
-            ),
-            json,
-        )
+        createRecipe(client, minimalRecipe("A", tags = listOf("easy")), json)
+        createRecipe(client, minimalRecipe("B", tags = listOf("hard")), json)
         val response = client.get("/api/recipes?tag=easy")
         assertEquals(HttpStatusCode.OK, response.status)
         val arr = json.parseToJsonElement(response.bodyAsText()).jsonArray
