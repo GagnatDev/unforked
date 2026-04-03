@@ -54,21 +54,9 @@ object FamilyRepository {
         }
     }
 
-    fun countUsersInFamily(familyId: UUID): Int {
-        return DatabaseFactory.query { conn ->
-            conn.prepareStatement("SELECT COUNT(*) FROM users WHERE family_id = ?").use { ps ->
-                ps.setObject(1, familyId)
-                ps.executeQuery().use { rs ->
-                    check(rs.next())
-                    rs.getInt(1)
-                }
-            }
-        }
-    }
-
     fun deleteIfEmpty(familyId: UUID): Boolean {
         return DatabaseFactory.transaction { conn ->
-            if (countUsersInFamilyConn(conn, familyId) > 0) return@transaction false
+            if (UserRepository.countUsersInFamilyConn(conn, familyId) > 0) return@transaction false
             conn.prepareStatement("DELETE FROM families WHERE id = ?").use { ps ->
                 ps.setObject(1, familyId)
                 ps.executeUpdate() > 0
@@ -77,20 +65,10 @@ object FamilyRepository {
     }
 
     fun deleteIfEmptyConn(conn: Connection, familyId: UUID): Boolean {
-        if (countUsersInFamilyConn(conn, familyId) > 0) return false
+        if (UserRepository.countUsersInFamilyConn(conn, familyId) > 0) return false
         conn.prepareStatement("DELETE FROM families WHERE id = ?").use { ps ->
             ps.setObject(1, familyId)
             return ps.executeUpdate() > 0
-        }
-    }
-
-    private fun countUsersInFamilyConn(conn: Connection, familyId: UUID): Int {
-        conn.prepareStatement("SELECT COUNT(*) FROM users WHERE family_id = ?").use { ps ->
-            ps.setObject(1, familyId)
-            ps.executeQuery().use { rs ->
-                check(rs.next())
-                return rs.getInt(1)
-            }
         }
     }
 
