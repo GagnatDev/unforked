@@ -5,6 +5,7 @@ import at.favre.lib.crypto.bcrypt.BCrypt
 import org.flywaydb.core.Flyway
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.Timestamp
 import java.time.Instant
@@ -20,6 +21,20 @@ object TestDatabase {
     @Volatile
     private var started = false
 
+    private data class DbConfig(val url: String, val user: String, val password: String)
+
+    private fun dbConfig(): DbConfig {
+        val url = System.getProperty("DB_URL") ?: error("DB_URL is not set")
+        val user = System.getProperty("DB_USER") ?: error("DB_USER is not set")
+        val password = System.getProperty("DB_PASSWORD") ?: error("DB_PASSWORD is not set")
+        return DbConfig(url, user, password)
+    }
+
+    private fun <T> withTestConnection(block: (Connection) -> T): T {
+        val cfg = dbConfig()
+        return DriverManager.getConnection(cfg.url, cfg.user, cfg.password).use(block)
+    }
+
     @Synchronized
     fun startIfNeeded() {
         if (started) return
@@ -32,32 +47,27 @@ object TestDatabase {
     }
 
     fun resetSchema() {
-        val url = System.getProperty("DB_URL") ?: error("DB_URL is not set")
-        val user = System.getProperty("DB_USER") ?: error("DB_USER is not set")
-        val password = System.getProperty("DB_PASSWORD") ?: error("DB_PASSWORD is not set")
-        flywayCleanAndMigrate(url, user, password)
-        seedDevPrincipalIfTest(url, user, password)
+        val cfg = dbConfig()
+        flywayCleanAndMigrate(cfg)
+        seedDevPrincipalIfTest(cfg)
     }
 
     /**
      * Fresh schema with migrations only (no dev user). Use for [POST /api/auth/setup] success path.
      */
     fun resetSchemaWithoutSeed() {
-        val url = System.getProperty("DB_URL") ?: error("DB_URL is not set")
-        val user = System.getProperty("DB_USER") ?: error("DB_USER is not set")
-        val password = System.getProperty("DB_PASSWORD") ?: error("DB_PASSWORD is not set")
-        flywayCleanAndMigrate(url, user, password)
+        flywayCleanAndMigrate(dbConfig())
     }
 
-    private fun flywayCleanAndMigrate(url: String, user: String, password: String) {
+    private fun flywayCleanAndMigrate(cfg: DbConfig) {
         Flyway.configure()
-            .dataSource(url, user, password)
+            .dataSource(cfg.url, cfg.user, cfg.password)
             .locations("classpath:db/migration")
             .cleanDisabled(false)
             .load()
             .clean()
         Flyway.configure()
-            .dataSource(url, user, password)
+            .dataSource(cfg.url, cfg.user, cfg.password)
             .locations("classpath:db/migration")
             .load()
             .migrate()
@@ -65,10 +75,7 @@ object TestDatabase {
 
     /** Test-only: mark invitation as expired so accept/register flows fail. */
     fun expireInvitationByTokenForTesting(token: String) {
-        val url = System.getProperty("DB_URL") ?: error("DB_URL is not set")
-        val user = System.getProperty("DB_USER") ?: error("DB_USER is not set")
-        val password = System.getProperty("DB_PASSWORD") ?: error("DB_PASSWORD is not set")
-        DriverManager.getConnection(url, user, password).use { conn ->
+        withTestConnection { conn ->
             conn.prepareStatement(
                 "UPDATE family_invitations SET expires_at = ? WHERE token = ?"
             ).use { ps ->
@@ -81,10 +88,7 @@ object TestDatabase {
 
     /** Test-only: co-locate a second user in [targetFamilyId] (e.g. to violate "sole member" accept rule). */
     fun updateUserFamilyIdForTesting(userId: String, targetFamilyId: String) {
-        val url = System.getProperty("DB_URL") ?: error("DB_URL is not set")
-        val user = System.getProperty("DB_USER") ?: error("DB_USER is not set")
-        val password = System.getProperty("DB_PASSWORD") ?: error("DB_PASSWORD is not set")
-        DriverManager.getConnection(url, user, password).use { conn ->
+        withTestConnection { conn ->
             conn.prepareStatement(
                 "UPDATE users SET family_id = ?::uuid WHERE id = ?::uuid"
             ).use { ps ->
@@ -95,10 +99,10 @@ object TestDatabase {
         }
     }
 
-    private fun seedDevPrincipalIfTest(url: String, user: String, password: String) {
+    private fun seedDevPrincipalIfTest(cfg: DbConfig) {
         if (System.getProperty("APP_PROFILE") != "test") return
         val hash = BCrypt.withDefaults().hashToString(12, "dev".toCharArray())
-        DriverManager.getConnection(url, user, password).use { conn ->
+        DriverManager.getConnection(cfg.url, cfg.user, cfg.password).use { conn ->
             conn.prepareStatement(
                 """
                 INSERT INTO families (id, default_meal_plan_persons)
