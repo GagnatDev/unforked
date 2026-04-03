@@ -2,40 +2,19 @@ package app.meals
 
 import app.meals.domain.DayAssignment
 import app.meals.domain.MealPlanDoc
-import app.meals.domain.RecipeDoc
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
-import kotlinx.serialization.json.Json
-import org.junit.jupiter.api.AfterAll
+import kotlinx.serialization.decodeFromString
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 
+@ExtendWith(DatabaseExtension::class)
 class MealPlanApiTest {
 
-    companion object {
-        @JvmStatic
-        @BeforeAll
-        fun startContainer() {
-            TestDatabase.startIfNeeded()
-        }
-
-        @JvmStatic
-        @AfterAll
-        fun stopContainer() {
-            TestDatabase.stopIfStarted()
-        }
-    }
-
-    private val json = Json { ignoreUnknownKeys = true }
-
-    @BeforeEach
-    fun resetDatabase() {
-        TestDatabase.resetSchema()
-    }
+    private val json = apiTestJson
 
     @Test
     fun `GET meal-plans current returns empty plan for week with no data`() = testWithApp {
@@ -49,17 +28,7 @@ class MealPlanApiTest {
 
     @Test
     fun `PUT and GET meal-plans current round-trip`() = testWithApp {
-        val recipeId = createRecipe(
-            client,
-            RecipeDoc(
-                name = "Pasta",
-                description = "",
-                ingredients = emptyList(),
-                steps = emptyList(),
-                servings = 2,
-            ),
-            json,
-        )
+        val recipeId = createRecipe(client, minimalRecipe("Pasta"), json)
         val week = "2027-W03"
         val plan = MealPlanDoc(
             weekIdentifier = week,
@@ -86,17 +55,7 @@ class MealPlanApiTest {
 
     @Test
     fun `PUT meal-plans current upsert overwrites previous plan`() = testWithApp {
-        val id = createRecipe(
-            client,
-            RecipeDoc(
-                name = "R",
-                description = "",
-                ingredients = emptyList(),
-                steps = emptyList(),
-                servings = 2,
-            ),
-            json,
-        )
+        val id = createRecipe(client, minimalRecipe("R"), json)
         val week = "2027-W04"
         val first = MealPlanDoc(
             weekIdentifier = week,

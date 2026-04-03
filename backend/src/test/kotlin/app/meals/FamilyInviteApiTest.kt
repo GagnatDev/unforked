@@ -9,37 +9,17 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 
+@ExtendWith(DatabaseExtension::class)
 class FamilyInviteApiTest {
 
-    companion object {
-        @JvmStatic
-        @BeforeAll
-        fun startContainer() {
-            TestDatabase.startIfNeeded()
-        }
-
-        @JvmStatic
-        @AfterAll
-        fun stopContainer() {
-            TestDatabase.stopIfStarted()
-        }
-    }
-
-    private val json = Json { ignoreUnknownKeys = true }
-
-    @BeforeEach
-    fun resetDatabase() {
-        TestDatabase.resetSchema()
-    }
+    private val json = apiTestJson
 
     @Test
     fun `POST family invites rejects blank email`() = testWithApp {
