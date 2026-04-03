@@ -4,6 +4,7 @@ import app.meals.domain.DayAssignment
 import app.meals.domain.Ingredient
 import app.meals.domain.MealPlanDoc
 import app.meals.domain.RecipeDoc
+import app.meals.service.ShoppingListService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
@@ -13,41 +14,41 @@ class ShoppingListQuantityTest {
 
     @Test
     fun `summarizeQuantities sums numeric quantities`() {
-        assertEquals("500", summarizeQuantities(listOf("200", "300")))
-        assertEquals("400", summarizeQuantities(listOf("200", "200")))
-        assertEquals("3", summarizeQuantities(listOf("1", "1", "1")))
+        assertEquals("500", ShoppingListService.summarizeQuantities(listOf("200", "300")))
+        assertEquals("400", ShoppingListService.summarizeQuantities(listOf("200", "200")))
+        assertEquals("3", ShoppingListService.summarizeQuantities(listOf("1", "1", "1")))
     }
 
     @Test
     fun `summarizeQuantities sums decimals`() {
-        assertEquals("2.5", summarizeQuantities(listOf("1", "1.5")))
-        assertEquals("1.5", summarizeQuantities(listOf("0.5", "1")))
+        assertEquals("2.5", ShoppingListService.summarizeQuantities(listOf("1", "1.5")))
+        assertEquals("1.5", ShoppingListService.summarizeQuantities(listOf("0.5", "1")))
     }
 
     @Test
     fun `summarizeQuantities accepts comma as decimal separator`() {
-        assertEquals("2.5", summarizeQuantities(listOf("1,5", "1")))
+        assertEquals("2.5", ShoppingListService.summarizeQuantities(listOf("1,5", "1")))
     }
 
     @Test
     fun `summarizeQuantities joins non-numeric quantities`() {
-        assertEquals("pinch, handful", summarizeQuantities(listOf("pinch", "handful")))
-        assertEquals("some", summarizeQuantities(listOf("some", "some")))
+        assertEquals("pinch, handful", ShoppingListService.summarizeQuantities(listOf("pinch", "handful")))
+        assertEquals("some", ShoppingListService.summarizeQuantities(listOf("some", "some")))
     }
 
     @Test
     fun `summarizeQuantities joins when mixed numeric and non-numeric`() {
-        assertEquals("200, some", summarizeQuantities(listOf("200", "some")))
+        assertEquals("200, some", ShoppingListService.summarizeQuantities(listOf("200", "some")))
     }
 
     @Test
     fun `summarizeQuantities returns dash for empty list`() {
-        assertEquals("—", summarizeQuantities(emptyList()))
+        assertEquals("—", ShoppingListService.summarizeQuantities(emptyList()))
     }
 
     @Test
     fun `summarizeQuantities formats whole numbers without decimal`() {
-        assertEquals("3", summarizeQuantities(listOf("1.5", "1.5")))
+        assertEquals("3", ShoppingListService.summarizeQuantities(listOf("1.5", "1.5")))
     }
 
     @Test
@@ -73,7 +74,7 @@ class ShoppingListQuantityTest {
             id1.toString() to (id1 to r1),
             id2.toString() to (id2 to r2),
         )
-        val flour = buildAggregatedShoppingItems(plan, map).find { it.name.equals("flour", ignoreCase = true) }
+        val flour = ShoppingListService.buildAggregatedShoppingItems(plan, map).find { it.name.equals("flour", ignoreCase = true) }
         assertNotNull(flour)
         assertEquals("700", flour!!.quantity)
         assertEquals("g", flour.unit)
@@ -102,7 +103,7 @@ class ShoppingListQuantityTest {
             id1.toString() to (id1 to r1),
             id2.toString() to (id2 to r2),
         )
-        val milk = buildAggregatedShoppingItems(plan, map).find { it.name.equals("milk", ignoreCase = true) }
+        val milk = ShoppingListService.buildAggregatedShoppingItems(plan, map).find { it.name.equals("milk", ignoreCase = true) }
         assertNotNull(milk)
         assertEquals("1.2", milk!!.quantity)
         assertEquals("l", milk.unit)
@@ -125,7 +126,7 @@ class ShoppingListQuantityTest {
             id1.toString() to (id1 to r1),
             id2.toString() to (id2 to r2),
         )
-        val item = buildAggregatedShoppingItems(plan, map).find { it.name.equals("vanilla", ignoreCase = true) }
+        val item = ShoppingListService.buildAggregatedShoppingItems(plan, map).find { it.name.equals("vanilla", ignoreCase = true) }
         assertNotNull(item)
         assertEquals("20", item!!.quantity)
         assertEquals("ml", item.unit)
@@ -148,7 +149,7 @@ class ShoppingListQuantityTest {
             id1.toString() to (id1 to r1),
             id2.toString() to (id2 to r2),
         )
-        val item = buildAggregatedShoppingItems(plan, map).find { it.name.equals("salt", ignoreCase = true) }
+        val item = ShoppingListService.buildAggregatedShoppingItems(plan, map).find { it.name.equals("salt", ignoreCase = true) }
         assertNotNull(item)
         assertEquals("20", item!!.quantity)
         assertEquals("ml", item.unit)
@@ -171,7 +172,7 @@ class ShoppingListQuantityTest {
             id1.toString() to (id1 to r1),
             id2.toString() to (id2 to r2),
         )
-        val items = buildAggregatedShoppingItems(plan, map).filter { it.name.equals("basil", ignoreCase = true) }
+        val items = ShoppingListService.buildAggregatedShoppingItems(plan, map).filter { it.name.equals("basil", ignoreCase = true) }
         assertEquals(2, items.size)
     }
 }
