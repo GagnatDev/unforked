@@ -8,7 +8,22 @@ For `*.spec.ts`, `playwright.config.*`, or `frontend/e2e/`, read [`.agents/skill
 
 For a new feature or larger refactor, work on a separate branch branched from an up-to-date `main`, unless the user says otherwise.
 
-### What “ship it” means
+### What "implement \<issue\>" means
+
+When the user pastes a **GitHub issue URL** (with or without a verb like "implement", "do", "fix"), do **all** of the following:
+
+1. **Fetch** the issue details from GitHub (via MCP or `gh`).
+2. **`git fetch origin main`** to ensure the base is current.
+3. Create a **git worktree** at `../<repo>-issue-<N>` on a new branch from `origin/main`. Name the branch descriptively (e.g. `feat/issue-30-shopping-list-service`, `fix/issue-12-login-redirect`).
+4. **Implement** the change described in the issue inside the worktree.
+5. **Run relevant tests** from the worktree before committing.
+6. **Commit** following [Commit messages](#commit-messages), with `Closes #<N>` in the body.
+7. **Push** the branch to `origin`.
+8. **Create a PR** into `main` referencing the issue.
+
+The main working tree is left untouched.
+
+### What "ship it" means
 
 When the user says **ship it** (or equivalent: ship work, ship this, etc.), do **all** of the following unless they explicitly narrow the scope:
 
