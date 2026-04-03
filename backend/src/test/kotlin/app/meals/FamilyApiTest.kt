@@ -7,6 +7,7 @@ import app.meals.domain.PatchFamilyRequest
 import app.meals.domain.RecipeDoc
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.options
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
@@ -114,6 +115,24 @@ class FamilyApiTest {
         assertEquals(1, family.pendingInvites.size)
         assertEquals("pending@test.com", family.pendingInvites[0].inviteeEmail)
         assertTrue(family.pendingInvites[0].token.isNotBlank())
+    }
+
+    @Test
+    fun `CORS preflight allows PATCH for family settings`() = testWithApp {
+        val res = client.options("/api/family") {
+            header(HttpHeaders.Origin, "http://localhost:5173")
+            header(HttpHeaders.AccessControlRequestMethod, "PATCH")
+            header(
+                HttpHeaders.AccessControlRequestHeaders,
+                "${HttpHeaders.ContentType}, ${HttpHeaders.Authorization}",
+            )
+        }
+        assertEquals(HttpStatusCode.OK, res.status, res.bodyAsText())
+        val allowMethods = res.headers[HttpHeaders.AccessControlAllowMethods]
+        assertTrue(
+            allowMethods?.contains("PATCH", ignoreCase = true) == true,
+            "Expected PATCH in Access-Control-Allow-Methods, got: $allowMethods",
+        )
     }
 
     @Test
