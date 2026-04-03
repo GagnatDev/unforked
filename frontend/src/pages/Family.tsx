@@ -3,14 +3,19 @@ import { useTranslation } from 'react-i18next'
 import { api } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useAsync } from '@/hooks/useAsync'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function Family() {
   const { t } = useTranslation()
   const { refreshUser } = useAuth()
-  const [loading, setLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
+  const { data: family, loading, error: loadError } = useAsync(
+    (_signal) => api.family.get(),
+    [reloadKey],
+    { keepPreviousData: true },
+  )
   const [error, setError] = useState<string | null>(null)
-  const [family, setFamily] = useState<Awaited<ReturnType<typeof api.family.get>> | null>(null)
   const [defaultPeople, setDefaultPeople] = useState('')
   const [savingDefaults, setSavingDefaults] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -19,23 +24,15 @@ export default function Family() {
   const [acceptToken, setAcceptToken] = useState('')
   const [acceptBusy, setAcceptBusy] = useState(false)
 
-  const load = useCallback(async () => {
-    setError(null)
-    setLoading(true)
-    try {
-      const f = await api.family.get()
-      setFamily(f)
-      setDefaultPeople(String(f.defaultMealPlanPersons))
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setLoading(false)
-    }
+  const refetch = useCallback(() => {
+    setReloadKey((k) => k + 1)
   }, [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    if (family) {
+      setDefaultPeople(String(family.defaultMealPlanPersons))
+    }
+  }, [family])
 
   const saveDefaults = async () => {
     const n = Number.parseInt(defaultPeople, 10)
@@ -47,7 +44,7 @@ export default function Family() {
     setError(null)
     try {
       await api.family.patchDefaultPersons(n)
-      await load()
+      refetch()
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -65,7 +62,7 @@ export default function Family() {
       const url = `${window.location.origin}/register-invite?token=${encodeURIComponent(token)}`
       setLastInviteUrl(url)
       setInviteEmail('')
-      await load()
+      refetch()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -86,7 +83,7 @@ export default function Family() {
       await api.family.acceptInvite(acceptToken.trim())
       setAcceptToken('')
       await refreshUser()
-      await load()
+      refetch()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -101,6 +98,11 @@ export default function Family() {
   return (
     <div className="space-y-8">
       <h1 className="text-xl font-semibold">{t('family.title')}</h1>
+      {loadError && (
+        <p className="text-sm text-destructive" role="alert">
+          {loadError}
+        </p>
+      )}
       {error && (
         <p className="text-sm text-destructive" role="alert">
           {error}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api'
+import { useAsync } from '@/hooks/useAsync'
 import type { Ingredient, RecipeDoc } from '@/types'
 
 const emptyDoc: RecipeDoc = {
@@ -15,29 +16,27 @@ const emptyDoc: RecipeDoc = {
 
 export function useRecipeFormState(id: string | undefined) {
   const [doc, setDoc] = useState<RecipeDoc>(emptyDoc)
-  const [loading, setLoading] = useState(!!id)
-  const [error, setError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const { data: fetchedDoc, loading, error: loadError } = useAsync(
+    async (signal) => {
+      const r = await api.recipes.get(id!)
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      return r.doc
+    },
+    [id],
+    { enabled: !!id },
+  )
+
+  const error = submitError ?? loadError
 
   useEffect(() => {
-    if (!id) return
-    let cancelled = false
-    api.recipes
-      .get(id)
-      .then((r) => {
-        if (!cancelled) {
-          setDoc(r.doc)
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) setError((e as Error).message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
+    if (!id) setDoc(emptyDoc)
   }, [id])
+
+  useEffect(() => {
+    if (fetchedDoc) setDoc(fetchedDoc)
+  }, [fetchedDoc])
 
   const update = useCallback((patch: Partial<RecipeDoc>) => {
     setDoc((d) => ({ ...d, ...patch }))
@@ -89,7 +88,7 @@ export function useRecipeFormState(id: string | undefined) {
     setDoc,
     loading,
     error,
-    setError,
+    setError: setSubmitError,
     update,
     addIngredient,
     updateIngredient,

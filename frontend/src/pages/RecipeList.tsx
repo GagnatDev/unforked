@@ -3,34 +3,22 @@ import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useAsync } from '@/hooks/useAsync'
 import { api } from '../api'
 import type { Recipe } from '../types'
 
 export default function RecipeList() {
   const { t } = useTranslation()
-  const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const { data, loading, error } = useAsync(
+    (_signal) => api.recipes.list(search ? { name: search } : undefined),
+    [search],
+  )
+  const [recipes, setRecipes] = useState<Recipe[]>([])
 
   useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    api.recipes
-      .list(search ? { name: search } : undefined)
-      .then((data) => {
-        if (!cancelled) setRecipes(data)
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [search])
+    if (data) setRecipes(data)
+  }, [data])
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(t('recipes.deleteConfirm', { name }))) return

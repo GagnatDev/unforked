@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
+import { useAsync } from '@/hooks/useAsync'
 import { getNextWeekId } from '@/lib/utils'
 import { api } from '../api'
-import type { ShoppingListDoc } from '../types'
 
 function getInitialWeekId(): string {
   return getNextWeekId()
@@ -14,28 +14,10 @@ function getInitialWeekId(): string {
 export default function ShoppingList() {
   const { t, i18n } = useTranslation()
   const [weekId, setWeekId] = useState(getInitialWeekId())
-  const [data, setData] = useState<ShoppingListDoc | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    api
-      .shoppingList(weekId)
-      .then((d) => {
-        if (!cancelled) setData(d)
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [weekId])
+  const { data, loading, error } = useAsync(
+    (_signal) => api.shoppingList(weekId),
+    [weekId],
+  )
 
   const exportText = () => {
     if (!data) return

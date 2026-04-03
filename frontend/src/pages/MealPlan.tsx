@@ -4,6 +4,7 @@ import { MealPlanWeekAssignments } from '@/components/meal-plan/MealPlanWeekAssi
 import { DAYS } from '@/components/meal-plan/constants'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
+import { useAsync } from '@/hooks/useAsync'
 import { getNextWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { MealPlanDoc, DayAssignment, Recipe } from '../types'
@@ -20,42 +21,36 @@ export default function MealPlan() {
   const [weekId, setWeekId] = useState(getNextWeekId)
   const [plan, setPlan] = useState<MealPlanDoc | null>(null)
   const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const { data, loading, error: loadError } = useAsync(
+    async (signal) => {
+      const [planData, recipesData, familyData] = await Promise.all([
+        api.mealPlans.getCurrent(weekId),
+        api.recipes.list(),
+        api.family.get().catch(() => null),
+      ])
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      let merged = planData
+      if (
+        merged.defaultPersons == null &&
+        familyData != null &&
+        familyData.defaultMealPlanPersons != null
+      ) {
+        merged = { ...merged, defaultPersons: familyData.defaultMealPlanPersons }
+      }
+      return { plan: merged, recipes: recipesData }
+    },
+    [weekId],
+  )
+
   useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    Promise.all([
-      api.mealPlans.getCurrent(weekId),
-      api.recipes.list(),
-      api.family.get().catch(() => null),
-    ])
-      .then(([planData, recipesData, familyData]) => {
-        if (!cancelled) {
-          let merged = planData
-          if (
-            merged.defaultPersons == null &&
-            familyData != null &&
-            familyData.defaultMealPlanPersons != null
-          ) {
-            merged = { ...merged, defaultPersons: familyData.defaultMealPlanPersons }
-          }
-          setPlan(merged)
-          setRecipes(recipesData)
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
+    if (data) {
+      setPlan(data.plan)
+      setRecipes(data.recipes)
     }
-  }, [weekId])
+  }, [data])
 
   const assignments = plan?.assignments ?? []
   const byDay = Object.fromEntries(assignments.map((a) => [a.day, a]))
@@ -122,8 +117,8 @@ export default function MealPlan() {
       </div>
       {loading ? (
         <p>{t('mealPlan.loading')}</p>
-      ) : error ? (
-        <p className="text-destructive">{error}</p>
+      ) : loadError || error ? (
+        <p className="text-destructive">{loadError ?? error}</p>
       ) : (
         <>
           <div className="mb-4 max-w-md space-y-1">
