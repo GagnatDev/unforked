@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { useAsync } from '@/hooks/useAsync'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -30,32 +31,28 @@ export default function RecipeForm() {
   const tagsFieldId = useId()
   const tagsInputRef = useRef<RecipeTagsInputHandle>(null)
   const [doc, setDoc] = useState<RecipeDoc>(emptyDoc)
-  const [loading, setLoading] = useState(!!id)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importWarnings, setImportWarnings] = useState<string[]>([])
 
+  const { data: fetchedDoc, loading, error: loadError } = useAsync(
+    async (signal) => {
+      const r = await api.recipes.get(id!)
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      return r.doc
+    },
+    [id],
+    { enabled: !!id },
+  )
+
   useEffect(() => {
-    if (!id) return
-    let cancelled = false
-    api.recipes
-      .get(id)
-      .then((r) => {
-        if (!cancelled) {
-          setDoc(r.doc)
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
+    if (!id) setDoc(emptyDoc)
   }, [id])
+
+  useEffect(() => {
+    if (fetchedDoc) setDoc(fetchedDoc)
+  }, [fetchedDoc])
 
   const update = (patch: Partial<RecipeDoc>) => setDoc((d) => ({ ...d, ...patch }))
 
@@ -113,7 +110,8 @@ export default function RecipeForm() {
     }
   }
 
-  if (loading) return <p>{t('recipeForm.loading')}</p>
+  if (id && loading) return <p>{t('recipeForm.loading')}</p>
+  if (id && loadError) return <p className="text-destructive">{loadError}</p>
 
   return (
     <div>

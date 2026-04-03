@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getISODay } from 'date-fns'
 import { cn, getCurrentWeekId } from '@/lib/utils'
+import { useAsync } from '@/hooks/useAsync'
 import { api } from '../api'
-import type { DayAssignment, MealPlanDoc, Recipe } from '../types'
+import type { Recipe } from '../types'
 import { TodayIngredients } from './today/TodayIngredients'
 import { TodayMealCard } from './today/TodayMealCard'
 import { TodayStepChecklist } from './today/TodayStepChecklist'
@@ -50,11 +51,23 @@ export default function Today() {
   const weekNumber = useMemo(() => weekNumberFromWeekId(weekId), [weekId])
   const dateKey = useMemo(() => now.toISOString().slice(0, 10), [now])
 
-  const [plan, setPlan] = useState<MealPlanDoc | null>(null)
-  const [assignment, setAssignment] = useState<DayAssignment | null>(null)
-  const [recipe, setRecipe] = useState<Recipe | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data, loading, error } = useAsync(
+    async (signal) => {
+      const p = await api.mealPlans.getCurrent(weekId)
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      const assignment = p.assignments.find((x) => x.day === dayKey) ?? null
+      let recipe: Recipe | null = null
+      if (assignment?.recipeId) {
+        recipe = await api.recipes.get(assignment.recipeId)
+      }
+      return { plan: p, assignment, recipe }
+    },
+    [dayKey, weekId],
+  )
+
+  const plan = data?.plan ?? null
+  const assignment = data?.assignment ?? null
+  const recipe = data?.recipe ?? null
 
   const [keepAwake, setKeepAwake] = useState(false)
   const { wakeLockSupported } = useWakeLock(keepAwake)
@@ -66,40 +79,6 @@ export default function Today() {
 
   const steps = useMemo(() => recipe?.doc.steps ?? [], [recipe])
   const { checkedSteps, toggleStep, resetProgress } = useStepChecklist(steps, checklistStorageKey)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    setPlan(null)
-    setAssignment(null)
-    setRecipe(null)
-
-    api.mealPlans
-      .getCurrent(weekId)
-      .then((p) => {
-        if (cancelled) return
-        setPlan(p)
-        const a = p.assignments.find((x) => x.day === dayKey) ?? null
-        setAssignment(a)
-        if (!a?.recipeId) return null
-        return api.recipes.get(a.recipeId)
-      })
-      .then((r) => {
-        if (cancelled) return
-        if (r) setRecipe(r)
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [dayKey, weekId])
 
   const plannedPeople = assignment?.persons ?? plan?.defaultPersons ?? null
 
