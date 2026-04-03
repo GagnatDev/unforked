@@ -1,6 +1,7 @@
 package app.meals.routes
 
 import app.meals.domain.ShoppingListDoc
+import app.meals.domain.currentWeekIdentifier
 import app.meals.service.ShoppingListService
 import app.meals.storage.MealPlanRepository
 import app.meals.storage.RecipeRepository
@@ -8,8 +9,6 @@ import io.ktor.server.application.call
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
-import java.time.LocalDate
-import java.time.temporal.IsoFields
 import java.util.UUID
 
 fun Route.shoppingListRoutes() {
@@ -27,11 +26,4 @@ fun Route.shoppingListRoutes() {
         val items = ShoppingListService.buildAggregatedShoppingItems(plan, recipeById)
         call.respond(ShoppingListDoc(weekIdentifier = weekId, items = items))
     }
-}
-
-private fun currentWeekIdentifier(): String {
-    val now = LocalDate.now()
-    val weekNumber = now.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)
-    val year = now.get(IsoFields.WEEK_BASED_YEAR)
-    return "%d-W%02d".format(year, weekNumber)
 }

@@ -1,6 +1,7 @@
 package app.meals.routes
 
 import app.meals.domain.MealPlanDoc
+import app.meals.domain.currentWeekIdentifier
 import app.meals.storage.MealPlanRepository
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
@@ -10,8 +11,6 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
-import java.time.LocalDate
-import java.time.temporal.IsoFields
 
 fun Route.mealPlanRoutes() {
     route("/meal-plans") {
@@ -39,11 +38,4 @@ fun Route.mealPlanRoutes() {
             call.respond(body)
         }
     }
-}
-
-private fun currentWeekIdentifier(): String {
-    val now = LocalDate.now()
-    val weekNumber = now.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)
-    val year = now.get(IsoFields.WEEK_BASED_YEAR)
-    return "%d-W%02d".format(year, weekNumber)
 }
