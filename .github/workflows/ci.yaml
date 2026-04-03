@@ -46,10 +46,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Frontend install and build
+      - name: Frontend install, unit tests, and build
         working-directory: frontend
         run: |
           pnpm install --frozen-lockfile
+          pnpm run test:unit
           pnpm run build
 
   playwright:
