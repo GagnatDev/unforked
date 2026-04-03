@@ -119,20 +119,25 @@ class FamilyApiTest {
 
     @Test
     fun `CORS preflight allows PATCH for family settings`() = testWithApp {
-        val res = client.options("/api/family") {
-            header(HttpHeaders.Origin, "http://localhost:5173")
-            header(HttpHeaders.AccessControlRequestMethod, "PATCH")
-            header(
-                HttpHeaders.AccessControlRequestHeaders,
-                "${HttpHeaders.ContentType}, ${HttpHeaders.Authorization}",
+        // Real browsers send Origin on cross-origin preflight; values here are RFC 2606-style
+        // documentation hostnames, not any particular dev server URL.
+        val crossOriginClients = listOf("https://example.com", "https://example.org")
+        for (origin in crossOriginClients) {
+            val res = client.options("/api/family") {
+                header(HttpHeaders.Origin, origin)
+                header(HttpHeaders.AccessControlRequestMethod, "PATCH")
+                header(
+                    HttpHeaders.AccessControlRequestHeaders,
+                    "${HttpHeaders.ContentType}, ${HttpHeaders.Authorization}",
+                )
+            }
+            assertEquals(HttpStatusCode.OK, res.status, "origin=$origin ${res.bodyAsText()}")
+            val allowMethods = res.headers[HttpHeaders.AccessControlAllowMethods]
+            assertTrue(
+                allowMethods?.contains("PATCH", ignoreCase = true) == true,
+                "origin=$origin expected PATCH in Access-Control-Allow-Methods, got: $allowMethods",
             )
         }
-        assertEquals(HttpStatusCode.OK, res.status, res.bodyAsText())
-        val allowMethods = res.headers[HttpHeaders.AccessControlAllowMethods]
-        assertTrue(
-            allowMethods?.contains("PATCH", ignoreCase = true) == true,
-            "Expected PATCH in Access-Control-Allow-Methods, got: $allowMethods",
-        )
     }
 
     @Test
