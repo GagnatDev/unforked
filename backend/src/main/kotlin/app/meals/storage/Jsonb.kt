@@ -1,11 +1,13 @@
 package app.meals.storage
 
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 
-private val json = Json { ignoreUnknownKeys = true }
+@PublishedApi
+internal val json = Json { ignoreUnknownKeys = true }
 
 fun PreparedStatement.setJsonb(index: Int, value: String) {
     val pgObject = org.postgresql.util.PGobject().apply {
@@ -25,7 +27,7 @@ fun ResultSet.getJsonb(columnLabel: String): String? {
 }
 
 inline fun <reified T : Any> T.toJsonbString(): String =
-    Json { ignoreUnknownKeys = true }.encodeToString(this)
+    json.encodeToString(this)
 
 inline fun <reified T : Any> String.fromJsonb(): T =
-    Json { ignoreUnknownKeys = true }.decodeFromString<T>(this)
+    json.decodeFromString<T>(this)
