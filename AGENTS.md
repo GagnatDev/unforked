@@ -48,3 +48,37 @@ Bad (too vague or too internal): `wip`, `updates`, `fix stuff`, `refactor UserSe
 Good (functional): `feat(nav): open app on Today and group secondary links in menus`
 
 Good (technical when relevant): `fix(frontend): forward ref from Button for PopoverTrigger anchor`
+
+## Cursor Cloud specific instructions
+
+### Architecture overview
+
+- **Frontend:** React 18 + TypeScript + Vite (port 3000), styled with Tailwind CSS + shadcn/ui. Located in `frontend/`.
+- **Backend:** Kotlin + Ktor 2.3.9 (port 8080), JDK 21, Gradle wrapper. Located in `backend/`.
+- **Database:** PostgreSQL 16, managed via `docker compose up -d postgres`. Flyway handles migrations automatically on backend startup.
+
+### Starting the dev environment
+
+1. **Docker must be running** (needed for PostgreSQL and backend tests via Testcontainers).
+2. Start PostgreSQL: `docker compose up -d postgres` (from repo root).
+3. Start backend: `cd backend && ./gradlew run --no-daemon` (env vars `DB_URL`, `DB_USER`, `DB_PASSWORD` default to `jdbc:postgresql://localhost:5432/meals` / `meals` / `meals`).
+4. Start frontend: `cd frontend && pnpm run dev`.
+5. App at http://localhost:3000, API at http://localhost:8080.
+
+### Authentication gotchas
+
+- The app uses JWT auth. On a fresh database, hit `POST /api/auth/setup` with `{"email":"...","password":"..."}` to create the first admin user. The frontend shows a setup screen when no users exist.
+- Setting `DISABLE_AUTH=true` still requires a dev user (`DevAuth.USER_ID`) to exist in the DB; the auth-disabled provider auto-authenticates as that user but route handlers look up the user in the database. For local dev, it's simpler to use normal auth and create a user via the setup endpoint.
+- `SEED_TEST_DATA=true` seeds sample recipes (only when recipe table is empty and a family exists).
+
+### Running checks
+
+- **Lint (TypeScript):** `cd frontend && npx tsc --noEmit`
+- **Frontend unit tests:** `cd frontend && pnpm run test:unit`
+- **Backend tests:** `cd backend && ./gradlew test` (requires Docker for Testcontainers)
+- **Frontend build:** `cd frontend && pnpm run build`
+- **E2E tests:** `cd frontend && pnpm run e2e` (auto-starts its own backend + Vite via Playwright config)
+
+### Node version
+
+The project requires Node >= 24 (see `.nvmrc`). Use `nvm install 24 && nvm use 24` if needed. `corepack enable` activates pnpm.
