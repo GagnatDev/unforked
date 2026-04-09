@@ -98,6 +98,10 @@ object UserRepository {
         }
     }
 
+    fun countUsersInFamily(familyId: UUID): Int {
+        return DatabaseFactory.query { conn -> countUsersInFamilyConn(conn, familyId) }
+    }
+
     fun countUsersInFamilyConn(conn: Connection, familyId: UUID): Int {
         return conn.prepareStatement("SELECT COUNT(*) FROM users WHERE family_id = ?").use { ps ->
             ps.setObject(1, familyId)

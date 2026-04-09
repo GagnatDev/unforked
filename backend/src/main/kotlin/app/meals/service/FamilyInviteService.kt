@@ -32,7 +32,7 @@ object FamilyInviteService {
         inviteeEmail: String,
     ): Pair<String, Instant> {
         val normalized = inviteeEmail.trim().lowercase()
-        val members = FamilyRepository.countUsersInFamily(familyId)
+        val members = UserRepository.countUsersInFamily(familyId)
         val pending = FamilyInvitationRepository.countPendingForFamily(familyId)
         if (members + pending >= MAX_MEMBERS) {
             error("Family is full or has too many pending invitations")
