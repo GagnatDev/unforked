@@ -174,6 +174,12 @@ class RecipeApiTest {
     }
 
     @Test
+    fun `DELETE recipe returns 400 for malformed UUID`() = testWithApp {
+        val del = client.delete("/api/recipes/not-a-uuid")
+        assertEquals(HttpStatusCode.BadRequest, del.status)
+    }
+
+    @Test
     fun `GET recipe returns 404 for nonexistent ID`() = testWithApp {
         val getRes = client.get("/api/recipes/$NONEXISTENT_UUID")
         assertEquals(HttpStatusCode.NotFound, getRes.status)
