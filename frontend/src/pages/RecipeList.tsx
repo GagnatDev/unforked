@@ -4,6 +4,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAsync } from '@/hooks/useAsync'
+import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { api } from '../api'
 import type { Recipe } from '../types'
 
@@ -30,7 +31,11 @@ export default function RecipeList() {
     }
   }
 
-  if (error) return <p className="text-destructive">{error}</p>
+  if (error) {
+    return (
+      <p className="text-destructive">{formatLoadErrorMessage(error, t)}</p>
+    )
+  }
 
   return (
     <div>
