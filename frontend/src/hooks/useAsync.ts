@@ -1,5 +1,7 @@
 import { type DependencyList, useEffect, useState } from 'react'
 
+import { mapAsyncCatchError } from '@/lib/loadErrors'
+
 function isAbortError(e: unknown): boolean {
   if (e instanceof DOMException && e.name === 'AbortError') return true
   if (
@@ -69,7 +71,7 @@ export function useAsync<T>(
       })
       .catch((e) => {
         if (signal.aborted || isAbortError(e)) return
-        setError(e instanceof Error ? e.message : String(e))
+        setError(mapAsyncCatchError(e))
       })
       .finally(() => {
         if (signal.aborted) return

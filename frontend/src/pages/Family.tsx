@@ -4,6 +4,7 @@ import { api } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAsync } from '@/hooks/useAsync'
+import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function Family() {
@@ -46,7 +47,7 @@ export default function Family() {
       await api.family.patchDefaultPersons(n)
       refetch()
     } catch (e) {
-      setError((e as Error).message)
+      setError(mapAsyncCatchError(e))
     } finally {
       setSavingDefaults(false)
     }
@@ -64,7 +65,7 @@ export default function Family() {
       setInviteEmail('')
       refetch()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(mapAsyncCatchError(err))
     } finally {
       setInviteBusy(false)
     }
@@ -85,7 +86,7 @@ export default function Family() {
       await refreshUser()
       refetch()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(mapAsyncCatchError(err))
     } finally {
       setAcceptBusy(false)
     }
@@ -100,12 +101,12 @@ export default function Family() {
       <h1 className="text-xl font-semibold">{t('family.title')}</h1>
       {loadError && (
         <p className="text-sm text-destructive" role="alert">
-          {loadError}
+          {formatLoadErrorMessage(loadError, t)}
         </p>
       )}
       {error && (
         <p className="text-sm text-destructive" role="alert">
-          {error}
+          {formatLoadErrorMessage(error, t)}
         </p>
       )}
 

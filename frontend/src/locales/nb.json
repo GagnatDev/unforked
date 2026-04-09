@@ -19,6 +19,9 @@
     "cancel": "Avbryt",
     "selectWeek": "Velg uke"
   },
+  "errors": {
+    "couldNotReachServer": "Kunne ikke nå serveren. Sjekk tilkoblingen og prøv igjen."
+  },
   "auth": {
     "loginTitle": "Logg inn",
     "setupTitle": "Opprett admin-konto",

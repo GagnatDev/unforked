@@ -4,6 +4,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
 import { useAsync } from '@/hooks/useAsync'
+import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { getNextWeekId } from '@/lib/utils'
 import { api } from '../api'
 
@@ -61,7 +62,7 @@ export default function ShoppingList() {
       {loading ? (
         <p>{t('shoppingList.loading')}</p>
       ) : error ? (
-        <p className="text-destructive">{error}</p>
+        <p className="text-destructive">{formatLoadErrorMessage(error, t)}</p>
       ) : data && data.items.length > 0 ? (
         <>
           <ul className="list-none p-4 m-0 rounded-lg border border-border bg-card text-card-foreground">

@@ -19,6 +19,9 @@
     "cancel": "Cancel",
     "selectWeek": "Select week"
   },
+  "errors": {
+    "couldNotReachServer": "Could not reach the server. Check your connection and try again."
+  },
   "auth": {
     "loginTitle": "Log in",
     "setupTitle": "Create admin account",

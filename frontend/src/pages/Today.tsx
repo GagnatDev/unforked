@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getISODay } from 'date-fns'
+import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { cn, getCurrentWeekId } from '@/lib/utils'
 import { useAsync } from '@/hooks/useAsync'
 import { api } from '../api'
@@ -83,7 +84,11 @@ export default function Today() {
   const plannedPeople = assignment?.persons ?? plan?.defaultPersons ?? null
 
   if (loading) return <p>{t('today.loading')}</p>
-  if (error) return <p className="text-destructive">{error}</p>
+  if (error) {
+    return (
+      <p className="text-destructive">{formatLoadErrorMessage(error, t)}</p>
+    )
+  }
 
   if (!assignment?.recipeId || !recipe) {
     return (

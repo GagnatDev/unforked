@@ -5,6 +5,7 @@ import { DAYS } from '@/components/meal-plan/constants'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
 import { useAsync } from '@/hooks/useAsync'
+import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
 import { getNextWeekId } from '@/lib/utils'
 import { api } from '../api'
 import type { MealPlanDoc, DayAssignment, Recipe } from '../types'
@@ -99,7 +100,7 @@ export default function MealPlan() {
     try {
       await api.mealPlans.putCurrent(plan, weekId)
     } catch (e) {
-      setError((e as Error).message)
+      setError(mapAsyncCatchError(e))
     } finally {
       setSaving(false)
     }
@@ -118,7 +119,9 @@ export default function MealPlan() {
       {loading ? (
         <p>{t('mealPlan.loading')}</p>
       ) : loadError || error ? (
-        <p className="text-destructive">{loadError ?? error}</p>
+        <p className="text-destructive">
+          {formatLoadErrorMessage(loadError ?? error ?? '', t)}
+        </p>
       ) : (
         <>
           <div className="mb-4 max-w-md space-y-1">
