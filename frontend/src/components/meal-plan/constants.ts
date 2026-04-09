@@ -9,6 +9,3 @@ export const DAYS = [
 ] as const
 
 export type DayKey = (typeof DAYS)[number]
-
-export const mealPlanControlClass =
-  'rounded-md border border-input bg-background px-3 py-2 text-foreground'

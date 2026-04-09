@@ -1,4 +1,5 @@
 import { expect, test, type Route } from '@playwright/test'
+import { selectMealPlanRecipe } from './meal-plan-select'
 
 /** Must match [playwright.config.ts](playwright.config.ts) e2e backend port (see `E2E_BACKEND_PORT`). */
 const backendOrigin =
@@ -66,9 +67,7 @@ test.describe('weekly flow (recipes → meal plan → shopping list → today)',
 
     // 2) Assign the seeded recipe to Monday and save the plan for week 2026-W25.
     const mondayRow = page.getByRole('row', { name: /^Monday\b/i })
-    await mondayRow
-      .getByRole('combobox')
-      .selectOption({ label: recipeName })
+    await selectMealPlanRecipe(mondayRow, recipeName)
 
     const savePlanResponse = page.waitForResponse((response) => {
       return (

@@ -1,22 +1,23 @@
-import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import type { DayAssignment } from '@/types'
+import { Input } from '@/components/ui/input'
 import type { DayKey } from './constants'
 
 export function MealPlanDayPeopleInput({
   day,
   byDay,
   setDayPeople,
-  t,
   className,
 }: {
   day: DayKey
   byDay: Record<string, DayAssignment | undefined>
   setDayPeople: (day: string, raw: string) => void
-  t: TFunction
   className: string
 }) {
+  const { t } = useTranslation()
+
   return (
-    <input
+    <Input
       type="number"
       min={1}
       step={1}
