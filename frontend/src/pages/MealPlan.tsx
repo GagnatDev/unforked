@@ -6,9 +6,10 @@ import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
 import { useAsync } from '@/hooks/useAsync'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
+import { Input } from '@/components/ui/input'
 import { getNextWeekId } from '@/lib/utils'
-import { api } from '../api'
-import type { MealPlanDoc, DayAssignment, Recipe } from '../types'
+import { api } from '@/api'
+import type { MealPlanDoc, DayAssignment, Recipe } from '@/types'
 
 function parsePositiveInt(raw: string): number | null {
   if (raw.trim() === '') return null
@@ -128,19 +129,18 @@ export default function MealPlan() {
             <label htmlFor="meal-plan-default-people" className="text-sm font-medium">
               {t('mealPlan.defaultPeople')}
             </label>
-            <input
+            <Input
               id="meal-plan-default-people"
               type="number"
               min={1}
               step={1}
               value={plan?.defaultPersons ?? ''}
               onChange={(e) => setDefaultPeople(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-foreground"
+              className="w-full"
             />
             <p className="text-sm text-muted-foreground">{t('mealPlan.defaultPeopleHint')}</p>
           </div>
           <MealPlanWeekAssignments
-            t={t}
             byDay={byDay}
             recipes={recipes}
             setAssignment={setAssignment}

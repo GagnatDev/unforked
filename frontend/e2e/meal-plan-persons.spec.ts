@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
+import { selectMealPlanRecipe } from './meal-plan-select'
 
 /** Same frozen instant as week-picker.spec.ts → ISO week 2026-W25 in UTC. */
 const FROZEN_NOW = new Date(Date.UTC(2026, 5, 15, 12, 0, 0))
@@ -149,10 +150,7 @@ test.describe('meal plan people and shopping list', { tag: '@integration' }, () 
     await expect(page.getByRole('heading', { name: "This week's dinners" })).toBeVisible()
 
     await page.getByLabel(MEAL_PLAN_DEFAULT_PEOPLE_LABEL).fill('2')
-    await page
-      .getByRole('row', { name: /^Monday\b/i })
-      .getByRole('combobox')
-      .selectOption({ label: recipeName })
+    await selectMealPlanRecipe(page.getByRole('row', { name: /^Monday\b/i }), recipeName)
 
     const savePlanResponse = page.waitForResponse((response) => {
       return response.request().method() === 'PUT' && response.url().includes('/api/meal-plans/current')
@@ -185,8 +183,8 @@ test.describe('meal plan people and shopping list', { tag: '@integration' }, () 
 
     const mondayRow = page.getByRole('row', { name: /^Monday\b/i })
     const tuesdayRow = page.getByRole('row', { name: /^Tuesday\b/i })
-    await mondayRow.getByRole('combobox').selectOption({ label: recipeName })
-    await tuesdayRow.getByRole('combobox').selectOption({ label: recipeName })
+    await selectMealPlanRecipe(mondayRow, recipeName)
+    await selectMealPlanRecipe(tuesdayRow, recipeName)
 
     await mondayRow.getByRole('spinbutton', { name: /People for Monday/i }).fill('2')
 

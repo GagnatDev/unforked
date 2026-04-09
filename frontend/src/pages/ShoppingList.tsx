@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useAsync } from '@/hooks/useAsync'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { getNextWeekId } from '@/lib/utils'
-import { api } from '../api'
+import { api } from '@/api'
 
 function getInitialWeekId(): string {
   return getNextWeekId()

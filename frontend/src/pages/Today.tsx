@@ -2,18 +2,17 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getISODay } from 'date-fns'
+import type { DayKey } from '@/components/meal-plan/constants'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { cn, getCurrentWeekId } from '@/lib/utils'
 import { useAsync } from '@/hooks/useAsync'
-import { api } from '../api'
-import type { Recipe } from '../types'
+import { api } from '@/api'
+import type { Recipe } from '@/types'
 import { TodayIngredients } from './today/TodayIngredients'
 import { TodayMealCard } from './today/TodayMealCard'
 import { TodayStepChecklist } from './today/TodayStepChecklist'
 import { useStepChecklist } from './today/useStepChecklist'
 import { useWakeLock } from './today/useWakeLock'
-
-type DayKey = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
 
 function dayKeyFromDate(date: Date): DayKey {
   const iso = getISODay(date) // 1=Mon..7=Sun

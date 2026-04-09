@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAsync } from '@/hooks/useAsync'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
-import { api } from '../api'
-import type { Recipe } from '../types'
+import { api } from '@/api'
+import type { Recipe } from '@/types'
 
 export default function RecipeList() {
   const { t } = useTranslation()

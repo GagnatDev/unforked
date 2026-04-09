@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { Ingredient } from '../../types'
+import type { Ingredient } from '@/types'
 
 type TodayIngredientsProps = {
   ingredients: Ingredient[]

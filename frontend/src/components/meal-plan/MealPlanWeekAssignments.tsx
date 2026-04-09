@@ -1,24 +1,22 @@
-import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import type { DayAssignment, Recipe } from '@/types'
-import { DAYS, mealPlanControlClass } from './constants'
+import { DAYS } from './constants'
 import { MealPlanDayPeopleInput } from './MealPlanDayPeopleInput'
 import { MealPlanRecipeSelect } from './MealPlanRecipeSelect'
 
-const c = mealPlanControlClass
-
 export function MealPlanWeekAssignments({
-  t,
   byDay,
   recipes,
   setAssignment,
   setDayPeople,
 }: {
-  t: TFunction
   byDay: Record<string, DayAssignment | undefined>
   recipes: Recipe[]
   setAssignment: (day: string, recipeId: string | null, recipeName: string) => void
   setDayPeople: (day: string, raw: string) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="divide-y divide-border md:hidden">
@@ -30,8 +28,7 @@ export function MealPlanWeekAssignments({
                 day={day}
                 byDay={byDay}
                 setDayPeople={setDayPeople}
-                t={t}
-                className={`${c} w-16 min-w-0 shrink-0 disabled:opacity-50`}
+                className="w-16 min-w-0 shrink-0 disabled:opacity-50"
               />
             </div>
             <div className="mt-2">
@@ -40,8 +37,7 @@ export function MealPlanWeekAssignments({
                 byDay={byDay}
                 recipes={recipes}
                 setAssignment={setAssignment}
-                t={t}
-                className={`${c} w-full`}
+                className="w-full"
                 idSuffix="mobile"
               />
             </div>
@@ -66,8 +62,7 @@ export function MealPlanWeekAssignments({
                   byDay={byDay}
                   recipes={recipes}
                   setAssignment={setAssignment}
-                  t={t}
-                  className={`${c} w-full`}
+                  className="w-full"
                   idSuffix="desktop"
                 />
               </td>
@@ -76,8 +71,7 @@ export function MealPlanWeekAssignments({
                   day={day}
                   byDay={byDay}
                   setDayPeople={setDayPeople}
-                  t={t}
-                  className={`${c} w-full min-w-0 disabled:opacity-50`}
+                  className="w-full min-w-0 disabled:opacity-50"
                 />
               </td>
             </tr>

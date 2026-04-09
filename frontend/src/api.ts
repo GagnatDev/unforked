@@ -1,4 +1,5 @@
 import { getAuthDisabled, getToken, triggerUnauthorized } from '@/lib/authStore'
+import type { MealPlanDoc, RecipeDoc, ShoppingListDoc } from '@/types'
 
 const base = import.meta.env.VITE_API_URL ?? ''
 
@@ -20,11 +21,9 @@ async function publicRequest<T>(path: string, options?: RequestInit): Promise<T>
   return res.json()
 }
 
-function normalizeRecipeDoc(doc: import('./types').RecipeDoc): import('./types').RecipeDoc
-function normalizeRecipeDoc(doc: Partial<import('./types').RecipeDoc>): import('./types').RecipeDoc
-function normalizeRecipeDoc(
-  doc: Partial<import('./types').RecipeDoc>
-): import('./types').RecipeDoc {
+function normalizeRecipeDoc(doc: RecipeDoc): RecipeDoc
+function normalizeRecipeDoc(doc: Partial<RecipeDoc>): RecipeDoc
+function normalizeRecipeDoc(doc: Partial<RecipeDoc>): RecipeDoc {
   return {
     name: doc.name ?? '',
     description: doc.description ?? '',
@@ -80,28 +79,28 @@ export const api = {
       if (params?.name) q.set('name', params.name)
       if (params?.tag) q.set('tag', params.tag)
       const query = q.toString()
-      return request<{ id: string; doc: Partial<import('./types').RecipeDoc> }[]>(
+      return request<{ id: string; doc: Partial<RecipeDoc> }[]>(
         `/api/recipes${query ? `?${query}` : ''}`
       ).then((list) => list.map((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })))
     },
     get: (id: string) =>
-      request<{ id: string; doc: Partial<import('./types').RecipeDoc> }>(`/api/recipes/${id}`).then(
+      request<{ id: string; doc: Partial<RecipeDoc> }>(`/api/recipes/${id}`).then(
         (r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })
       ),
-    create: (doc: import('./types').RecipeDoc) =>
-      request<{ id: string; doc: Partial<import('./types').RecipeDoc> }>('/api/recipes', {
+    create: (doc: RecipeDoc) =>
+      request<{ id: string; doc: Partial<RecipeDoc> }>('/api/recipes', {
         method: 'POST',
         body: JSON.stringify(doc),
       }).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
-    update: (id: string, doc: import('./types').RecipeDoc) =>
-      request<{ id: string; doc: Partial<import('./types').RecipeDoc> }>(`/api/recipes/${id}`, {
+    update: (id: string, doc: RecipeDoc) =>
+      request<{ id: string; doc: Partial<RecipeDoc> }>(`/api/recipes/${id}`, {
         method: 'PUT',
         body: JSON.stringify(doc),
       }).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
     delete: (id: string) =>
       request<void>(`/api/recipes/${id}`, { method: 'DELETE' }),
     importFromUrl: (url: string) =>
-      request<{ doc: Partial<import('./types').RecipeDoc>; warnings?: string[] }>(
+      request<{ doc: Partial<RecipeDoc>; warnings?: string[] }>(
         `/api/recipes/import`,
         { method: 'POST', body: JSON.stringify({ url }) }
       ).then((r) => ({
@@ -120,17 +119,17 @@ export const api = {
   },
   mealPlans: {
     getCurrent: (week?: string) =>
-      request<import('./types').MealPlanDoc>(
+      request<MealPlanDoc>(
         `/api/meal-plans/current${week ? `?week=${encodeURIComponent(week)}` : ''}`
       ),
-    putCurrent: (doc: import('./types').MealPlanDoc, week?: string) =>
-      request<import('./types').MealPlanDoc>(
+    putCurrent: (doc: MealPlanDoc, week?: string) =>
+      request<MealPlanDoc>(
         `/api/meal-plans/current${week ? `?week=${encodeURIComponent(week)}` : ''}`,
         { method: 'PUT', body: JSON.stringify(doc) }
       ),
   },
   shoppingList: (week?: string) =>
-    request<import('./types').ShoppingListDoc>(
+    request<ShoppingListDoc>(
       `/api/shopping-lists${week ? `?week=${encodeURIComponent(week)}` : ''}`
     ),
   users: {

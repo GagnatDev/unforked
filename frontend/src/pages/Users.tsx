@@ -2,6 +2,13 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/api'
 
@@ -76,15 +83,15 @@ export default function Users() {
           <label htmlFor="user-role" className="mb-1 block text-sm font-medium">
             {t('auth.role')}
           </label>
-          <select
-            id="user-role"
-            value={role}
-            onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="user">{t('auth.roleUser')}</option>
-            <option value="admin">{t('auth.roleAdmin')}</option>
-          </select>
+          <Select value={role} onValueChange={(v) => setRole(v as 'user' | 'admin')}>
+            <SelectTrigger id="user-role" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="user">{t('auth.roleUser')}</SelectItem>
+              <SelectItem value="admin">{t('auth.roleAdmin')}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         {error && (
           <p className="text-sm text-destructive" role="alert">
