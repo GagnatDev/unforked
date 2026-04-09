@@ -11,7 +11,6 @@ import {
 import { useTranslation } from 'react-i18next'
 import { XIcon } from 'lucide-react'
 
-import { api } from '@/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { useTagSuggestions } from '@/hooks/useTagSuggestions'
 import { cn } from '@/lib/utils'
 
 export type RecipeTagsInputHandle = {
@@ -39,12 +39,18 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
     const { t } = useTranslation()
     const listboxId = useId()
     const [draft, setDraft] = useState('')
-    const [suggestions, setSuggestions] = useState<string[]>([])
+    const [suggestionsDismissed, setSuggestionsDismissed] = useState(false)
     const [inputFocused, setInputFocused] = useState(false)
     const [highlightIndex, setHighlightIndex] = useState(-1)
     const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const abortRef = useRef<AbortController | null>(null)
+
+    const { suggestions: apiSuggestions } = useTagSuggestions(draft, { excludeRecipeId })
+
+    useEffect(() => {
+      setSuggestionsDismissed(false)
+    }, [draft])
+
+    const suggestions = suggestionsDismissed ? [] : apiSuggestions
 
     const filtered = useMemo(
       () => suggestions.filter((s) => !tags.includes(s)),
@@ -67,7 +73,6 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
         if (!next || tags.includes(next)) return
         onChange([...tags, next])
         setDraft('')
-        setSuggestions([])
         setHighlightIndex(-1)
       },
       [onChange, tags]
@@ -77,61 +82,21 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
       commitPending() {
         const next = draft.trim()
         if (!next) {
-          setSuggestions([])
           setHighlightIndex(-1)
           return tags
         }
         if (tags.includes(next)) {
           setDraft('')
-          setSuggestions([])
           setHighlightIndex(-1)
           return tags
         }
         const merged = [...tags, next]
         onChange(merged)
         setDraft('')
-        setSuggestions([])
         setHighlightIndex(-1)
         return merged
       },
     }))
-
-    useEffect(() => {
-      const q = draft.trim()
-      if (!q) {
-        setSuggestions([])
-        setHighlightIndex(-1)
-        return
-      }
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      debounceRef.current = setTimeout(() => {
-        debounceRef.current = null
-        abortRef.current?.abort()
-        const ac = new AbortController()
-        abortRef.current = ac
-        api.recipes
-          .tagSuggestions(q, { excludeRecipeId, signal: ac.signal })
-          .then((list) => {
-            setSuggestions(list)
-            setHighlightIndex(list.length > 0 ? 0 : -1)
-          })
-          .catch((e) => {
-            if ((e as Error).name === 'AbortError') return
-            setSuggestions([])
-            setHighlightIndex(-1)
-          })
-      }, 250)
-      return () => {
-        if (debounceRef.current) clearTimeout(debounceRef.current)
-      }
-    }, [draft, excludeRecipeId])
-
-    useEffect(
-      () => () => {
-        abortRef.current?.abort()
-      },
-      []
-    )
 
     const clearBlurTimeout = () => {
       if (blurTimeoutRef.current) {
@@ -180,7 +145,7 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
       }
       if (e.key === 'Escape') {
         e.preventDefault()
-        setSuggestions([])
+        setSuggestionsDismissed(true)
         setHighlightIndex(-1)
       }
     }
