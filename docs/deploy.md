@@ -1,0 +1,86 @@
+# Deploying unforked to homectl Kubernetes
+
+Production runs on the homectl Kapsule cluster (`homectl` namespace). CI on `main` must pass before the **Deploy to Kubernetes** workflow builds the image and applies `k8s/deployment.yml`.
+
+## One-time setup
+
+### GitHub repository secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `SCW_ACCESS_KEY` | Scaleway API access key (deploy workflow) |
+| `SCW_SECRET_KEY` | Scaleway API secret (docker login + `scw` CLI) |
+| `SCW_ORGANIZATION_ID` | Scaleway organization UUID |
+| `K8S_CLUSTER_ID` | Kapsule cluster ID (`terraform output cluster_id` in homectl-infra) |
+
+Remove after cutover from Serverless (no longer used): `SCALEWAY_API_KEY`, `SCW_REGISTRY_NAMESPACE`, `SCW_CONTAINER_ID`.
+
+### Kubernetes secret (`unforked-secrets`)
+
+Create once in namespace `homectl` (do not commit values to git):
+
+```sh
+scw k8s kubeconfig install <K8S_CLUSTER_ID> --region fr-par
+
+kubectl create secret generic unforked-secrets \
+  --namespace homectl \
+  --from-literal=DB_URL="jdbc:postgresql://<postgres_host>:<postgres_port>/unforked" \
+  --from-literal=DB_USER="homectl" \
+  --from-literal=DB_PASSWORD="<your-db-password>" \
+  --from-literal=JWT_SECRET="$(openssl rand -base64 32)" \
+  --from-literal=CORS_ORIGIN="https://unforked.homectl.no"
+```
+
+Get `postgres_host` and `postgres_port` from homectl-infra terraform outputs. If JDBC connect fails on the private network, try appending `?sslmode=disable`.
+
+Verify ClusterIssuer before first deploy:
+
+```sh
+kubectl get clusterissuer letsencrypt-prod   # READY=True
+```
+
+### Registry pull secret (only if `ImagePullBackOff`)
+
+```sh
+kubectl create secret docker-registry scw-registry \
+  --namespace homectl \
+  --docker-server=rg.fr-par.scw.cloud \
+  --docker-username=nologin \
+  --docker-password="<SCW_SECRET_KEY>"
+```
+
+Add `imagePullSecrets: [{ name: scw-registry }]` to the Deployment if needed.
+
+## Pre-cutover verification (port-forward)
+
+While DNS still points at Serverless:
+
+```sh
+kubectl get pods,ingress -n homectl -l app=unforked
+kubectl logs -n homectl deployment/unforked   # Flyway success
+
+kubectl port-forward -n homectl svc/unforked 8080:80
+curl http://localhost:8080/health   # {"status":"ok"}
+
+curl -X POST http://localhost:8080/api/auth/setup \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"<your-email>","password":"<strong-password>"}'
+```
+
+The first `/api/auth/setup` caller becomes admin — run this before DNS cutover.
+
+## DNS cutover
+
+1. Update `unforked.homectl.no` A record at one.com to `ingress_ip` (homectl-infra terraform output).
+2. After TTL: verify `https://unforked.homectl.no`, cert-manager cert (`kubectl describe certificate -n homectl`), login, core flows.
+3. Delete the Scaleway Serverless container and old GitHub secrets listed above.
+
+**Rollback:** Re-point DNS to Serverless until k8s is verified; keep Serverless running until cutover succeeds.
+
+## Secret rotation
+
+```sh
+kubectl delete secret unforked-secrets -n homectl
+# re-create with kubectl create secret generic ...
+kubectl rollout restart deployment/unforked -n homectl
+```
