@@ -170,5 +170,14 @@
   "language": {
     "en": "English",
     "nb": "Norsk"
+  },
+  "pwa": {
+    "offline": "Offline",
+    "updateAvailable": "A new version is available.",
+    "reload": "Reload",
+    "dismiss": "Later",
+    "installPrompt": "Install this app for quick access.",
+    "install": "Install",
+    "dismissInstall": "Dismiss install prompt"
   }
 }

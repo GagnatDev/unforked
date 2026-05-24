@@ -25,6 +25,7 @@ services:
       - DB_PASSWORD=meals
       - PORT=8080
       - SEED_TEST_DATA=true
+      - JWT_SECRET=test-secret
     ports:
       - "8080:8080"
     depends_on:

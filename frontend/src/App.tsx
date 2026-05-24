@@ -1,9 +1,12 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AppNav } from '@/components/AppNav'
 import { RequireAuth } from '@/components/RequireAuth'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePWA } from '@/hooks/usePWA'
+import { PWAUpdateBanner } from '@/components/PWAUpdateBanner'
+import { PWAInstallBanner } from '@/components/PWAInstallBanner'
 import Login from './pages/Login'
 
 const RecipeList = lazy(() => import('./pages/RecipeList'))
@@ -19,6 +22,8 @@ function AppLayout() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { logout } = useAuth()
+  const { needRefresh, updateServiceWorker, canInstall, promptInstall } = usePWA()
+  const [updateDismissed, setUpdateDismissed] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -28,6 +33,7 @@ function AppLayout() {
   return (
     <div className="max-w-[900px] mx-auto p-6">
       <AppNav onLogout={handleLogout} />
+      {canInstall && <PWAInstallBanner onInstall={promptInstall} />}
       <Suspense
         fallback={
           <p className="text-sm text-muted-foreground" role="status">
@@ -48,6 +54,12 @@ function AppLayout() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      {needRefresh && !updateDismissed && (
+        <PWAUpdateBanner
+          onUpdate={() => updateServiceWorker(true)}
+          onDismiss={() => setUpdateDismissed(true)}
+        />
+      )}
     </div>
   )
 }

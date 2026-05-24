@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDownIcon } from 'lucide-react'
 import { Link, NavLink, useMatch } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
+import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { buttonVariants } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -101,6 +102,7 @@ export function AppNav({ onLogout }: AppNavProps) {
       </div>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
+        <OfflineIndicator />
         <AccountMenu onLogout={onLogout} />
       </div>
     </nav>

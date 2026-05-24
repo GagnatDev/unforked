@@ -170,5 +170,14 @@
   "language": {
     "en": "English",
     "nb": "Norsk"
+  },
+  "pwa": {
+    "offline": "Frakoblet",
+    "updateAvailable": "En ny versjon er tilgjengelig.",
+    "reload": "Last inn på nytt",
+    "dismiss": "Senere",
+    "installPrompt": "Installer appen for rask tilgang.",
+    "install": "Installer",
+    "dismissInstall": "Lukk installasjonsmelding"
   }
 }

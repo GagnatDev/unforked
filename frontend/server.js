@@ -18,6 +18,7 @@ const mimes = {
   '.js': 'application/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
   '.ico': 'image/x-icon',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
@@ -78,6 +79,18 @@ const server = http.createServer((req, res) => {
   }
   const ext = path.extname(file)
   res.setHeader('Content-Type', mimes[ext] || 'application/octet-stream')
+
+  const isHashed = /\.[a-f0-9]{8,}\.(js|css|woff2|png)$/.test(req.url)
+  const isSW = /^\/(sw\.js|workbox-[^/]+\.js)$/.test(req.url)
+  const isHTML = ext === '.html'
+  if (isHashed) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+  } else if (isSW || isHTML) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  } else {
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+  }
+
   fs.createReadStream(file).pipe(res)
 })
 
