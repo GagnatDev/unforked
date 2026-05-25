@@ -15,8 +15,11 @@ concurrency:
   group: deploy-k8s
   cancel-in-progress: true
 
+env:
+  IMAGE_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
 jobs:
-  deploy:
+  build:
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
@@ -24,16 +27,27 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ env.IMAGE_TAG }}
 
       - name: Build and push image
         run: |
           echo "${{ secrets.SCW_SECRET_KEY }}" | docker login rg.fr-par.scw.cloud \
             -u nologin --password-stdin
-          docker build -t rg.fr-par.scw.cloud/homectl/unforked:${{ github.sha }} \
+          docker build -t rg.fr-par.scw.cloud/homectl/unforked:${{ env.IMAGE_TAG }} \
                        -t rg.fr-par.scw.cloud/homectl/unforked:latest .
-          docker push rg.fr-par.scw.cloud/homectl/unforked:${{ github.sha }}
+          docker push rg.fr-par.scw.cloud/homectl/unforked:${{ env.IMAGE_TAG }}
           docker push rg.fr-par.scw.cloud/homectl/unforked:latest
+
+  deploy:
+    needs: build
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.IMAGE_TAG }}
 
       - name: Setup Scaleway CLI and get kubeconfig
         uses: scaleway/action-scw@v0
@@ -46,6 +60,6 @@ jobs:
 
       - name: Deploy to cluster
         run: |
-          sed -i "s|\$IMAGE_TAG|${{ github.sha }}|g" k8s/deployment.yml
+          sed -i "s|\$IMAGE_TAG|${{ env.IMAGE_TAG }}|g" k8s/deployment.yml
           kubectl apply -f k8s/deployment.yml
           kubectl rollout status deployment/unforked -n homectl --timeout=300s
