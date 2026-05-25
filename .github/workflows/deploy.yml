@@ -41,7 +41,8 @@ jobs:
           access-key: ${{ secrets.SCW_ACCESS_KEY }}
           secret-key: ${{ secrets.SCW_SECRET_KEY }}
           default-organization-id: ${{ secrets.SCW_ORGANIZATION_ID }}
-          args: k8s kubeconfig install ${{ secrets.K8S_CLUSTER_ID }}
+          default-project-id: ${{ secrets.SCW_PROJECT_ID }}
+          args: k8s kubeconfig install ${{ secrets.K8S_CLUSTER_ID }} region=fr-par
 
       - name: Deploy to cluster
         run: |

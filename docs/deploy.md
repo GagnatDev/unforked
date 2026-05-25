@@ -11,7 +11,10 @@ Production runs on the homectl Kapsule cluster (`homectl` namespace). CI on `mai
 | `SCW_ACCESS_KEY` | Scaleway API access key (deploy workflow) |
 | `SCW_SECRET_KEY` | Scaleway API secret (docker login + `scw` CLI) |
 | `SCW_ORGANIZATION_ID` | Scaleway organization UUID |
-| `K8S_CLUSTER_ID` | Kapsule cluster ID (`terraform output cluster_id` in homectl-infra) |
+| `SCW_PROJECT_ID` | Scaleway project UUID (same as homectl-infra; cluster lives in this project) |
+| `K8S_CLUSTER_ID` | Full cluster ID from `terraform -chdir=terraform output -raw cluster_id` in homectl-infra (includes `fr-par/` prefix) |
+
+Use the **same** `SCW_*` values as in the homectl-infra repo, or create API keys with Kubernetes + Container Registry permissions on the homectl project. Docker login can succeed while kubeconfig fails if the key lacks K8s access or targets the wrong project (Scaleway often returns 404).
 
 Remove after cutover from Serverless (no longer used): `SCALEWAY_API_KEY`, `SCW_REGISTRY_NAMESPACE`, `SCW_CONTAINER_ID`.
 
