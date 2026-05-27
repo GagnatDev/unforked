@@ -55,7 +55,8 @@ export default function Today() {
     async (signal) => {
       const p = await api.mealPlans.getCurrent(weekId)
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      const assignment = p.assignments.find((x) => x.day === dayKey) ?? null
+      const assignment =
+        (p.assignments ?? []).find((x) => x.day === dayKey) ?? null
       let recipe: Recipe | null = null
       if (assignment?.recipeId) {
         recipe = await api.recipes.get(assignment.recipeId)
