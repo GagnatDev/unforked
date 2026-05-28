@@ -1,6 +1,7 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
 import type { Db } from "../db/kysely.js";
+import { importFromUrl } from "../importer/recipeImporter.js";
 import { validateBody } from "../middleware/validate.js";
 import { RecipeRepository } from "../storage/recipeRepository.js";
 import { UserRepository } from "../storage/userRepository.js";
@@ -23,6 +24,8 @@ const recipeDocSchema = z.object({
   servings: z.number().int().default(4),
   tags: z.array(z.string()).default([]),
 });
+
+const importSchema = z.object({ url: z.string() });
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -62,6 +65,16 @@ export function recipeRoutes(db: Db): Router {
       return;
     }
     res.json({ id, doc });
+  });
+
+  router.post("/recipes/import", validateBody(importSchema), async (req, res) => {
+    await requireUserAndFamily(users, req);
+    const { url } = req.body as z.infer<typeof importSchema>;
+    try {
+      res.json(await importFromUrl(url));
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : "Import failed" });
+    }
   });
 
   router.post("/recipes", validateBody(recipeDocSchema), async (req, res) => {

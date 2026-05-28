@@ -24,6 +24,11 @@ export interface RecipeResponse {
   doc: RecipeDoc;
 }
 
+export interface ImportRecipeResponse {
+  doc: RecipeDoc;
+  warnings: string[];
+}
+
 export interface DayAssignment {
   day: string;
   recipeId: string;
