@@ -21,7 +21,7 @@ export interface RecipesTable {
 export interface MealPlansTable {
   id: Generated<string>;
   created_at: DefaultTimestamp;
-  updated_at: DefaultTimestamp;
+  updated_at: UpdatableTimestamp;
   doc: JsonColumn<MealPlanDoc>;
   family_id: string;
 }
