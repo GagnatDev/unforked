@@ -52,6 +52,33 @@ jobs:
           pnpm --filter meal-planning-frontend run test:unit
           pnpm --filter meal-planning-frontend run build
 
+  # Node backend verification runs in its own job (parallel to the Kotlin
+  # `verify` job) so Testcontainers does not contend with the Gradle JVM on one
+  # runner. Merged back into `verify` at the commit-13 cutover.
+  verify-node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Backend tests with coverage
+        run: pnpm --filter @unforked/backend run test:coverage
+
+      - name: Backend build
+        run: pnpm --filter @unforked/backend run build
+
   playwright:
     needs: verify
     runs-on: ubuntu-latest
