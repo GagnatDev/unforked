@@ -1,4 +1,6 @@
-import express, { Router, type Express } from "express";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import express, { Router, type Express, type Response } from "express";
 import cors from "cors";
 import type { Db } from "./db/kysely.js";
 import { httpLogger } from "./logger.js";
@@ -14,6 +16,18 @@ import { shoppingListRoutes } from "./routes/shoppingLists.js";
 
 export interface AppDeps {
   db: Db;
+  /** Directory of the built SPA to serve. Defaults to `<cwd>/web`; skipped if absent. */
+  webRoot?: string;
+}
+
+function setStaticCacheHeaders(res: Response, filePath: string): void {
+  if (filePath.endsWith("index.html") || filePath.endsWith("sw.js")) {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  } else {
+    res.setHeader("Cache-Control", "public, max-age=3600");
+  }
 }
 
 /**
@@ -44,6 +58,24 @@ export function buildApp(deps: AppDeps): Express {
   api.use(mealPlanRoutes(deps.db));
   api.use(shoppingListRoutes(deps.db));
   app.use("/api", api);
+
+  // Serve the built SPA (single-container topology). express.static handles real
+  // files; the terminal handler serves index.html for client-side routes. Skipped
+  // when the directory is absent (e.g. local dev / tests), matching Ktor.
+  const webRoot = deps.webRoot ?? path.resolve(process.cwd(), "web");
+  if (existsSync(webRoot)) {
+    const indexHtml = path.join(webRoot, "index.html");
+    app.use(express.static(webRoot, { setHeaders: setStaticCacheHeaders }));
+    // Express 5: no bare "*" route — use a named splat and skip API paths.
+    app.get("/*splat", (req, res, next) => {
+      if (req.path.startsWith("/api/")) {
+        next();
+        return;
+      }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.sendFile(indexHtml);
+    });
+  }
 
   app.use(errorHandler);
   return app;
