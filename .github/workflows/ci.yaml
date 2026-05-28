@@ -36,22 +36,21 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
-        with:
-          package_json_file: frontend/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Frontend install, unit tests, and build
-        working-directory: frontend
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend unit tests and build
         run: |
-          pnpm install --frozen-lockfile
-          pnpm run test:unit
-          pnpm run build
+          pnpm --filter meal-planning-frontend run test:unit
+          pnpm --filter meal-planning-frontend run build
 
   playwright:
     needs: verify
@@ -72,26 +71,21 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
-        with:
-          package_json_file: frontend/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Install frontend dependencies
-        working-directory: frontend
+      - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
-        working-directory: frontend
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter meal-planning-frontend exec playwright install --with-deps chromium
 
       - name: Run Playwright e2e
-        working-directory: frontend
         env:
           CI: "true"
-        run: pnpm run e2e
+        run: pnpm --filter meal-planning-frontend run e2e

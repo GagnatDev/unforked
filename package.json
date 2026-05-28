@@ -1,0 +1,16 @@
+{
+  "name": "unforked",
+  "private": true,
+  "version": "0.0.1",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "dev:frontend": "pnpm --filter meal-planning-frontend run dev",
+    "dev:backend": "pnpm --filter @unforked/backend run dev"
+  }
+}
