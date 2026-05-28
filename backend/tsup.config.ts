@@ -19,7 +19,14 @@ export default defineConfig({
   // stay out.
   noExternal: [/.*/],
   external: ["pg-native", "pino-pretty"],
+  // Define a real module-scoped `require` so esbuild's CJS interop shim works for
+  // bundled CommonJS deps (express et al.). The import is aliased to avoid a
+  // duplicate `createRequire` declaration with deps that import it themselves
+  // (e.g. node-pg-migrate's ESM build).
   banner: {
-    js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+    js: "import { createRequire as __nodeCreateRequire } from 'module'; const require = __nodeCreateRequire(import.meta.url);",
   },
+  // node-pg-migrate reads the plain-SQL files from disk at runtime, so copy them
+  // next to the bundle (migrate.ts resolves ./migrations relative to the bundle).
+  onSuccess: "mkdir -p dist/migrations && cp migrations/*.sql dist/migrations/",
 });

@@ -6,6 +6,8 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     // Testcontainers + pg behave more predictably with process isolation.
     pool: "forks",
+    // One shared Postgres container for the whole run; migrations applied once.
+    globalSetup: ["src/test/global-setup.ts"],
     // Defaults so unit tests can import modules that read config at load time
     // without a real database or secret. Integration tests (commit 3+) override
     // DATABASE_URL via a Testcontainers global setup.
