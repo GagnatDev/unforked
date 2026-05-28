@@ -8,13 +8,18 @@ export default defineConfig({
     pool: "forks",
     // One shared Postgres container for the whole run; migrations applied once.
     globalSetup: ["src/test/global-setup.ts"],
+    // Test files share that single database and reset via TRUNCATE between tests,
+    // so they must not run concurrently or they'd truncate each other's data.
+    fileParallelism: false,
     // Defaults so unit tests can import modules that read config at load time
     // without a real database or secret. Integration tests (commit 3+) override
     // DATABASE_URL via a Testcontainers global setup.
     env: {
       JWT_SECRET: "test-secret",
       DATABASE_URL: "postgresql://test:test@127.0.0.1:5432/test",
-      DISABLE_AUTH: "true",
+      // Auth enabled so API tests exercise the real token flow; middleware unit
+      // tests inject disableAuth explicitly to cover the DISABLE_AUTH path.
+      DISABLE_AUTH: "false",
     },
     coverage: {
       provider: "v8",

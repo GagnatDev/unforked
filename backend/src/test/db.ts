@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 import { Pool } from "pg";
-import { inject } from "vitest";
+import { afterAll, beforeEach, inject } from "vitest";
 import { createDb, type Db } from "../db/kysely.js";
 
 let pool: Pool | undefined;
@@ -27,4 +27,10 @@ export async function closeTestDb(): Promise<void> {
   await pool?.end();
   pool = undefined;
   db = undefined;
+}
+
+/** Register the standard per-file DB lifecycle: truncate before each test, close after all. */
+export function useCleanDb(): void {
+  beforeEach(resetDb);
+  afterAll(closeTestDb);
 }
