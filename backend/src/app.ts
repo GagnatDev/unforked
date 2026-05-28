@@ -10,6 +10,7 @@ import { userRoutes } from "./routes/users.js";
 import { familyRoutes } from "./routes/family.js";
 import { recipeRoutes } from "./routes/recipes.js";
 import { mealPlanRoutes } from "./routes/mealPlans.js";
+import { shoppingListRoutes } from "./routes/shoppingLists.js";
 
 export interface AppDeps {
   db: Db;
@@ -41,6 +42,7 @@ export function buildApp(deps: AppDeps): Express {
   api.use(familyRoutes(deps.db));
   api.use(recipeRoutes(deps.db));
   api.use(mealPlanRoutes(deps.db));
+  api.use(shoppingListRoutes(deps.db));
   app.use("/api", api);
 
   app.use(errorHandler);

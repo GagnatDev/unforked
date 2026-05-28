@@ -47,6 +47,17 @@ export class RecipeRepository {
     return row?.doc;
   }
 
+  async findByIds(familyId: string, ids: string[]): Promise<RecipeResponse[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db
+      .selectFrom("recipes")
+      .select(["id", "doc"])
+      .where("family_id", "=", familyId)
+      .where("id", "in", ids)
+      .execute();
+    return rows.map((r) => ({ id: r.id, doc: r.doc }));
+  }
+
   async insert(familyId: string, doc: RecipeDoc): Promise<string> {
     const row = await this.db
       .insertInto("recipes")
