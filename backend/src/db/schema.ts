@@ -7,11 +7,13 @@ type JsonColumn<T> = ColumnType<T, string, string>;
 
 // Defaulted timestamps: selected as Date, never written by app code.
 type DefaultTimestamp = ColumnType<Date, never, never>;
+// Like DefaultTimestamp but app code may set it on update (e.g. updated_at = now()).
+type UpdatableTimestamp = ColumnType<Date, never, Date | string>;
 
 export interface RecipesTable {
   id: Generated<string>;
   created_at: DefaultTimestamp;
-  updated_at: DefaultTimestamp;
+  updated_at: UpdatableTimestamp;
   doc: JsonColumn<RecipeDoc>;
   family_id: string;
 }

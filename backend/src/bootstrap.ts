@@ -5,6 +5,7 @@ import { createDb } from "./db/kysely.js";
 import { createPool } from "./db/pool.js";
 import { env } from "./config/env.js";
 import { logger } from "./logger.js";
+import { seedTestRecipesIfEmpty } from "./seed/seedData.js";
 
 export interface StartedServer {
   server: Server;
@@ -19,6 +20,12 @@ export interface StartedServer {
 export async function startServer(connectionString?: string): Promise<StartedServer> {
   const pool = createPool(connectionString);
   const db = createDb(pool);
+
+  // Dev/e2e seeding (after migrations, which the caller runs first).
+  if (env.SEED_TEST_DATA) {
+    await seedTestRecipesIfEmpty(db);
+  }
+
   const app = buildApp({ db });
 
   const server = await new Promise<Server>((resolve) => {

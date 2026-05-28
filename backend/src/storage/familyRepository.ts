@@ -25,6 +25,17 @@ export class FamilyRepository {
     return result.numUpdatedRows > 0n;
   }
 
+  /** Oldest family by created_at — used to target dev seed data. */
+  async findFirstFamilyId(): Promise<string | undefined> {
+    const row = await this.db
+      .selectFrom("families")
+      .select("id")
+      .orderBy("created_at")
+      .limit(1)
+      .executeTakeFirst();
+    return row?.id;
+  }
+
   /** Delete the family only if it has no remaining members. */
   async deleteIfEmpty(familyId: string): Promise<boolean> {
     const members = await this.db

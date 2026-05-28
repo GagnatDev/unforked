@@ -8,6 +8,7 @@ import { healthRouter } from "./routes/health.js";
 import { authPublicRouter } from "./routes/auth.js";
 import { userRoutes } from "./routes/users.js";
 import { familyRoutes } from "./routes/family.js";
+import { recipeRoutes } from "./routes/recipes.js";
 
 export interface AppDeps {
   db: Db;
@@ -37,6 +38,7 @@ export function buildApp(deps: AppDeps): Express {
   api.use(requireAuth());
   api.use(userRoutes(deps.db));
   api.use(familyRoutes(deps.db));
+  api.use(recipeRoutes(deps.db));
   app.use("/api", api);
 
   app.use(errorHandler);
