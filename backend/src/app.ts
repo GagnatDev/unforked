@@ -7,6 +7,7 @@ import { requireAuth } from "./middleware/auth.js";
 import { healthRouter } from "./routes/health.js";
 import { authPublicRouter } from "./routes/auth.js";
 import { userRoutes } from "./routes/users.js";
+import { familyRoutes } from "./routes/family.js";
 
 export interface AppDeps {
   db: Db;
@@ -35,6 +36,7 @@ export function buildApp(deps: AppDeps): Express {
   const api = Router();
   api.use(requireAuth());
   api.use(userRoutes(deps.db));
+  api.use(familyRoutes(deps.db));
   app.use("/api", api);
 
   app.use(errorHandler);
