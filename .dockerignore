@@ -1,15 +1,12 @@
 # Git
 .git/
 
-# Backend (Gradle/Kotlin)
-backend/build/
-backend/.gradle/
-backend/*.iml
-!backend/gradle/wrapper/gradle-wrapper.jar
-
-# Frontend (Node)
-frontend/node_modules/
+# Node (workspaces)
+node_modules/
+**/node_modules/
 frontend/dist/
+backend/dist/
+backend/coverage/
 
 # Env and logs
 *.log

@@ -34,8 +34,10 @@ export default defineConfig({
   },
   webServer: [
     {
-      cwd: '../backend',
-      command: `E2E_BACKEND_HOST=${backendHost} E2E_BACKEND_PORT=${backendPort} ./gradlew runE2eBackend`,
+      // Node backend with a self-provisioned Testcontainers Postgres + DISABLE_AUTH.
+      // `pnpm --filter` resolves the workspace root from the frontend dir.
+      command: `pnpm --filter @unforked/backend run e2e:server`,
+      env: { E2E_BACKEND_HOST: backendHost, E2E_BACKEND_PORT: backendPort },
       url: `http://${backendHost}:${backendPort}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 180 * 1000,

@@ -11,5 +11,5 @@ coverage:
 flags:
   backend:
     paths:
-      - backend/src/main/
+      - backend/src/
     carryforward: true

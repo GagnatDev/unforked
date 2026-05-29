@@ -1,16 +1,7 @@
-# Gradle
-.gradle/
+# Build output
 build/
 **/build/
-
-# Kotlin/Java
-*.class
-*.jar
-!backend/gradle/wrapper/gradle-wrapper.jar
-*.war
-*.log
 out/
-target/
 
 # npm / Node
 node_modules/

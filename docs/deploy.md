@@ -34,7 +34,11 @@ kubectl create secret generic unforked-secrets \
   --from-literal=CORS_ORIGIN="https://unforked.homectl.no"
 ```
 
-Get `postgres_host` and `postgres_port` from homectl-infra terraform outputs. If JDBC connect fails on the private network, try appending `?sslmode=disable`.
+Get `postgres_host` and `postgres_port` from homectl-infra terraform outputs. If connecting fails on the private network, try appending `?sslmode=disable`.
+
+The Node backend accepts the legacy `jdbc:postgresql://…` `DB_URL` (with `DB_USER`/`DB_PASSWORD`) as-is, so this Secret does not change at the Kotlin→Node cutover. You may migrate to a single `DATABASE_URL=postgresql://user:pass@host:port/unforked` later on your own schedule.
+
+**Migration handoff:** migrations run at pod boot (node-pg-migrate). On the first Node deploy against the existing Flyway-migrated database, the runner detects the schema and baselines migrations `001–003` as already-applied instead of recreating tables; a fresh database migrates normally.
 
 Verify ClusterIssuer before first deploy:
 
@@ -60,7 +64,7 @@ While DNS still points at Serverless:
 
 ```sh
 kubectl get pods,ingress -n homectl -l app=unforked
-kubectl logs -n homectl deployment/unforked   # Flyway success
+kubectl logs -n homectl deployment/unforked   # migrations applied, "backend listening"
 
 kubectl port-forward -n homectl svc/unforked 8080:80
 curl http://localhost:8080/health   # {"status":"ok"}

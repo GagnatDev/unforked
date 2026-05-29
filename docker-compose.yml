@@ -20,9 +20,8 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - DB_URL=jdbc:postgresql://postgres:5432/meals
-      - DB_USER=meals
-      - DB_PASSWORD=meals
+      # DATABASE_URL is the primary var; the legacy jdbc: DB_URL is still accepted.
+      - DATABASE_URL=postgresql://meals:meals@postgres:5432/meals
       - PORT=8080
       - SEED_TEST_DATA=true
       - JWT_SECRET=test-secret

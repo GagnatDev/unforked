@@ -1,43 +1,36 @@
 # -----------------------------------------------------------------------------
-# Stage 1: Build frontend (React/Vite)
+# Stage 1: Build frontend + backend (single Node toolchain, pnpm workspaces)
 # -----------------------------------------------------------------------------
-FROM node:24-alpine AS frontend-build
+FROM node:24-alpine AS build
 WORKDIR /app
 
 RUN corepack enable
 
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+# Install workspace deps from the single root lockfile.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package.json frontend/
+COPY backend/package.json backend/
 RUN pnpm install --frozen-lockfile
 
-COPY frontend/ .
-RUN pnpm run build
+# Build both workspaces: frontend → frontend/dist, backend → backend/dist
+# (a single bundled server.js + copied SQL migrations).
+COPY . .
+RUN pnpm --filter meal-planning-frontend run build \
+ && pnpm --filter @unforked/backend run build
 
 # -----------------------------------------------------------------------------
-# Stage 2: Build backend (Kotlin/Gradle)
+# Stage 2: Runtime (Node 24, no node_modules — everything is bundled)
 # -----------------------------------------------------------------------------
-FROM eclipse-temurin:21-jdk-alpine AS backend-build
-WORKDIR /app
-
-COPY backend/gradlew .
-COPY backend/gradle gradle
-COPY backend/build.gradle.kts backend/settings.gradle.kts backend/gradle.properties ./
-RUN ./gradlew dependencies --no-daemon || true
-
-COPY backend/src src
-RUN ./gradlew shadowJar --no-daemon
-
-# -----------------------------------------------------------------------------
-# Stage 3: Run (JRE + JAR + static frontend)
-# -----------------------------------------------------------------------------
-FROM eclipse-temurin:21-jre-alpine
+FROM node:24-alpine
 WORKDIR /app
 
 RUN adduser -D -g "" appuser
 USER appuser
 
-COPY --from=backend-build /app/build/libs/meal-planning-backend.jar app.jar
-COPY --from=frontend-build /app/dist web
+# Bundled server + plain-SQL migrations (dist/migrations) + built SPA (web/).
+COPY --from=build /app/backend/dist ./dist
+COPY --from=build /app/frontend/dist ./web
 
 EXPOSE 8080
-ENV PORT=8080
-ENTRYPOINT ["sh", "-c", "exec java -jar app.jar"]
+ENV PORT=8080 NODE_ENV=production
+ENTRYPOINT ["node", "dist/server.js"]
