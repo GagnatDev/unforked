@@ -32,6 +32,7 @@ export default defineConfig({
         "src/server.ts",
         "src/bootstrap.ts",
         "src/e2e-server.ts",
+        "src/seed/devPrincipal.ts",
         "src/db/pool.ts",
         "src/db/kysely.ts",
         "src/db/schema.ts",
