@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { Db } from "../db/kysely.js";
-import { emailField } from "../domain/fields.js";
+import { emailField, tokenField } from "../domain/fields.js";
 import { validateBody } from "../middleware/validate.js";
 import { FamilyInviteService } from "../service/familyInviteService.js";
 import { FamilyInvitationRepository } from "../storage/familyInvitationRepository.js";
@@ -20,10 +20,7 @@ const patchFamilySchema = z.object({
 const createInviteSchema = z.object({ email: emailField });
 
 const acceptInviteSchema = z.object({
-  token: z
-    .string()
-    .transform((s) => s.trim())
-    .pipe(z.string().min(1, "Token required")),
+  token: tokenField,
 });
 
 /** Authenticated family routes; mounted under /api (after requireAuth). */
