@@ -77,9 +77,8 @@ export function familyRoutes(db: Db): Router {
   router.post("/family/invites/accept", validateBody(acceptInviteSchema), async (req, res) => {
     const { user } = await requireUserAndFamily(users, req);
     const { token } = req.body as z.infer<typeof acceptInviteSchema>;
-    await inviteService.acceptInviteForExistingUser(user, token);
-    const updated = await users.findById(user.id);
-    res.json({ familyId: updated?.family_id });
+    const familyId = await inviteService.acceptInviteForExistingUser(user, token);
+    res.json({ familyId });
   });
 
   return router;

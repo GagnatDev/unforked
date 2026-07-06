@@ -55,8 +55,8 @@ export class FamilyInviteService {
    * if it is now empty. Only allowed when the user is the sole member of their
    * current family (to avoid orphaning shared data).
    */
-  async acceptInviteForExistingUser(user: UserRow, token: string): Promise<void> {
-    await this.db.transaction().execute(async (trx) => {
+  async acceptInviteForExistingUser(user: UserRow, token: string): Promise<string> {
+    return this.db.transaction().execute(async (trx) => {
       const users = new UserRepository(trx);
       const invites = new FamilyInvitationRepository(trx);
       const families = new FamilyRepository(trx);
@@ -90,6 +90,7 @@ export class FamilyInviteService {
       await users.updateFamilyId(user.id, inv.family_id);
       await invites.markAccepted(inv.id);
       await families.deleteIfEmpty(user.family_id);
+      return inv.family_id;
     });
   }
 
