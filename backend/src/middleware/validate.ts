@@ -1,5 +1,6 @@
-import type { RequestHandler } from "express";
+import type { Response, RequestHandler } from "express";
 import type { ZodTypeAny } from "zod";
+import { isValidUuid } from "../domain/fields.js";
 import { HttpError } from "./error.js";
 
 /**
@@ -18,4 +19,16 @@ export function validateBody(schema: ZodTypeAny): RequestHandler {
     req.body = result.data;
     next();
   };
+}
+
+/** Validate a UUID path param, responding 400 on failure. Returns null if invalid. */
+export function requireUuidParam(
+  raw: string | string[] | undefined,
+  res: Response,
+  paramName = "id",
+): string | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value && isValidUuid(value)) return value;
+  res.status(400).json({ error: `Invalid UUID for parameter '${paramName}'` });
+  return null;
 }

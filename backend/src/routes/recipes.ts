@@ -1,8 +1,9 @@
-import { Router, type Response } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import type { Db } from "../db/kysely.js";
+import { isValidUuid } from "../domain/fields.js";
 import { importFromUrl } from "../importer/recipeImporter.js";
-import { validateBody } from "../middleware/validate.js";
+import { requireUuidParam, validateBody } from "../middleware/validate.js";
 import { RecipeRepository } from "../storage/recipeRepository.js";
 import { UserRepository } from "../storage/userRepository.js";
 import { requireUserAndFamily } from "./context.js";
@@ -27,8 +28,6 @@ const recipeDocSchema = z.object({
 
 const importSchema = z.object({ url: z.string() });
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Authenticated recipe routes; mounted under /api (after requireAuth). */
 export function recipeRoutes(db: Db): Router {
   const users = new UserRepository(db);
@@ -51,13 +50,13 @@ export function recipeRoutes(db: Db): Router {
     }
     const rawExclude = req.query.excludeRecipeId;
     const excludeRecipeId =
-      typeof rawExclude === "string" && UUID_RE.test(rawExclude) ? rawExclude : undefined;
+      typeof rawExclude === "string" && isValidUuid(rawExclude) ? rawExclude : undefined;
     res.json(await recipes.suggestTags(familyId, q, excludeRecipeId));
   });
 
   router.get("/recipes/:id", async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
-    const id = requireUuid(req.params.id, res);
+    const id = requireUuidParam(req.params.id, res);
     if (!id) return;
     const doc = await recipes.findById(familyId, id);
     if (!doc) {
@@ -86,7 +85,7 @@ export function recipeRoutes(db: Db): Router {
 
   router.put("/recipes/:id", validateBody(recipeDocSchema), async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
-    const id = requireUuid(req.params.id, res);
+    const id = requireUuidParam(req.params.id, res);
     if (!id) return;
     const doc = req.body as z.infer<typeof recipeDocSchema>;
     if (!(await recipes.update(familyId, id, doc))) {
@@ -98,7 +97,7 @@ export function recipeRoutes(db: Db): Router {
 
   router.delete("/recipes/:id", async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
-    const id = requireUuid(req.params.id, res);
+    const id = requireUuidParam(req.params.id, res);
     if (!id) return;
     if (!(await recipes.delete(familyId, id))) {
       res.status(404).json({ error: "Recipe not found" });
@@ -108,12 +107,4 @@ export function recipeRoutes(db: Db): Router {
   });
 
   return router;
-}
-
-/** Validate a UUID path param, responding 400 on failure. Returns null if invalid. */
-function requireUuid(raw: string | string[] | undefined, res: Response): string | null {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  if (value && UUID_RE.test(value)) return value;
-  res.status(400).json({ error: "Invalid UUID for parameter 'id'" });
-  return null;
 }

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { hashPassword, signToken, verifyPassword } from "../auth/auth.js";
 import type { Db } from "../db/kysely.js";
-import { emailField, passwordField } from "../domain/fields.js";
+import { emailField, passwordField, tokenField } from "../domain/fields.js";
 import { validateBody } from "../middleware/validate.js";
 import { FamilyInviteService } from "../service/familyInviteService.js";
 import { UserRepository, toUserInfo } from "../storage/userRepository.js";
@@ -12,10 +12,7 @@ import { UserRepository, toUserInfo } from "../storage/userRepository.js";
 const loginSchema = z.object({ email: emailField, password: z.string() });
 const setupSchema = z.object({ email: emailField, password: passwordField });
 const registerInviteSchema = z.object({
-  token: z
-    .string()
-    .transform((s) => s.trim())
-    .pipe(z.string().min(1, "Token required")),
+  token: tokenField,
   email: emailField,
   password: passwordField,
 });
