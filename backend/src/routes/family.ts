@@ -38,8 +38,12 @@ export function familyRoutes(db: Db): Router {
       res.status(404).json({ error: "Family not found" });
       return;
     }
-    const members = (await users.listByFamily(familyId)).map((u) => ({ id: u.id, email: u.email }));
-    const pendingInvites = (await invites.listPendingForFamily(familyId)).map((i) => ({
+    const [memberRows, inviteRows] = await Promise.all([
+      users.listByFamily(familyId),
+      invites.listPendingForFamily(familyId),
+    ]);
+    const members = memberRows.map((u) => ({ id: u.id, email: u.email }));
+    const pendingInvites = inviteRows.map((i) => ({
       id: i.id,
       inviteeEmail: i.invitee_email,
       token: i.token,
