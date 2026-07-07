@@ -36,23 +36,33 @@ test.describe('week picker', () => {
       })
     })
 
-    await page.goto('/meal-plan')
-    await expect(page.getByRole('heading', { name: "This week's dinners" })).toBeVisible()
+    await test.step('load meal plan for the default week (2026-W26)', async () => {
+      await page.goto('/meal-plan')
+      await expect(page.getByRole('heading', { name: "This week's dinners" })).toBeVisible()
 
-    await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(1)
-    expect(requestedUrls[0]).toContain('week=2026-W26')
+      await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(1)
+      expect(requestedUrls[0]).toContain('week=2026-W26')
+    })
 
-    const trigger = page.getByRole('button', { name: /Week 26, 2026/ })
-    await expect(trigger).toBeVisible()
-    await trigger.click()
+    await test.step('open the week picker', async () => {
+      const trigger = page.getByRole('button', { name: /Week 26, 2026/ })
+      await expect(trigger).toBeVisible()
+      await trigger.click()
+      await expect(page.getByRole('dialog', { name: /select week/i })).toBeVisible()
+    })
 
-    const weekDialog = page.getByRole('dialog', { name: /select week/i })
-    await expect(weekDialog).toBeVisible()
-    await weekDialog.getByRole('button', { name: JUNE_15_DAY_BUTTON }).click()
+    await test.step('select June 15th (2026-W25)', async () => {
+      await page
+        .getByRole('dialog', { name: /select week/i })
+        .getByRole('button', { name: JUNE_15_DAY_BUTTON })
+        .click()
+    })
 
-    await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(2)
-    expect(requestedUrls.at(-1)).toContain('week=2026-W25')
-    await expect(page.getByRole('button', { name: /Week 25, 2026/ })).toBeVisible()
+    await test.step('refetch with week=2026-W25 and update trigger label', async () => {
+      await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(2)
+      expect(requestedUrls.at(-1)).toContain('week=2026-W25')
+      await expect(page.getByRole('button', { name: /Week 25, 2026/ })).toBeVisible()
+    })
   })
 
   test('shopping list: changing week refetches with new ?week= and updates trigger label', async ({
@@ -69,22 +79,32 @@ test.describe('week picker', () => {
       })
     })
 
-    await page.goto('/shopping-list')
-    await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
+    await test.step('load shopping list for the default week (2026-W26)', async () => {
+      await page.goto('/shopping-list')
+      await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
 
-    await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(1)
-    expect(requestedUrls[0]).toContain('week=2026-W26')
+      await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(1)
+      expect(requestedUrls[0]).toContain('week=2026-W26')
+    })
 
-    const trigger = page.getByRole('button', { name: /Week 26, 2026/ })
-    await expect(trigger).toBeVisible()
-    await trigger.click()
+    await test.step('open the week picker', async () => {
+      const trigger = page.getByRole('button', { name: /Week 26, 2026/ })
+      await expect(trigger).toBeVisible()
+      await trigger.click()
+      await expect(page.getByRole('dialog', { name: /select week/i })).toBeVisible()
+    })
 
-    const weekDialog = page.getByRole('dialog', { name: /select week/i })
-    await expect(weekDialog).toBeVisible()
-    await weekDialog.getByRole('button', { name: JUNE_15_DAY_BUTTON }).click()
+    await test.step('select June 15th (2026-W25)', async () => {
+      await page
+        .getByRole('dialog', { name: /select week/i })
+        .getByRole('button', { name: JUNE_15_DAY_BUTTON })
+        .click()
+    })
 
-    await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(2)
-    expect(requestedUrls.at(-1)).toContain('week=2026-W25')
-    await expect(page.getByRole('button', { name: /Week 25, 2026/ })).toBeVisible()
+    await test.step('refetch with week=2026-W25 and update trigger label', async () => {
+      await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(2)
+      expect(requestedUrls.at(-1)).toContain('week=2026-W25')
+      await expect(page.getByRole('button', { name: /Week 25, 2026/ })).toBeVisible()
+    })
   })
 })
