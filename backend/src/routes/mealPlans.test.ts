@@ -1,15 +1,15 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import { currentWeekIdentifier } from "../domain/weekIdentifier.js";
-import { buildTestApp, setupAdminToken, withAuth } from "../test/app.js";
+import { buildTestApp, setupAdmin, withAuth, type TestIdentity } from "../test/app.js";
 import { useCleanDb } from "../test/db.js";
 
 useCleanDb();
 const app = buildTestApp();
 
-let token: string;
+let token: TestIdentity;
 beforeEach(async () => {
-  token = await setupAdminToken(app);
+  token = await setupAdmin(app);
 });
 
 const week = "2026-W10";

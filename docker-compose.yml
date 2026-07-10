@@ -24,7 +24,8 @@ services:
       - DATABASE_URL=postgresql://meals:meals@postgres:5432/meals
       - PORT=8080
       - SEED_TEST_DATA=true
-      - JWT_SECRET=test-secret
+      # No auth sidecar in compose: fall back to the fixed dev admin identity.
+      - DISABLE_AUTH=true
     ports:
       - "8080:8080"
     depends_on:

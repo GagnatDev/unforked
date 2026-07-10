@@ -17,7 +17,7 @@ export function testDb(): Db {
 
 /** Truncate all tables for per-test isolation (schema/migrations are preserved). */
 export async function resetDb(): Promise<void> {
-  await sql`TRUNCATE recipes, meal_plans, users, families, family_invitations RESTART IDENTITY CASCADE`.execute(
+  await sql`TRUNCATE recipes, meal_plans, users, families, family_invitations, auth_migration RESTART IDENTITY CASCADE`.execute(
     testDb(),
   );
 }

@@ -1,8 +1,5 @@
 import { z } from "zod";
 
-/** Insecure placeholder; rejected when NODE_ENV=production (see schema refine). */
-export const DEV_JWT_SECRET = "dev-insecure-secret-change-me";
-
 /** Parse the Kotlin-compatible `"true"`/`"false"` flag semantics (case-insensitive). */
 const boolFlag = z
   .string()
@@ -18,26 +15,53 @@ const EnvSchema = z
     DB_URL: z.string().optional(),
     DB_USER: z.string().optional(),
     DB_PASSWORD: z.string().optional(),
-    JWT_SECRET: z.string().min(1).default(DEV_JWT_SECRET),
-    JWT_ISSUER: z.string().default("app.meals"),
-    JWT_AUDIENCE: z.string().default("app.meals"),
+    // homectl-auth: used only for the one-time user import at boot. Identity at
+    // request time comes from the sidecar's X-Homectl-* headers and needs no config.
+    AUTH_CLIENT_ID: z.string().min(1).optional(),
+    AUTH_CLIENT_SECRET: z.string().min(1).optional(),
+    INTERNAL_AUTH_URL: z.string().url().optional(),
     DISABLE_AUTH: boolFlag,
     SEED_TEST_DATA: boolFlag,
     CORS_ORIGIN: z.string().optional(),
     LOG_LEVEL: z.string().optional(),
   })
   .superRefine((env, ctx) => {
-    if (env.NODE_ENV === "production" && env.JWT_SECRET === DEV_JWT_SECRET) {
+    const importVars = [env.AUTH_CLIENT_ID, env.AUTH_CLIENT_SECRET, env.INTERNAL_AUTH_URL];
+    const set = importVars.filter((v) => v !== undefined).length;
+    if (set > 0 && set < importVars.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["JWT_SECRET"],
-        message: "JWT_SECRET must be set to a strong value in production",
+        path: ["AUTH_CLIENT_ID"],
+        message:
+          "AUTH_CLIENT_ID, AUTH_CLIENT_SECRET and INTERNAL_AUTH_URL must be set together (homectl-auth user import)",
       });
     }
   });
 
 export type RawEnv = z.infer<typeof EnvSchema>;
 export type Env = RawEnv & { databaseUrl: string };
+
+/** Config for the one-time homectl-auth user import; null when not configured. */
+export interface HomectlImportConfig {
+  internalAuthUrl: string;
+  clientId: string;
+  clientSecret: string;
+}
+
+export function homectlImportConfig(source: {
+  AUTH_CLIENT_ID?: string;
+  AUTH_CLIENT_SECRET?: string;
+  INTERNAL_AUTH_URL?: string;
+}): HomectlImportConfig | null {
+  if (!source.AUTH_CLIENT_ID || !source.AUTH_CLIENT_SECRET || !source.INTERNAL_AUTH_URL) {
+    return null;
+  }
+  return {
+    internalAuthUrl: source.INTERNAL_AUTH_URL.replace(/\/+$/, ""),
+    clientId: source.AUTH_CLIENT_ID,
+    clientSecret: source.AUTH_CLIENT_SECRET,
+  };
+}
 
 /**
  * Derive a libpq-compatible connection string. Prefers `DATABASE_URL`; otherwise

@@ -43,7 +43,7 @@ export default defineConfig({
       timeout: 180 * 1000,
     },
     {
-      command: `VITE_DISABLE_AUTH=true VITE_API_URL=${e2eApiOrigin} pnpm exec vite --host 127.0.0.1 --port ${vitePort}`,
+      command: `VITE_API_URL=${e2eApiOrigin} pnpm exec vite --host 127.0.0.1 --port ${vitePort}`,
       url: baseURL,
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,

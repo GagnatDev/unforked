@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import { hashPassword } from "../auth/auth.js";
 import type { Db } from "../db/kysely.js";
 import { HttpError } from "../middleware/error.js";
 import {
@@ -94,31 +93,6 @@ export class FamilyInviteService {
     });
   }
 
-  /** Register a brand-new user into the inviting family. Returns the new user id. */
-  async registerWithInvite(token: string, email: string, password: string): Promise<string> {
-    const normalized = email.trim().toLowerCase();
-    return this.db.transaction().execute(async (trx) => {
-      const users = new UserRepository(trx);
-      const invites = new FamilyInvitationRepository(trx);
-
-      const inv = await validatePendingInvite(
-        invites,
-        token,
-        normalized,
-        "Email does not match this invitation",
-      );
-      if (await users.findByEmail(normalized)) {
-        throw new HttpError(400, "An account with this email already exists");
-      }
-      if ((await users.countInFamily(inv.family_id)) >= MAX_MEMBERS) {
-        throw new HttpError(400, "This family is already full");
-      }
-      const hash = await hashPassword(password);
-      const newUserId = await users.insertUser(normalized, hash, "user", inv.family_id);
-      await invites.markAccepted(inv.id);
-      return newUserId;
-    });
-  }
 }
 
 /** Shared invite checks for the accept + register flows. All failures throw 400. */

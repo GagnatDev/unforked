@@ -1,25 +1,7 @@
-import { getAuthDisabled, getToken, triggerUnauthorized } from '@/lib/authStore'
+import { reloadForLogin } from '@/lib/session'
 import type { MealPlanDoc, RecipeDoc, ShoppingListDoc } from '@/types'
 
 const base = import.meta.env.VITE_API_URL ?? ''
-
-export type UserInfoWithFamily = { id: string; email: string; role: string; familyId: string }
-
-export type AuthSessionResponse = { token: string; user: UserInfoWithFamily }
-
-/** Unauthenticated JSON POST (login/setup/register) — no Bearer header, no 401 global handler. */
-async function publicRequest<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options?.headers as Record<string, string>),
-  }
-  const res = await fetch(`${base}${path}`, { ...options, headers })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-  return res.json()
-}
 
 function normalizeRecipeDoc(doc: RecipeDoc): RecipeDoc
 function normalizeRecipeDoc(doc: Partial<RecipeDoc>): RecipeDoc
@@ -36,18 +18,19 @@ function normalizeRecipeDoc(doc: Partial<RecipeDoc>): RecipeDoc {
   }
 }
 
+/**
+ * Same-origin JSON request. Auth is invisible to the SPA — the auth-proxy
+ * sidecar authenticates from its session cookie. A 401 means no session: bounce
+ * to a full page load so the sidecar can run its login redirect.
+ */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options?.headers as Record<string, string>),
   }
-  if (!getAuthDisabled()) {
-    const token = getToken()
-    if (token) headers['Authorization'] = `Bearer ${token}`
-  }
   const res = await fetch(`${base}${path}`, { ...options, headers })
   if (!res.ok) {
-    if (res.status === 401 && !getAuthDisabled()) triggerUnauthorized()
+    if (res.status === 401) reloadForLogin()
     const text = await res.text()
     throw new Error(text || `HTTP ${res.status}`)
   }
@@ -56,23 +39,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  auth: {
-    login: (body: { email: string; password: string }) =>
-      publicRequest<AuthSessionResponse>('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-    setup: (body: { email: string; password: string }) =>
-      publicRequest<AuthSessionResponse>('/api/auth/setup', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-    registerWithInvite: (body: { token: string; email: string; password: string }) =>
-      publicRequest<AuthSessionResponse>('/api/auth/register-invite', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-  },
   recipes: {
     list: (params?: { name?: string; tag?: string }) => {
       const q = new URLSearchParams()
@@ -132,13 +98,6 @@ export const api = {
     request<ShoppingListDoc>(
       `/api/shopping-lists${week ? `?week=${encodeURIComponent(week)}` : ''}`
     ),
-  users: {
-    create: (body: { email: string; password: string; role: string }) =>
-      request<{ id: string; email: string; role: string; familyId: string }>('/api/users', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-  },
   family: {
     get: () =>
       request<{

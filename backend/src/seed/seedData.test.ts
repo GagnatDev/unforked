@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildTestApp, setupAdminToken } from "../test/app.js";
+import { buildTestApp, setupAdmin } from "../test/app.js";
 import { testDb, useCleanDb } from "../test/db.js";
 import { RecipeRepository } from "../storage/recipeRepository.js";
 import { TEST_RECIPES, seedTestRecipesIfEmpty } from "./seedData.js";
@@ -10,7 +10,7 @@ const app = buildTestApp();
 describe("seedTestRecipesIfEmpty", () => {
   beforeEach(async () => {
     // Creating the first admin also creates the family the seed targets.
-    await setupAdminToken(app);
+    await setupAdmin(app);
   });
 
   it("inserts the full set of test recipes when the table is empty", async () => {

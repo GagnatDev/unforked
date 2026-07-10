@@ -41,10 +41,15 @@ docker compose up -d postgres
 
 ```bash
 export DATABASE_URL=postgresql://meals:meals@localhost:5432/meals
+export DISABLE_AUTH=true   # no auth sidecar locally; use the fixed dev admin
 pnpm --filter @unforked/backend run dev   # tsx watch, auto-restart
 ```
 
 Migrations run automatically at boot. API: http://localhost:8080
+
+`DISABLE_AUTH=true` makes requests without the sidecar's `X-Homectl-*` identity
+headers resolve to a fixed dev admin (see [Authentication](#authentication)).
+Do not set it in production.
 
 The legacy `DB_URL` (JDBC form, plus `DB_USER`/`DB_PASSWORD`) is still accepted as an alternative to `DATABASE_URL`.
 
@@ -81,10 +86,19 @@ pnpm --filter meal-planning-frontend run e2e       # Playwright (boots the Node 
 
 From the repo root: `docker build -t unforked .` — builds both workspaces and produces a single Node-24 image (a bundled `dist/server.js` + the SPA in `web/`) that serves everything on port 8080.
 
+## Authentication
+
+Production auth is handled by the [homectl-auth](https://github.com/GagnatDev/homectl-auth) **auth-proxy sidecar** (see `k8s/deployment.yml` and [docs/deploy.md](docs/deploy.md)): the sidecar runs the OAuth flow against `auth.homectl.no`, keeps the session in an encrypted `hs_session` cookie, and injects verified `X-Homectl-User` / `X-Homectl-Email` / `X-Homectl-Role` headers. The backend maps that identity onto its local `users` table by email (provisioning a user + family on first sighting); the frontend holds no token and just calls the API same-origin. There are no local passwords and no login page in this app anymore.
+
+On the first boot with `AUTH_CLIENT_ID`, `AUTH_CLIENT_SECRET`, and `INTERNAL_AUTH_URL` set, the backend runs a **one-time import** of the pre-existing local accounts (email + bcrypt hash + role) into homectl-auth via `POST /internal/users/import`, so existing users keep their passwords. Completion is recorded in the `auth_migration` table; re-boots skip it.
+
+For local dev and e2e there is no sidecar: set `DISABLE_AUTH=true` and requests without identity headers resolve to a fixed dev admin.
+
 ## API
 
-- `POST /api/auth/login`, `POST /api/auth/setup`, `POST /api/auth/register-invite`
-- `GET /api/auth/me`, `POST /api/users` (admin)
+All `/api` routes read the sidecar identity headers (or the dev fallback).
+
+- `GET /api/auth/me`
 - `GET|PATCH /api/family`, `POST /api/family/invites`, `POST /api/family/invites/accept`
 - `GET/POST /api/recipes`, `GET /api/recipes/tags`, `GET/PUT/DELETE /api/recipes/:id`, `POST /api/recipes/import`
 - `GET/PUT /api/meal-plans/current?week=YYYY-Wnn`

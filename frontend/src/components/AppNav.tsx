@@ -9,10 +9,8 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -27,12 +25,9 @@ type AppNavProps = {
 
 export function AppNav({ onLogout }: AppNavProps) {
   const { t } = useTranslation()
-  const { user, authDisabled } = useAuth()
 
   const recipesMatch = useMatch({ path: '/recipes', end: false })
-  const familyMatch = useMatch({ path: '/family', end: true })
-  const usersMatch = useMatch({ path: '/users', end: true })
-  const moreMatch = familyMatch ?? usersMatch
+  const moreMatch = useMatch({ path: '/family', end: true })
 
   return (
     <nav className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
@@ -87,16 +82,6 @@ export function AppNav({ onLogout }: AppNavProps) {
                 {t('nav.family')}
               </DropdownMenuItem>
             </DropdownMenuGroup>
-            {!authDisabled && user?.role?.toLowerCase() === 'admin' && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem render={<Link to="/users" />}>
-                    {t('nav.users')}
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

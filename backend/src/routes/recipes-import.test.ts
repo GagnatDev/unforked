@@ -5,17 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("node:dns/promises", () => ({ lookup: vi.fn() }));
 
 import { lookup } from "node:dns/promises";
-import { buildTestApp, setupAdminToken, withAuth } from "../test/app.js";
+import { buildTestApp, setupAdmin, withAuth, type TestIdentity } from "../test/app.js";
 import { useCleanDb } from "../test/db.js";
 
 const mockLookup = vi.mocked(lookup);
 useCleanDb();
 const app = buildTestApp();
 
-let token: string;
+let token: TestIdentity;
 beforeEach(async () => {
   mockLookup.mockReset();
-  token = await setupAdminToken(app);
+  token = await setupAdmin(app);
 });
 afterEach(() => vi.restoreAllMocks());
 

@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useTheme, type Theme } from '@/contexts/ThemeContext'
-import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 
@@ -28,7 +27,6 @@ type AccountMenuProps = {
 export function AccountMenu({ onLogout }: AccountMenuProps) {
   const { t, i18n } = useTranslation()
   const { theme, setTheme } = useTheme()
-  const { authDisabled } = useAuth()
   const langValue = i18n.language?.startsWith('nb') ? 'nb' : 'en'
 
   return (
@@ -72,14 +70,10 @@ export function AccountMenu({ onLogout }: AccountMenuProps) {
             <DropdownMenuRadioItem value="system">{t('theme.system')}</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
-        {!authDisabled && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={onLogout}>
-              {t('auth.logOut')}
-            </DropdownMenuItem>
-          </>
-        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={onLogout}>
+          {t('auth.logOut')}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

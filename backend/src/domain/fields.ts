@@ -7,8 +7,6 @@ export const emailField = z
   .transform((s) => s.trim().toLowerCase())
   .pipe(z.string().min(1, "Email required"));
 
-export const passwordField = z.string().min(1, "Password required");
-
 export const tokenField = z
   .string()
   .transform((s) => s.trim())

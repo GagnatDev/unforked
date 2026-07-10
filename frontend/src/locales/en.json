@@ -8,7 +8,6 @@
     "weeklyMenu": "Weekly menu",
     "shoppingList": "Shopping list",
     "family": "Family",
-    "users": "Users",
     "more": "More",
     "account": "Account",
     "accountLanguage": "Language",
@@ -23,21 +22,10 @@
     "couldNotReachServer": "Could not reach the server. Check your connection and try again."
   },
   "auth": {
-    "loginTitle": "Log in",
-    "setupTitle": "Create admin account",
     "email": "Email",
-    "password": "Password",
-    "logIn": "Log in",
     "logOut": "Log out",
-    "createAccount": "Create account",
-    "firstTimeCreateAdmin": "First time? Create admin account",
-    "backToLogin": "Back to log in",
-    "addUser": "Add user",
-    "role": "Role",
-    "roleUser": "User",
-    "roleAdmin": "Admin",
-    "userCreated": "User created.",
-    "adminOnly": "Admin only."
+    "sessionExpired": "Your session has expired. Reload to log in again.",
+    "reload": "Reload"
   },
   "recipes": {
     "title": "Recipes",
@@ -142,11 +130,7 @@
     "acceptInviteHint": "If you were invited with an existing account, paste the token from your invitation here. Your recipes will move to the new family; meal plans and shopping lists from your current family will be cleared.",
     "inviteTokenPlaceholder": "Invitation token",
     "joinFamily": "Join family",
-    "registerWithInviteTitle": "Accept invitation",
-    "registerWithInviteHint": "Create your password to join the family. Use the same email address the invitation was sent to.",
-    "inviteToken": "Invitation token",
-    "createAccountAndJoin": "Create account and join",
-    "registerDisabledInDev": "Registration with an invite is not available while authentication is disabled."
+    "inviteToken": "Invitation token"
   },
   "theme": {
     "switchToLight": "Switch to light mode",

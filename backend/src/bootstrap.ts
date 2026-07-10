@@ -3,9 +3,11 @@ import type { Pool } from "pg";
 import { buildApp } from "./app.js";
 import { createDb } from "./db/kysely.js";
 import { createPool } from "./db/pool.js";
-import { env } from "./config/env.js";
+import { env, homectlImportConfig } from "./config/env.js";
 import { logger } from "./logger.js";
+import { seedDevPrincipal } from "./seed/devPrincipal.js";
 import { seedTestRecipesIfEmpty } from "./seed/seedData.js";
+import { importUsersToHomectlOnce } from "./service/homectlUserImport.js";
 
 export interface StartedServer {
   server: Server;
@@ -21,7 +23,19 @@ export async function startServer(connectionString?: string): Promise<StartedSer
   const pool = createPool(connectionString);
   const db = createDb(pool);
 
-  // Dev/e2e seeding (after migrations, which the caller runs first).
+  // One-time seeding of existing accounts into homectl-auth, before serving
+  // traffic on the first deploy with the auth sidecar. A failure aborts boot
+  // (fail fast) so the import is retried on the next start.
+  const importConfig = homectlImportConfig(env);
+  if (importConfig) {
+    await importUsersToHomectlOnce(db, importConfig, (msg) => logger.info(msg));
+  }
+
+  // Dev/e2e seeding (after migrations, which the caller runs first). The dev
+  // principal must exist for the DISABLE_AUTH header-less fallback to resolve.
+  if (env.DISABLE_AUTH) {
+    await seedDevPrincipal(db);
+  }
   if (env.SEED_TEST_DATA) {
     await seedTestRecipesIfEmpty(db);
   }
