@@ -25,7 +25,9 @@ export async function startServer(connectionString?: string): Promise<StartedSer
 
   // One-time seeding of existing accounts into homectl-auth, before serving
   // traffic on the first deploy with the auth sidecar. A failure aborts boot
-  // (fail fast) so the import is retried on the next start.
+  // (fail fast) so the import is retried on the next start. The app does not
+  // call listen() until this returns, and the auth-proxy sidecar's k8s probes
+  // wait on http://127.0.0.1:8080/health so ingress traffic cannot arrive mid-import.
   const importConfig = homectlImportConfig(env);
   if (importConfig) {
     await importUsersToHomectlOnce(db, importConfig, (msg) => logger.info(msg));

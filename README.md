@@ -88,7 +88,7 @@ From the repo root: `docker build -t unforked .` — builds both workspaces and 
 
 Production auth is handled by the [homectl-auth](https://github.com/GagnatDev/homectl-auth) **auth-proxy sidecar** (see `k8s/deployment.yml` and [docs/deploy.md](docs/deploy.md)): the sidecar runs the OAuth flow against `auth.homectl.no`, keeps the session in an encrypted `hs_session` cookie, and injects verified `X-Homectl-User` / `X-Homectl-Email` / `X-Homectl-Role` headers. The backend maps that identity onto its local `users` table by email (provisioning a user + family on first sighting); the frontend holds no token and just calls the API same-origin. There are no local passwords and no login page in this app anymore.
 
-On the first boot with `AUTH_CLIENT_ID`, `AUTH_CLIENT_SECRET`, and `INTERNAL_AUTH_URL` set, the backend runs a **one-time import** of the pre-existing local accounts (email + bcrypt hash + role) into homectl-auth via `POST /internal/users/import`, so existing users keep their passwords. Completion is recorded in the `auth_migration` table; re-boots skip it.
+On the first boot with `AUTH_CLIENT_ID`, `AUTH_CLIENT_SECRET`, and `INTERNAL_AUTH_URL` set, the backend runs a **one-time import** of the pre-existing local accounts (email + bcrypt hash + role) into homectl-auth via `POST /internal/users/import`, so existing users keep their passwords. Completion is recorded in the `auth_migration` table; re-boots skip it. Ingress traffic is held until import completes (see [docs/auth-sidecar-migration.md](docs/auth-sidecar-migration.md)).
 
 For local dev and e2e there is no sidecar: set `DISABLE_AUTH=true` and requests without identity headers resolve to a fixed dev admin.
 

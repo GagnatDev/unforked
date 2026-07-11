@@ -105,6 +105,11 @@ One-time setup, in this order:
    If the import fails, the pod exits and retries on the next start — check
    `kubectl logs` for `homectl-auth import` lines.
 
+   **Traffic during import:** the app runs import before it listens on `:8080`.
+   The auth-proxy sidecar's probes fetch `http://127.0.0.1:8080/health` on the
+   pod loopback (not `/readyz` alone), so the Service does not send ingress
+   traffic until import finishes. See [auth-sidecar-migration.md](./auth-sidecar-migration.md).
+
 Verify after deploy:
 
 - A fresh browser on `https://unforked.homectl.no` is 302'd to
