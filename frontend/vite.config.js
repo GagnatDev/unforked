@@ -117,7 +117,11 @@ export default defineConfig({
                     },
                 ],
                 navigateFallback: 'index.html',
-                navigateFallbackDenylist: [/^\/api\//],
+                // /auth/* belongs to the auth-proxy sidecar (OAuth callback, logout).
+                // If the SW answers those navigations with the cached index.html, the
+                // authorization code never reaches the sidecar and login breaks with
+                // OAuth state errors.
+                navigateFallbackDenylist: [/^\/api\//, /^\/auth\//],
             },
         }),
     ],

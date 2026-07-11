@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { reloadForLogin } from '@/lib/session'
+import { navigateForLogin, reloadForLogin } from '@/lib/session'
 
 export type UserInfo = { id: string; email: string; role: string; familyId: string }
 
@@ -56,13 +56,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     // The sidecar owns /auth/logout and clears the hs_session cookie; the
-    // follow-up navigation lets it redirect to login again.
+    // follow-up navigation lets it redirect to login again. It must bypass the
+    // service worker cache, or the sidecar never sees the navigation.
     try {
       await fetch(`${base}/auth/logout`, { method: 'POST' })
     } catch {
       // Ignore — navigating away is the important part.
     }
-    window.location.href = '/'
+    await navigateForLogin()
   }, [])
 
   const value = useMemo<AuthContextValue>(

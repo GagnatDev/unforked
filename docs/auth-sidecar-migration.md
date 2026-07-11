@@ -265,6 +265,31 @@ sidecar signs the visitor in first → authenticated `POST /api/family/invites/a
 keeps `/register-invite?token=…` as a route name but renders join-family confirmation only
 (`frontend/src/pages/JoinFamily.tsx`).
 
+### PWA / service worker pitfalls
+
+The sidecar's login redirect only happens when a top-level navigation **reaches the network**.
+An offline-first service worker (`navigateFallback: index.html`) answers navigations from its
+precache, which breaks the flow in three ways:
+
+1. **`/auth/*` must be denylisted from the navigate fallback.** Otherwise the SW serves the
+   cached SPA for `/auth/callback?code=…&state=…` — the authorization code never reaches the
+   sidecar and login fails with OAuth state errors. Unforked:
+   `navigateFallbackDenylist: [/^\/api\//, /^\/auth\//]` in `frontend/vite.config.ts`.
+2. **The 401 → login bounce must bypass the SW.** A plain `location.href = '/'` is served from
+   the precache, so the sidecar never sees it and the app loops back to a session-expired
+   screen. Unforked unregisters the service worker(s) before navigating
+   (`frontend/src/lib/session.ts` → `navigateForLogin`); the SW re-registers after login.
+3. **The SW update prompt must render outside the auth gate.** Everything behind the sidecar —
+   including `sw.js` — 302s to login when unauthenticated, and a logged-out stale client that
+   can't show the update prompt stays pinned to the old build forever.
+
+**Stale installs from before the migration cannot self-heal**: their SW serves the old app
+(old login UI) without touching the network, and its update check for `sw.js` is redirected to
+the auth host and fails. Users must remove the installed app and re-add it. Note for iOS:
+Safari's "Clear History and Website Data" does **not** clear a Home Screen web app's storage —
+the installed app keeps its own container. Delete the app icon from the Home Screen, open the
+site in Safari, log in, then "Add to Home Screen" again.
+
 ---
 
 ## Testing strategy
