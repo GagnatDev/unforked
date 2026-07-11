@@ -113,6 +113,10 @@ spec:
                 - node
                 - -e
                 - "fetch('http://127.0.0.1:8080/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+            # `node -e` cold-starts a full Node process on every probe; under this
+            # container's 25m CPU request that exceeds the 1s exec-probe default and
+            # times out before boot finishes. Give it room (< periodSeconds).
+            timeoutSeconds: 5
             failureThreshold: 30
             periodSeconds: 10
           readinessProbe:
@@ -121,6 +125,7 @@ spec:
                 - node
                 - -e
                 - "fetch('http://127.0.0.1:8080/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+            timeoutSeconds: 5
             initialDelaySeconds: 3
             periodSeconds: 10
           livenessProbe:
