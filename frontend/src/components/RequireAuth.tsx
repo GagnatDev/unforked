@@ -1,15 +1,26 @@
 import { type ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 
+/**
+ * Gate on the identity loaded from the backend. The auth sidecar normally
+ * guarantees a session before the SPA is even served, so the unauthenticated
+ * branch only shows when the session expired and the automatic reload guard
+ * kicked in (see lib/session.ts).
+ */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading, authDisabled } = useAuth()
-  const location = useLocation()
+  const { user, loading } = useAuth()
+  const { t } = useTranslation()
 
-  if (authDisabled) return <>{children}</>
-  if (loading) return <div className="p-6">Loading...</div>
+  if (loading) return <div className="p-6">{t('common.loading')}</div>
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />
+    return (
+      <div className="mx-auto max-w-sm space-y-4 pt-12 text-center">
+        <p className="text-sm text-muted-foreground">{t('auth.sessionExpired')}</p>
+        <Button onClick={() => window.location.reload()}>{t('auth.reload')}</Button>
+      </div>
+    )
   }
   return <>{children}</>
 }

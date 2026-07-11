@@ -7,7 +7,6 @@ import { httpLogger } from "./logger.js";
 import { errorHandler } from "./middleware/error.js";
 import { requireAuth } from "./middleware/auth.js";
 import { healthRouter } from "./routes/health.js";
-import { authPublicRouter } from "./routes/auth.js";
 import { userRoutes } from "./routes/users.js";
 import { familyRoutes } from "./routes/family.js";
 import { recipeRoutes } from "./routes/recipes.js";
@@ -46,12 +45,10 @@ export function buildApp(deps: AppDeps): Express {
 
   app.use(healthRouter);
 
-  // Public auth endpoints.
-  app.use("/api/auth", authPublicRouter(deps.db));
-
-  // Authenticated API.
+  // Authenticated API. Identity comes from the auth-proxy sidecar's headers;
+  // there are no public auth endpoints (login/logout are owned by the sidecar).
   const api = Router();
-  api.use(requireAuth());
+  api.use(requireAuth(deps.db));
   api.use(userRoutes(deps.db));
   api.use(familyRoutes(deps.db));
   api.use(recipeRoutes(deps.db));

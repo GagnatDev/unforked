@@ -29,7 +29,8 @@ export interface MealPlansTable {
 export interface UsersTable {
   id: Generated<string>;
   email: string;
-  password_hash: string;
+  /** Legacy bcrypt hash; null for users provisioned from the auth sidecar. */
+  password_hash: string | null;
   role: Generated<string>;
   created_at: DefaultTimestamp;
   family_id: string;
@@ -52,10 +53,18 @@ export interface FamilyInvitationsTable {
   expires_at: ColumnType<Date, Date, Date>;
 }
 
+/** One-time auth-migration steps; a row per completed step (see 004 migration). */
+export interface AuthMigrationTable {
+  id: string;
+  completed_at: DefaultTimestamp;
+  summary: ColumnType<unknown, string | null, never>;
+}
+
 export interface Database {
   recipes: RecipesTable;
   meal_plans: MealPlansTable;
   users: UsersTable;
   families: FamiliesTable;
   family_invitations: FamilyInvitationsTable;
+  auth_migration: AuthMigrationTable;
 }

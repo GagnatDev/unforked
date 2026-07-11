@@ -20,6 +20,7 @@ describe("migrations", () => {
         "users",
         "families",
         "family_invitations",
+        "auth_migration",
       ]),
     );
   });
@@ -34,6 +35,7 @@ describe("migrations", () => {
       "001_create_initial_schema",
       "002_create_users",
       "003_families",
+      "004_homectl_auth_sidecar",
     ]);
   });
 });

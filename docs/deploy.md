@@ -32,9 +32,13 @@ scw k8s kubeconfig install <K8S_CLUSTER_ID> --region fr-par
 
 kubectl create secret generic unforked-secrets \
   --namespace homectl \
-  --from-literal=JWT_SECRET="$(openssl rand -base64 32)" \
   --from-literal=CORS_ORIGIN="https://unforked.homectl.no"
 ```
+
+(Neither `DB_URL`/`DB_USER`/`DB_PASSWORD` nor `JWT_SECRET` are read anymore —
+the database connection comes from `unforked-terraform-secrets`'
+`DATABASE_URL` and authentication moved to the homectl-auth sidecar below;
+leftover keys in an existing Secret are ignored.)
 
 **Migration handoff:** migrations run at pod boot (node-pg-migrate). On the first Node deploy against the existing Flyway-migrated database, the runner detects the schema and baselines migrations `001–003` as already-applied instead of recreating tables; a fresh database migrates normally.
 
@@ -56,6 +60,69 @@ kubectl create secret docker-registry scw-registry \
 
 Add `imagePullSecrets: [{ name: scw-registry }]` to the Deployment if needed.
 
+### homectl-auth sidecar (`auth-proxy`)
+
+Authentication is handled by the [homectl-auth](https://github.com/GagnatDev/homectl-auth)
+`auth-proxy` sidecar (see its `docs/sidecar/integration.md` and `migration.md`).
+Traffic flows **ingress → Service:80 → sidecar:4180 → app:8080**; the Service
+must never target the app port directly, or clients could forge the
+`X-Homectl-*` identity headers the backend trusts.
+
+One-time setup, in this order:
+
+1. **Provision the client secret** — in homectl-infra's Terraform, set
+   `auth = true` on the `unforked` app and `terraform apply`. This writes
+   `AUTH_CLIENT_ID`, `AUTH_CLIENT_SECRET`, and `COOKIE_KEY` into the
+   `unforked-terraform-secrets` Secret (which `k8s/deployment.yml` references)
+   and mirrors the same plaintext secret into homectl-auth's
+   `auth-client-secrets` Secret under `UNFORKED_CLIENT_SECRET`.
+2. **Register the app** in homectl-auth's `apps.json` (roll out *after* the
+   Terraform apply, then `kubectl rollout restart deploy/auth`):
+
+   ```json
+   {
+     "id": "unforked",
+     "name": "Unforked",
+     "clientSecretEnv": "UNFORKED_CLIENT_SECRET",
+     "allowedRedirectUris": ["https://unforked.homectl.no/auth/callback"],
+     "allowedOrigins": ["https://unforked.homectl.no"],
+     "roles": [
+       { "name": "user", "rank": 1 },
+       { "name": "admin", "rank": 2 }
+     ]
+   }
+   ```
+
+   The role names must stay `user`/`admin` — they mirror this app's roles and
+   are what the one-time user import sends.
+3. **Deploy.** On the first boot with `AUTH_CLIENT_ID`/`AUTH_CLIENT_SECRET`/
+   `INTERNAL_AUTH_URL` set (all wired in `k8s/deployment.yml`), the backend
+   automatically imports the existing local accounts into homectl-auth via the
+   in-cluster `POST /internal/users/import` — emails, bcrypt password hashes,
+   and roles — so users keep their current passwords. The import runs **exactly
+   once**: completion is recorded in the `auth_migration` DB table, and homectl-auth
+   itself dedupes on email, so a re-run (e.g. after wiping the flag) is harmless.
+   If the import fails, the pod exits and retries on the next start — check
+   `kubectl logs` for `homectl-auth import` lines.
+
+   **Traffic during import:** the app runs import before it listens on `:8080`.
+   The auth-proxy sidecar's probes fetch `http://127.0.0.1:8080/health` on the
+   pod loopback (not `/readyz` alone), so the Service does not send ingress
+   traffic until import finishes. See [auth-sidecar-migration.md](./auth-sidecar-migration.md).
+
+Verify after deploy:
+
+- A fresh browser on `https://unforked.homectl.no` is 302'd to
+  `auth.homectl.no`, logs in, and lands back with a working session and an
+  `hs_session` cookie (no token in JS).
+- `kubectl logs -n homectl deployment/unforked -c unforked` shows the import
+  summary on the first boot; subsequent boots skip it.
+
+**Rollback:** repoint the Service `targetPort` back to `8080` and redeploy a
+pre-migration image (the legacy password login lives in the old code). The
+local `users` table is untouched by the sidecar migration — password hashes are
+retained — so the old build keeps working.
+
 ## Pre-cutover verification (port-forward)
 
 While DNS still points at Serverless:
@@ -65,14 +132,18 @@ kubectl get pods,ingress -n homectl -l app=unforked
 kubectl logs -n homectl deployment/unforked   # migrations applied, "backend listening"
 
 kubectl port-forward -n homectl svc/unforked 8080:80
-curl http://localhost:8080/health   # {"status":"ok"}
-
-curl -X POST http://localhost:8080/api/auth/setup \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"<your-email>","password":"<strong-password>"}'
+curl http://localhost:8080/healthz            # sidecar liveness: ok
+curl -i http://localhost:8080/                # 302 to auth.homectl.no (no session)
 ```
 
-The first `/api/auth/setup` caller becomes admin — run this before DNS cutover.
+(The app's own `/health` sits behind the sidecar's auth; the kubelet probes it
+directly on the app container, so an unauthenticated curl through the Service
+being redirected is expected.)
+
+Accounts live in homectl-auth — there is no local setup endpoint. Admin rights
+come from the `admin` role on the `unforked` app in homectl-auth (set via its
+operator GUI, or inherited from the pre-migration `role` column by the one-time
+user import).
 
 ## DNS cutover
 

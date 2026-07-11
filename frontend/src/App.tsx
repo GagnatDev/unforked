@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AppNav } from '@/components/AppNav'
 import { RequireAuth } from '@/components/RequireAuth'
@@ -7,27 +7,23 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePWA } from '@/hooks/usePWA'
 import { PWAUpdateBanner } from '@/components/PWAUpdateBanner'
 import { PWAInstallBanner } from '@/components/PWAInstallBanner'
-import Login from './pages/Login'
 
 const RecipeList = lazy(() => import('./pages/RecipeList'))
 const RecipeForm = lazy(() => import('./pages/RecipeForm'))
 const MealPlan = lazy(() => import('./pages/MealPlan'))
 const Today = lazy(() => import('./pages/Today'))
 const ShoppingList = lazy(() => import('./pages/ShoppingList'))
-const Users = lazy(() => import('./pages/Users'))
 const Family = lazy(() => import('./pages/Family'))
-const RegisterInvite = lazy(() => import('./pages/RegisterInvite'))
+const JoinFamily = lazy(() => import('./pages/JoinFamily'))
 
 function AppLayout() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const { logout } = useAuth()
   const { needRefresh, updateServiceWorker, canInstall, promptInstall } = usePWA()
   const [updateDismissed, setUpdateDismissed] = useState(false)
 
   const handleLogout = () => {
-    logout()
-    navigate('/login', { replace: true })
+    void logout()
   }
 
   return (
@@ -49,8 +45,8 @@ function AppLayout() {
           <Route path="/recipes/:id/edit" element={<RecipeForm />} />
           <Route path="/meal-plan" element={<MealPlan />} />
           <Route path="/shopping-list" element={<ShoppingList />} />
-          <Route path="/users" element={<Users />} />
           <Route path="/family" element={<Family />} />
+          <Route path="/register-invite" element={<JoinFamily />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
@@ -68,8 +64,6 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register-invite" element={<RegisterInvite />} />
         <Route
           path="/*"
           element={

@@ -8,7 +8,6 @@
     "weeklyMenu": "Ukemeny",
     "shoppingList": "Handleliste",
     "family": "Familie",
-    "users": "Brukere",
     "more": "Mer",
     "account": "Konto",
     "accountLanguage": "Språk",
@@ -23,21 +22,10 @@
     "couldNotReachServer": "Kunne ikke nå serveren. Sjekk tilkoblingen og prøv igjen."
   },
   "auth": {
-    "loginTitle": "Logg inn",
-    "setupTitle": "Opprett admin-konto",
     "email": "E-post",
-    "password": "Passord",
-    "logIn": "Logg inn",
     "logOut": "Logg ut",
-    "createAccount": "Opprett konto",
-    "firstTimeCreateAdmin": "Første gang? Opprett admin-konto",
-    "backToLogin": "Tilbake til innlogging",
-    "addUser": "Legg til bruker",
-    "role": "Rolle",
-    "roleUser": "Bruker",
-    "roleAdmin": "Admin",
-    "userCreated": "Bruker opprettet.",
-    "adminOnly": "Kun for administratorer."
+    "sessionExpired": "Økten din er utløpt. Last inn siden på nytt for å logge inn igjen.",
+    "reload": "Last inn på nytt"
   },
   "recipes": {
     "title": "Oppskrifter",
@@ -142,11 +130,7 @@
     "acceptInviteHint": "Hvis du ble invitert med en eksisterende konto, lim inn token fra invitasjonen her. Oppskriftene dine flyttes til den nye familien; ukemenyer og handlelister fra nåværende familie slettes.",
     "inviteTokenPlaceholder": "Invitasjonstoken",
     "joinFamily": "Bli med i familien",
-    "registerWithInviteTitle": "Godta invitasjon",
-    "registerWithInviteHint": "Opprett passord for å bli med i familien. Bruk samme e-post som invitasjonen ble sendt til.",
-    "inviteToken": "Invitasjonstoken",
-    "createAccountAndJoin": "Opprett konto og bli med",
-    "registerDisabledInDev": "Registrering med invitasjon er ikke tilgjengelig når autentisering er deaktivert."
+    "inviteToken": "Invitasjonstoken"
   },
   "theme": {
     "switchToLight": "Bytt til lys modus",

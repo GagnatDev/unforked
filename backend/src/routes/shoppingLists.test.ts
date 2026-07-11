@@ -1,16 +1,16 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { RecipeDoc } from "../domain/types.js";
-import { buildTestApp, setupAdminToken, withAuth } from "../test/app.js";
+import { buildTestApp, setupAdmin, withAuth, type TestIdentity } from "../test/app.js";
 import { useCleanDb } from "../test/db.js";
 
 useCleanDb();
 const app = buildTestApp();
 
 const week = "2026-W10";
-let token: string;
+let token: TestIdentity;
 beforeEach(async () => {
-  token = await setupAdminToken(app);
+  token = await setupAdmin(app);
 });
 
 async function createRecipe(doc: Partial<RecipeDoc>): Promise<string> {

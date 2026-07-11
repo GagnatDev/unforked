@@ -4,7 +4,7 @@ import type { UserInfo } from "../domain/types.js";
 export interface UserRow {
   id: string;
   email: string;
-  password_hash: string;
+  password_hash: string | null;
   role: string;
   family_id: string;
 }
@@ -14,12 +14,9 @@ const USER_COLUMNS = ["id", "email", "password_hash", "role", "family_id"] as co
 export class UserRepository {
   constructor(private readonly db: Db) {}
 
-  async count(): Promise<number> {
-    const row = await this.db
-      .selectFrom("users")
-      .select((eb) => eb.fn.countAll<string>().as("count"))
-      .executeTakeFirstOrThrow();
-    return Number(row.count);
+  /** All users, for the one-time homectl-auth import. */
+  listAll(): Promise<UserRow[]> {
+    return this.db.selectFrom("users").select(USER_COLUMNS).orderBy("email").execute();
   }
 
   findByEmail(email: string): Promise<UserRow | undefined> {
@@ -56,21 +53,6 @@ export class UserRepository {
     return Number(row.count);
   }
 
-  /** Insert a user into an existing family (e.g. invite registration). */
-  async insertUser(
-    email: string,
-    passwordHash: string,
-    role: string,
-    familyId: string,
-  ): Promise<string> {
-    const row = await this.db
-      .insertInto("users")
-      .values({ email, password_hash: passwordHash, role, family_id: familyId })
-      .returning("id")
-      .executeTakeFirstOrThrow();
-    return row.id;
-  }
-
   async updateFamilyId(userId: string, familyId: string): Promise<void> {
     await this.db
       .updateTable("users")
@@ -80,7 +62,7 @@ export class UserRepository {
   }
 
   /** Create a new solo family and a user belonging to it (single transaction). */
-  createWithNewFamily(email: string, passwordHash: string, role: string): Promise<UserRow> {
+  createWithNewFamily(email: string, passwordHash: string | null, role: string): Promise<UserRow> {
     return this.db.transaction().execute(async (trx) => {
       const family = await trx
         .insertInto("families")

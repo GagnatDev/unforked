@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { DEV_JWT_SECRET, loadEnv } from "./env.js";
+import { homectlImportConfig, loadEnv } from "./env.js";
 
 describe("loadEnv", () => {
-  const base = { JWT_SECRET: "strong-secret", DATABASE_URL: "postgresql://a:b@host/db" };
+  const base = { DATABASE_URL: "postgresql://a:b@host/db" };
 
   it("parses Kotlin-compatible boolean flags", () => {
     expect(loadEnv({ ...base, DISABLE_AUTH: "true" }).DISABLE_AUTH).toBe(true);
@@ -12,28 +12,52 @@ describe("loadEnv", () => {
     expect(loadEnv({ ...base }).SEED_TEST_DATA).toBe(false);
   });
 
-  it("defaults PORT, issuer, and audience", () => {
-    const env = loadEnv({ ...base });
-    expect(env.PORT).toBe(8080);
-    expect(env.JWT_ISSUER).toBe("app.meals");
-    expect(env.JWT_AUDIENCE).toBe("app.meals");
+  it("defaults PORT", () => {
+    expect(loadEnv({ ...base }).PORT).toBe(8080);
   });
 
-  it("rejects the dev JWT secret in production", () => {
-    expect(() =>
-      loadEnv({ ...base, NODE_ENV: "production", JWT_SECRET: DEV_JWT_SECRET }),
-    ).toThrow(/JWT_SECRET/);
+  it("accepts the full homectl-auth import trio", () => {
+    const env = loadEnv({
+      ...base,
+      AUTH_CLIENT_ID: "unforked",
+      AUTH_CLIENT_SECRET: "s3cret",
+      INTERNAL_AUTH_URL: "http://homectl-auth.homectl",
+    });
+    expect(env.AUTH_CLIENT_ID).toBe("unforked");
+  });
+
+  it("rejects a partial homectl-auth import config", () => {
+    expect(() => loadEnv({ ...base, AUTH_CLIENT_ID: "unforked" })).toThrow(/must be set together/);
   });
 
   it("exposes DATABASE_URL as databaseUrl", () => {
     const env = loadEnv({
       DATABASE_URL: "postgresql://u:p@db:5432/unforked",
-      JWT_SECRET: "strong",
     });
     expect(env.databaseUrl).toBe("postgresql://u:p@db:5432/unforked");
   });
 
   it("requires DATABASE_URL", () => {
-    expect(() => loadEnv({ JWT_SECRET: "strong" })).toThrow();
+    expect(() => loadEnv({})).toThrow();
+  });
+});
+
+describe("homectlImportConfig", () => {
+  it("returns null when the trio is not configured", () => {
+    expect(homectlImportConfig({})).toBeNull();
+  });
+
+  it("builds the config and trims trailing slashes off the URL", () => {
+    expect(
+      homectlImportConfig({
+        AUTH_CLIENT_ID: "unforked",
+        AUTH_CLIENT_SECRET: "s3cret",
+        INTERNAL_AUTH_URL: "http://homectl-auth.homectl/",
+      }),
+    ).toEqual({
+      internalAuthUrl: "http://homectl-auth.homectl",
+      clientId: "unforked",
+      clientSecret: "s3cret",
+    });
   });
 });

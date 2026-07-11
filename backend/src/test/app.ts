@@ -7,17 +7,35 @@ export function buildTestApp(): ReturnType<typeof buildApp> {
   return buildApp({ db: testDb() });
 }
 
-/** Bootstrap the first admin via /api/auth/setup and return its bearer token. */
-export async function setupAdminToken(
-  app: ReturnType<typeof buildApp>,
-  email = "admin@example.com",
-  password = "pw",
-): Promise<string> {
-  const res = await request(app).post("/api/auth/setup").send({ email, password });
-  return res.body.token as string;
+/** An identity as the auth-proxy sidecar would assert it via headers. */
+export interface TestIdentity {
+  id: string;
+  email: string;
+  role?: string;
 }
 
-/** Attach a bearer token to a supertest request. */
-export function withAuth(req: request.Test, token: string): request.Test {
-  return req.set("Authorization", `Bearer ${token}`);
+export const ADMIN_IDENTITY: TestIdentity = {
+  id: "hs-admin",
+  email: "admin@example.com",
+  role: "admin",
+};
+
+/** Attach the sidecar identity headers to a supertest request. */
+export function withAuth(req: request.Test, identity: TestIdentity): request.Test {
+  const withIdentity = req
+    .set("X-Homectl-User", identity.id)
+    .set("X-Homectl-Email", identity.email);
+  return identity.role ? withIdentity.set("X-Homectl-Role", identity.role) : withIdentity;
+}
+
+/**
+ * Provision the default admin (the first authenticated request JIT-creates the
+ * local user and its family) and return the identity to pass to withAuth.
+ */
+export async function setupAdmin(
+  app: ReturnType<typeof buildApp>,
+  identity: TestIdentity = ADMIN_IDENTITY,
+): Promise<TestIdentity> {
+  await withAuth(request(app).get("/api/auth/me"), identity).expect(200);
+  return identity;
 }

@@ -2,16 +2,24 @@
 // backed by a Testcontainers Postgres, with auth disabled and a seeded dev
 // principal. Mirrors the Kotlin E2eBackendMain.
 //
+// E2E_DATABASE_URL points the server at an existing (empty!) database instead
+// of a Testcontainers one — for environments without Docker.
+//
 // Env vars (config/env.ts) are read at import time, so DATABASE_URL/PORT/etc.
 // must be set before the app modules are imported — hence the dynamic imports
 // after the container starts.
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 
 process.env.PORT = process.env.E2E_BACKEND_PORT ?? "18080";
 process.env.DISABLE_AUTH = "true";
 
-const container = await new PostgreSqlContainer("postgres:16-alpine").start();
-process.env.DATABASE_URL = container.getConnectionUri();
+let container: StartedPostgreSqlContainer | undefined;
+if (process.env.E2E_DATABASE_URL) {
+  process.env.DATABASE_URL = process.env.E2E_DATABASE_URL;
+} else {
+  container = await new PostgreSqlContainer("postgres:16-alpine").start();
+  process.env.DATABASE_URL = container.getConnectionUri();
+}
 
 const { runMigrations } = await import("./db/migrate.js");
 await runMigrations(process.env.DATABASE_URL);
@@ -31,6 +39,6 @@ await startServer();
 // best-effort explicit stop on top of that.
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
-    void container.stop();
+    void container?.stop();
   });
 }

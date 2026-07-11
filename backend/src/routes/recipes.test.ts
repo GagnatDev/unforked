@@ -1,15 +1,15 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildTestApp, setupAdminToken, withAuth } from "../test/app.js";
+import { buildTestApp, setupAdmin, withAuth, type TestIdentity } from "../test/app.js";
 import { useCleanDb } from "../test/db.js";
 import type { RecipeDoc } from "../domain/types.js";
 
 useCleanDb();
 const app = buildTestApp();
 
-let token: string;
+let token: TestIdentity;
 beforeEach(async () => {
-  token = await setupAdminToken(app);
+  token = await setupAdmin(app);
 });
 
 function sampleRecipe(overrides: Partial<RecipeDoc> = {}): Partial<RecipeDoc> {

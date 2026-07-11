@@ -7,162 +7,70 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { api } from '@/api'
-import * as authStore from '@/lib/authStore'
+import { reloadForLogin } from '@/lib/session'
 
 export type UserInfo = { id: string; email: string; role: string; familyId: string }
 
-const DEV_USER: UserInfo = {
-  id: '00000000-0000-4000-8000-000000000001',
-  email: 'dev@local.test',
-  role: 'admin',
-  familyId: '00000000-0000-4000-8000-0000000000f1',
-}
-
 type AuthContextValue = {
   user: UserInfo | null
-  token: string | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  logout: () => void
-  setup: (email: string, password: string) => Promise<void>
-  registerWithInvite: (token: string, email: string, password: string) => Promise<void>
+  logout: () => Promise<void>
   refreshUser: () => Promise<void>
-  authDisabled: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 const base = import.meta.env.VITE_API_URL ?? ''
 
+/**
+ * Loads the identity resolved by the backend from the auth sidecar's headers.
+ * The SPA is auth-agnostic: no token, no login form — the sidecar redirects
+ * unauthenticated top-level navigations to central login, and 401s on XHRs are
+ * answered with a full page load so that redirect can happen.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null)
-  const [token, setTokenState] = useState<string | null>(authStore.getToken())
   const [loading, setLoading] = useState(true)
-  const authDisabled = authStore.getAuthDisabled()
 
-  const setToken = useCallback((t: string | null) => {
-    if (t) authStore.setToken(t)
-    else authStore.clearToken()
-    setTokenState(t)
-  }, [])
-
-  const loadUser = useCallback(async () => {
-    const t = authStore.getToken()
-    if (!t) {
-      setUser(null)
-      setLoading(false)
-      return
-    }
+  const loadUser = useCallback(async (): Promise<void> => {
     try {
-      const res = await fetch(`${base}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${t}` },
-      })
+      const res = await fetch(`${base}/api/auth/me`)
       if (res.ok) {
-        const u = (await res.json()) as UserInfo
-        setUser(u)
-      } else {
-        authStore.clearToken()
-        setTokenState(null)
-        setUser(null)
+        setUser((await res.json()) as UserInfo)
+        return
       }
-    } catch {
-      authStore.clearToken()
-      setTokenState(null)
+      if (res.status === 401) reloadForLogin()
       setUser(null)
-    } finally {
-      setLoading(false)
+    } catch {
+      setUser(null)
     }
   }, [])
 
   useEffect(() => {
-    if (authDisabled) {
-      setUser(DEV_USER)
-      setTokenState(null)
-      setLoading(false)
-      return
-    }
-    loadUser()
-  }, [authDisabled, loadUser])
-
-  useEffect(() => {
-    if (authDisabled) return
-    authStore.setOnUnauthorized(() => {
-      setTokenState(null)
-      setUser(null)
-      window.location.href = '/login'
-    })
-    return () => authStore.setOnUnauthorized(() => {})
-  }, [authDisabled])
-
-  const login = useCallback(
-    async (email: string, password: string) => {
-      if (authDisabled) return
-      const data = await api.auth.login({ email, password })
-      setToken(data.token)
-      setUser(data.user)
-    },
-    [authDisabled, setToken]
-  )
-
-  const logout = useCallback(() => {
-    if (authDisabled) return
-    authStore.clearToken()
-    setTokenState(null)
-    setUser(null)
-  }, [authDisabled])
-
-  const setup = useCallback(
-    async (email: string, password: string) => {
-      if (authDisabled) return
-      const data = await api.auth.setup({ email, password })
-      setToken(data.token)
-      setUser(data.user)
-    },
-    [authDisabled, setToken]
-  )
-
-  const registerWithInvite = useCallback(
-    async (inviteToken: string, email: string, password: string) => {
-      if (authDisabled) return
-      const data = await api.auth.registerWithInvite({ token: inviteToken, email, password })
-      setToken(data.token)
-      setUser(data.user)
-    },
-    [authDisabled, setToken]
-  )
+    void loadUser().finally(() => setLoading(false))
+  }, [loadUser])
 
   const refreshUser = useCallback(async () => {
-    if (authDisabled) return
-    const t = authStore.getToken()
-    if (!t) return
-    const res = await fetch(`${base}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${t}` },
-    })
-    if (res.ok) {
-      const u = (await res.json()) as UserInfo
-      setUser(u)
+    await loadUser()
+  }, [loadUser])
+
+  const logout = useCallback(async () => {
+    // The sidecar owns /auth/logout and clears the hs_session cookie; the
+    // follow-up navigation lets it redirect to login again.
+    try {
+      await fetch(`${base}/auth/logout`, { method: 'POST' })
+    } catch {
+      // Ignore — navigating away is the important part.
     }
-  }, [authDisabled])
+    window.location.href = '/'
+  }, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({
-      user: authDisabled ? DEV_USER : user,
-      token: authDisabled ? null : token,
-      loading: authDisabled ? false : loading,
-      login,
-      logout,
-      setup,
-      registerWithInvite,
-      refreshUser,
-      authDisabled,
-    }),
-    [authDisabled, user, token, loading, login, logout, setup, registerWithInvite, refreshUser]
+    () => ({ user, loading, logout, refreshUser }),
+    [user, loading, logout, refreshUser]
   )
 
-  return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
