@@ -225,13 +225,13 @@ startupProbe:
   failureThreshold: 30
   periodSeconds: 10
 
-# steady-state: upstream healthy AND sidecar JWKS ready
+# steady-state: same upstream check as startup
 readinessProbe:
   exec:
     command:
       - node
       - -e
-      - "Promise.all([fetch('http://127.0.0.1:8080/health'),fetch('http://127.0.0.1:4180/readyz')]).then((rs)=>process.exit(rs.every((r)=>r.ok)?0:1)).catch(()=>process.exit(1))"
+      - "fetch('http://127.0.0.1:8080/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ```
 
 The app container keeps its own `startupProbe` / `readinessProbe` on `:8080/health`. The pod

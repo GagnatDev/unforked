@@ -104,10 +104,9 @@ spec:
                   key: COOKIE_KEY
             - name: NODE_ENV
               value: production
-          # Do not point readiness at /readyz alone — it only checks JWKS and
-          # becomes ready while the app is still importing users (before :8080
-          # listens). Probe the app container directly on the pod loopback so
-          # Service traffic is held until import finishes and /health responds.
+          # Do not point readiness at /readyz — it only checks JWKS and becomes
+          # ready while the app is still importing users. Probe unforked :8080
+          # on the pod loopback so Service traffic waits until import finishes.
           startupProbe:
             exec:
               command:
@@ -121,7 +120,7 @@ spec:
               command:
                 - node
                 - -e
-                - "Promise.all([fetch('http://127.0.0.1:8080/health'),fetch('http://127.0.0.1:4180/readyz')]).then((rs)=>process.exit(rs.every((r)=>r.ok)?0:1)).catch(()=>process.exit(1))"
+                - "fetch('http://127.0.0.1:8080/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
             initialDelaySeconds: 3
             periodSeconds: 10
           livenessProbe:
