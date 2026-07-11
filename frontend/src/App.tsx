@@ -16,11 +16,15 @@ const ShoppingList = lazy(() => import('./pages/ShoppingList'))
 const Family = lazy(() => import('./pages/Family'))
 const JoinFamily = lazy(() => import('./pages/JoinFamily'))
 
-function AppLayout() {
+function AppLayout({
+  canInstall,
+  onInstall,
+}: {
+  canInstall: boolean
+  onInstall: () => void
+}) {
   const { t } = useTranslation()
   const { logout } = useAuth()
-  const { needRefresh, updateServiceWorker, canInstall, promptInstall } = usePWA()
-  const [updateDismissed, setUpdateDismissed] = useState(false)
 
   const handleLogout = () => {
     void logout()
@@ -29,7 +33,7 @@ function AppLayout() {
   return (
     <div className="max-w-[900px] mx-auto p-6">
       <AppNav onLogout={handleLogout} />
-      {canInstall && <PWAInstallBanner onInstall={promptInstall} />}
+      {canInstall && <PWAInstallBanner onInstall={onInstall} />}
       <Suspense
         fallback={
           <p className="text-sm text-muted-foreground" role="status">
@@ -50,17 +54,17 @@ function AppLayout() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-      {needRefresh && !updateDismissed && (
-        <PWAUpdateBanner
-          onUpdate={() => updateServiceWorker(true)}
-          onDismiss={() => setUpdateDismissed(true)}
-        />
-      )}
     </div>
   )
 }
 
 function App() {
+  // PWA update handling lives outside RequireAuth: a stale client whose
+  // session has expired must still be able to apply a waiting service-worker
+  // update, otherwise it can stay pinned to an old build forever.
+  const { needRefresh, updateServiceWorker, canInstall, promptInstall } = usePWA()
+  const [updateDismissed, setUpdateDismissed] = useState(false)
+
   return (
     <BrowserRouter>
       <Routes>
@@ -68,11 +72,17 @@ function App() {
           path="/*"
           element={
             <RequireAuth>
-              <AppLayout />
+              <AppLayout canInstall={canInstall} onInstall={promptInstall} />
             </RequireAuth>
           }
         />
       </Routes>
+      {needRefresh && !updateDismissed && (
+        <PWAUpdateBanner
+          onUpdate={() => updateServiceWorker(true)}
+          onDismiss={() => setUpdateDismissed(true)}
+        />
+      )}
     </BrowserRouter>
   )
 }
