@@ -51,8 +51,6 @@ Migrations run automatically at boot. API: http://localhost:8080
 headers resolve to a fixed dev admin (see [Authentication](#authentication)).
 Do not set it in production.
 
-The legacy `DB_URL` (JDBC form, plus `DB_USER`/`DB_PASSWORD`) is still accepted as an alternative to `DATABASE_URL`.
-
 **Test data (dev):** set `SEED_TEST_DATA=true` to seed sample recipes on startup when the recipe table is empty (already enabled in `docker-compose.yml`). Do not set in production.
 
 ### 4. Frontend

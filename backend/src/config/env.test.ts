@@ -1,33 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homectlImportConfig, loadEnv, resolveDatabaseUrl } from "./env.js";
-
-describe("resolveDatabaseUrl", () => {
-  it("prefers an explicit DATABASE_URL", () => {
-    expect(resolveDatabaseUrl({ DATABASE_URL: "postgresql://a:b@host/db" })).toBe(
-      "postgresql://a:b@host/db",
-    );
-  });
-
-  it("strips the jdbc: prefix and injects credentials from the legacy DB_URL", () => {
-    expect(
-      resolveDatabaseUrl({
-        DB_URL: "jdbc:postgresql://db:5432/unforked",
-        DB_USER: "meals",
-        DB_PASSWORD: "secret",
-      }),
-    ).toBe("postgresql://meals:secret@db:5432/unforked");
-  });
-
-  it("passes query params through verbatim", () => {
-    expect(
-      resolveDatabaseUrl({ DB_URL: "jdbc:postgresql://db:5432/unforked?sslmode=require" }),
-    ).toContain("sslmode=require");
-  });
-
-  it("throws when neither DATABASE_URL nor DB_URL is set", () => {
-    expect(() => resolveDatabaseUrl({})).toThrow(/not configured/i);
-  });
-});
+import { homectlImportConfig, loadEnv } from "./env.js";
 
 describe("loadEnv", () => {
   const base = { DATABASE_URL: "postgresql://a:b@host/db" };
@@ -58,13 +30,15 @@ describe("loadEnv", () => {
     expect(() => loadEnv({ ...base, AUTH_CLIENT_ID: "unforked" })).toThrow(/must be set together/);
   });
 
-  it("exposes the derived databaseUrl", () => {
+  it("exposes DATABASE_URL as databaseUrl", () => {
     const env = loadEnv({
-      DB_URL: "jdbc:postgresql://db:5432/unforked",
-      DB_USER: "u",
-      DB_PASSWORD: "p",
+      DATABASE_URL: "postgresql://u:p@db:5432/unforked",
     });
     expect(env.databaseUrl).toBe("postgresql://u:p@db:5432/unforked");
+  });
+
+  it("requires DATABASE_URL", () => {
+    expect(() => loadEnv({})).toThrow();
   });
 });
 

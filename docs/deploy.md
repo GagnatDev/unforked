@@ -18,27 +18,27 @@ Use the **same** `SCW_*` values as in the homectl-infra repo, or create API keys
 
 Remove after cutover from Serverless (no longer used): `SCALEWAY_API_KEY`, `SCW_REGISTRY_NAMESPACE`, `SCW_CONTAINER_ID`.
 
-### Kubernetes secret (`unforked-secrets`)
+### Kubernetes secrets
 
-Create once in namespace `homectl` (do not commit values to git):
+**`unforked-terraform-secrets`** (Terraform-managed in homectl-infra) supplies
+`DATABASE_URL` and is loaded automatically by `k8s/deployment.yml`. Ensure the
+`unforked` app is provisioned there and `terraform apply` has run before deploy.
+
+**`unforked-secrets`** holds app config that is not in Terraform. Create once
+in namespace `homectl` (do not commit values to git):
 
 ```sh
 scw k8s kubeconfig install <K8S_CLUSTER_ID> --region fr-par
 
 kubectl create secret generic unforked-secrets \
   --namespace homectl \
-  --from-literal=DB_URL="jdbc:postgresql://<postgres_host>:<postgres_port>/unforked" \
-  --from-literal=DB_USER="homectl" \
-  --from-literal=DB_PASSWORD="<your-db-password>" \
   --from-literal=CORS_ORIGIN="https://unforked.homectl.no"
 ```
 
-(`JWT_SECRET` is no longer read — authentication moved to the homectl-auth
-sidecar below; a leftover key in an existing Secret is ignored.)
-
-Get `postgres_host` and `postgres_port` from homectl-infra terraform outputs. If connecting fails on the private network, try appending `?sslmode=disable`.
-
-The Node backend accepts the legacy `jdbc:postgresql://…` `DB_URL` (with `DB_USER`/`DB_PASSWORD`) as-is, so this Secret does not change at the Kotlin→Node cutover. You may migrate to a single `DATABASE_URL=postgresql://user:pass@host:port/unforked` later on your own schedule.
+(Neither `DB_URL`/`DB_USER`/`DB_PASSWORD` nor `JWT_SECRET` are read anymore —
+the database connection comes from `unforked-terraform-secrets`'
+`DATABASE_URL` and authentication moved to the homectl-auth sidecar below;
+leftover keys in an existing Secret are ignored.)
 
 **Migration handoff:** migrations run at pod boot (node-pg-migrate). On the first Node deploy against the existing Flyway-migrated database, the runner detects the schema and baselines migrations `001–003` as already-applied instead of recreating tables; a fresh database migrates normally.
 

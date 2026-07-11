@@ -25,6 +25,8 @@ spec:
             - containerPort: 8080
           envFrom:
             - secretRef:
+                name: unforked-terraform-secrets
+            - secretRef:
                 name: unforked-secrets
           env:
             # One-time homectl-auth user import at boot (see docs/deploy.md).
