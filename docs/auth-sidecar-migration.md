@@ -222,6 +222,7 @@ startupProbe:
       - node
       - -e
       - "fetch('http://127.0.0.1:8080/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  timeoutSeconds: 5 # `node -e` cold-start exceeds the 1s exec default under low CPU
   failureThreshold: 30
   periodSeconds: 10
 
@@ -232,7 +233,14 @@ readinessProbe:
       - node
       - -e
       - "fetch('http://127.0.0.1:8080/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  timeoutSeconds: 5
 ```
+
+**`timeoutSeconds` is not optional here.** An exec probe that spawns `node -e` pays a full
+Node.js cold start on every invocation. With the sidecar's small CPU request that easily
+exceeds Kubernetes' default `timeoutSeconds: 1`, so every probe times out before Node finishes
+booting — the sidecar restarts on a loop and the pod never goes Ready, no matter how high
+`failureThreshold` is. Set `timeoutSeconds` below `periodSeconds`.
 
 The app container keeps its own `startupProbe` / `readinessProbe` on `:8080/health`. The pod
 is not Ready until **both** containers pass — ingress traffic cannot reach OAuth/login until
