@@ -136,18 +136,26 @@ export function shoppingListRoutes(db: Db): Router {
     const body = req.body as z.infer<typeof addItemSchema>;
     const overrides = await ingredientCategories.findAllForFamily(familyId);
 
-    const created = await db.transaction().execute(async (trx) => {
-      const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
-      if (!row) return null;
-      const entry = createManualEntry(body, overrides);
-      row.doc.items.push(entry);
-      await shoppingLists.updateDoc(trx, row.id, row.doc);
-      return entry;
-    });
+    const insertManualItem = () =>
+      db.transaction().execute(async (trx) => {
+        const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
+        const entry = createManualEntry(body, overrides);
+        if (row) {
+          row.doc.items.push(entry);
+          await shoppingLists.updateDoc(trx, row.id, row.doc);
+        } else {
+          // First item of a week without a plan: create the list on the fly.
+          await shoppingLists.insert(trx, familyId, { weekIdentifier: weekId, items: [entry] });
+        }
+        return entry;
+      });
 
-    if (!created) {
-      res.status(404).json({ error: "No shopping list for this week yet" });
-      return;
+    let created;
+    try {
+      created = await insertManualItem();
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      created = await insertManualItem();
     }
     res.status(201).json(created);
   });

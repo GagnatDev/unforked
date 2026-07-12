@@ -276,12 +276,16 @@ describe("POST /api/shopping-lists/items", () => {
     expect(res.body.items[0]).toMatchObject({ id: created.body.id, name: "Kaffe" });
   });
 
-  it("404s when no list exists for the week", async () => {
-    const res = await withAuth(
+  it("creates the week's list on the fly when none exists yet", async () => {
+    const created = await withAuth(
       request(app).post(`/api/shopping-lists/items?week=${week}`),
       token,
     ).send({ name: "Kaffe" });
-    expect(res.status).toBe(404);
+    expect(created.status).toBe(201);
+
+    const res = await getList();
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0]).toMatchObject({ name: "Kaffe", manual: true });
   });
 
   it("400s on a blank name", async () => {

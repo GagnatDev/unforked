@@ -1,5 +1,11 @@
 import { reloadForLogin } from '@/lib/session'
-import type { MealPlanDoc, RecipeDoc, ShoppingListDoc } from '@/types'
+import type {
+  MealPlanDoc,
+  PersistedShoppingListDoc,
+  RecipeDoc,
+  ShoppingCategory,
+  ShoppingListEntry,
+} from '@/types'
 
 const base = import.meta.env.VITE_API_URL ?? ''
 
@@ -94,10 +100,34 @@ export const api = {
         { method: 'PUT', body: JSON.stringify(doc) }
       ),
   },
-  shoppingList: (week?: string) =>
-    request<ShoppingListDoc>(
-      `/api/shopping-lists${week ? `?week=${encodeURIComponent(week)}` : ''}`
-    ),
+  shoppingList: {
+    get: (week?: string) =>
+      request<PersistedShoppingListDoc>(
+        `/api/shopping-lists${week ? `?week=${encodeURIComponent(week)}` : ''}`
+      ),
+    patchItem: (
+      id: string,
+      body: { checked?: boolean; category?: ShoppingCategory },
+      week?: string
+    ) =>
+      request<ShoppingListEntry>(
+        `/api/shopping-lists/items/${id}${week ? `?week=${encodeURIComponent(week)}` : ''}`,
+        { method: 'PATCH', body: JSON.stringify(body) }
+      ),
+    addItem: (
+      body: { name: string; quantity?: string; unit?: string; category?: ShoppingCategory },
+      week?: string
+    ) =>
+      request<ShoppingListEntry>(
+        `/api/shopping-lists/items${week ? `?week=${encodeURIComponent(week)}` : ''}`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    deleteItem: (id: string, week?: string) =>
+      request<void>(
+        `/api/shopping-lists/items/${id}${week ? `?week=${encodeURIComponent(week)}` : ''}`,
+        { method: 'DELETE' }
+      ),
+  },
   family: {
     get: () =>
       request<{
