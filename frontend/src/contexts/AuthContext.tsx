@@ -4,10 +4,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
-import { navigateForLogin, reloadForLogin } from '@/lib/session'
+import {
+  markAuthenticated,
+  navigateForLogin,
+  onSessionLost,
+  reloadForLogin,
+} from '@/lib/session'
 
 export type UserInfo = { id: string; email: string; role: string; familyId: string }
 
@@ -36,6 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch(`${base}/api/auth/me`)
       if (res.ok) {
+        // A confirmed identity means the session is healthy again: clear the
+        // re-auth loop counters so a later expiry gets a fresh set of attempts.
+        markAuthenticated()
         setUser((await res.json()) as UserInfo)
         return
       }
@@ -48,6 +57,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void loadUser().finally(() => setLoading(false))
+  }, [loadUser])
+
+  // A data request may hit a 401 and exhaust the silent re-auth budget without
+  // this provider being the one that observed it. Drop the identity when that
+  // happens so RequireAuth can surface the manual session-expired screen.
+  useEffect(() => onSessionLost(() => setUser(null)), [])
+
+  // Proactively re-check the session when the tab regains focus. On mobile the
+  // app is typically backgrounded for a long time, so the session often expires
+  // while it is hidden; re-checking on return lets the silent reload happen
+  // before the user taps anything, rather than surfacing a mid-action 401.
+  const lastCheckRef = useRef(0)
+  useEffect(() => {
+    const RECHECK_THROTTLE_MS = 5_000
+    const recheck = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastCheckRef.current < RECHECK_THROTTLE_MS) return
+      lastCheckRef.current = now
+      void loadUser()
+    }
+    document.addEventListener('visibilitychange', recheck)
+    window.addEventListener('focus', recheck)
+    return () => {
+      document.removeEventListener('visibilitychange', recheck)
+      window.removeEventListener('focus', recheck)
+    }
   }, [loadUser])
 
   const refreshUser = useCallback(async () => {
