@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { ChevronDownIcon } from 'lucide-react'
 import { Link, NavLink, useMatch } from 'react-router-dom'
-import { AccountMenu } from '@/components/AccountMenu'
+import { UserMenu } from '@/components/UserMenu'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { buttonVariants } from '@/components/ui/button'
 import {
@@ -27,9 +27,6 @@ export function AppNav({ onLogout }: AppNavProps) {
   const { t } = useTranslation()
 
   const recipesMatch = useMatch({ path: '/recipes', end: false })
-  const familyMatch = useMatch({ path: '/family', end: true })
-  const apiKeysMatch = useMatch({ path: '/api-keys', end: true })
-  const moreMatch = familyMatch ?? apiKeysMatch
 
   return (
     <nav className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
@@ -66,34 +63,11 @@ export function AppNav({ onLogout }: AppNavProps) {
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              buttonVariants({ variant: 'ghost', size: 'sm' }),
-              'gap-1 aria-expanded:bg-muted',
-              moreMatch && 'bg-muted font-medium text-foreground'
-            )}
-          >
-            {t('nav.more')}
-            <ChevronDownIcon data-icon="inline-end" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-44">
-            <DropdownMenuGroup>
-              <DropdownMenuItem render={<Link to="/family" />}>
-                {t('nav.family')}
-              </DropdownMenuItem>
-              <DropdownMenuItem render={<Link to="/api-keys" />}>
-                {t('nav.apiKeys')}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <OfflineIndicator />
-        <AccountMenu onLogout={onLogout} />
+        <UserMenu onLogout={onLogout} />
       </div>
     </nav>
   )
