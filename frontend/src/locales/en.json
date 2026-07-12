@@ -109,7 +109,26 @@
     "exportTxt": "Export as TXT",
     "exportCsv": "Export as CSV",
     "noIngredients": "No ingredients for the selected week. Assign recipes in <1>Weekly menu</1> first.",
-    "thisWeekLink": "Weekly menu"
+    "thisWeekLink": "Weekly menu",
+    "categories": {
+      "produce": "Fruit & vegetables",
+      "bakery": "Bread & bakery",
+      "meat": "Meat",
+      "fish": "Fish & seafood",
+      "dairy": "Dairy & eggs",
+      "frozen": "Frozen",
+      "pantry": "Pantry",
+      "beverages": "Beverages",
+      "household": "Household",
+      "other": "Other"
+    },
+    "progress": "{{checked}}/{{total}}",
+    "addItem": "Add item",
+    "addItemPlaceholder": "e.g. toothpaste",
+    "changeCategoryAria": "Change category for {{name}}",
+    "deleteItem": "Remove {{name}}",
+    "itemCheckboxAria": "Mark {{name}} as in cart",
+    "updateFailed": "Could not save the change. Try again."
   },
   "family": {
     "title": "Family",

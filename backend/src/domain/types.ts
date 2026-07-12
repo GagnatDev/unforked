@@ -54,6 +54,36 @@ export interface ShoppingListDoc {
   items: ShoppingListItem[];
 }
 
+/** Store sections used to group the shopping list, in store-walk order. */
+export type ShoppingCategory =
+  | "produce"
+  | "bakery"
+  | "meat"
+  | "fish"
+  | "dairy"
+  | "frozen"
+  | "pantry"
+  | "beverages"
+  | "household"
+  | "other";
+
+/**
+ * A persisted shopping-list item. Extends the frozen ShoppingListItem wire
+ * shape additively, so responses remain a valid superset of ShoppingListDoc.
+ * Manual (user-added) items have recipeIds: [] and survive meal-plan syncs.
+ */
+export interface ShoppingListEntry extends ShoppingListItem {
+  id: string;
+  category: ShoppingCategory;
+  checked: boolean;
+  manual: boolean;
+}
+
+export interface PersistedShoppingListDoc {
+  weekIdentifier: string;
+  items: ShoppingListEntry[];
+}
+
 export interface UserInfo {
   id: string;
   email: string;

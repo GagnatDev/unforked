@@ -109,7 +109,26 @@
     "exportTxt": "Eksporter som TXT",
     "exportCsv": "Eksporter som CSV",
     "noIngredients": "Ingen ingredienser for valgt uke. Legg til oppskrifter under <1>Ukemeny</1> først.",
-    "thisWeekLink": "Ukemeny"
+    "thisWeekLink": "Ukemeny",
+    "categories": {
+      "produce": "Frukt og grønt",
+      "bakery": "Brød og bakevarer",
+      "meat": "Kjøtt",
+      "fish": "Fisk og sjømat",
+      "dairy": "Meieri og egg",
+      "frozen": "Frysevarer",
+      "pantry": "Tørrvarer",
+      "beverages": "Drikke",
+      "household": "Husholdning",
+      "other": "Annet"
+    },
+    "progress": "{{checked}}/{{total}}",
+    "addItem": "Legg til vare",
+    "addItemPlaceholder": "F.eks. tannkrem",
+    "changeCategoryAria": "Endre kategori for {{name}}",
+    "deleteItem": "Fjern {{name}}",
+    "itemCheckboxAria": "Merk {{name}} som handlet",
+    "updateFailed": "Kunne ikke lagre endringen. Prøv igjen."
   },
   "family": {
     "title": "Familie",

@@ -21,6 +21,8 @@ describe("migrations", () => {
         "families",
         "family_invitations",
         "auth_migration",
+        "shopping_lists",
+        "ingredient_categories",
       ]),
     );
   });
@@ -36,6 +38,7 @@ describe("migrations", () => {
       "002_create_users",
       "003_families",
       "004_homectl_auth_sidecar",
+      "005_shopping_lists",
     ]);
   });
 });
