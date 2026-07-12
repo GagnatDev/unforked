@@ -18,12 +18,27 @@ function parsePositiveInt(raw: string): number | null {
   return n
 }
 
+/** Normalized fingerprint of what a save would persist, for dirty checking. */
+function planFingerprint(doc: MealPlanDoc): string {
+  return JSON.stringify({
+    week: doc.weekIdentifier,
+    defaultPersons: doc.defaultPersons ?? null,
+    assignments: doc.assignments
+      .filter((a) => a.recipeId)
+      .slice()
+      .sort((a, b) => a.day.localeCompare(b.day))
+      .map((a) => ({ day: a.day, recipeId: a.recipeId, persons: a.persons ?? null })),
+  })
+}
+
 export default function MealPlan() {
   const { t, i18n } = useTranslation()
   const [weekId, setWeekId] = useState(getNextWeekId)
   const [plan, setPlan] = useState<MealPlanDoc | null>(null)
+  const [savedPlan, setSavedPlan] = useState<MealPlanDoc | null>(null)
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [saving, setSaving] = useState(false)
+  const [justSaved, setJustSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const { data, loading, error: loadError } = useAsync(
@@ -50,12 +65,20 @@ export default function MealPlan() {
   useEffect(() => {
     if (data) {
       setPlan(data.plan)
+      setSavedPlan(data.plan)
+      setJustSaved(false)
       setRecipes(data.recipes)
     }
   }, [data])
 
   const assignments = plan?.assignments ?? []
   const byDay = Object.fromEntries(assignments.map((a) => [a.day, a]))
+  const dirty =
+    plan != null && savedPlan != null && planFingerprint(plan) !== planFingerprint(savedPlan)
+
+  useEffect(() => {
+    if (dirty) setJustSaved(false)
+  }, [dirty])
 
   const setAssignment = (day: string, recipeId: string | null, recipeName: string) => {
     if (!plan) return
@@ -71,6 +94,26 @@ export default function MealPlan() {
       assignments: next,
     }
     setPlan(doc)
+  }
+
+  /** Swaps the recipes of two days; per-day people overrides stay with their day. */
+  const swapDays = (dayA: string, dayB: string) => {
+    if (!plan || dayA === dayB) return
+    const sourceFor = (d: string) =>
+      d === dayA ? byDay[dayB] : d === dayB ? byDay[dayA] : byDay[d]
+    const next: DayAssignment[] = DAYS.flatMap((d) => {
+      const source = sourceFor(d)
+      if (!source?.recipeId) return []
+      return [
+        {
+          day: d,
+          recipeId: source.recipeId,
+          recipeName: source.recipeName,
+          persons: byDay[d]?.persons ?? null,
+        },
+      ]
+    })
+    setPlan({ ...plan, assignments: next })
   }
 
   const setDefaultPeople = (raw: string) => {
@@ -100,6 +143,8 @@ export default function MealPlan() {
     setError(null)
     try {
       await api.mealPlans.putCurrent(plan, weekId)
+      setSavedPlan(plan)
+      setJustSaved(true)
     } catch (e) {
       setError(mapAsyncCatchError(e))
     } finally {
@@ -119,14 +164,23 @@ export default function MealPlan() {
       </div>
       {loading ? (
         <p>{t('mealPlan.loading')}</p>
-      ) : loadError || error ? (
-        <p className="text-destructive">
-          {formatLoadErrorMessage(loadError ?? error ?? '', t)}
-        </p>
+      ) : loadError ? (
+        <p className="text-destructive">{formatLoadErrorMessage(loadError, t)}</p>
       ) : (
         <>
-          <div className="mb-4 max-w-md space-y-1">
-            <label htmlFor="meal-plan-default-people" className="text-sm font-medium">
+          <MealPlanWeekAssignments
+            byDay={byDay}
+            recipes={recipes}
+            defaultPersons={plan?.defaultPersons ?? null}
+            setAssignment={setAssignment}
+            setDayPeople={setDayPeople}
+            onSwapDays={swapDays}
+          />
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <label
+              htmlFor="meal-plan-default-people"
+              className="text-sm text-muted-foreground"
+            >
               {t('mealPlan.defaultPeople')}
             </label>
             <Input
@@ -134,23 +188,38 @@ export default function MealPlan() {
               type="number"
               min={1}
               step={1}
+              inputMode="numeric"
               value={plan?.defaultPersons ?? ''}
               onChange={(e) => setDefaultPeople(e.target.value)}
-              className="w-full"
+              className="h-8 w-20"
             />
-            <p className="text-sm text-muted-foreground">{t('mealPlan.defaultPeopleHint')}</p>
+            <p className="w-full text-xs text-muted-foreground">
+              {t('mealPlan.defaultPeopleHint')}
+            </p>
           </div>
-          <MealPlanWeekAssignments
-            byDay={byDay}
-            recipes={recipes}
-            setAssignment={setAssignment}
-            setDayPeople={setDayPeople}
-          />
-          <p className="mt-4">
-            <Button onClick={save} disabled={saving}>
-              {saving ? t('mealPlan.saving') : t('mealPlan.savePlan')}
-            </Button>
-          </p>
+          <div className="sticky bottom-0 z-10 -mx-6 mt-6 border-t border-border bg-background/90 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+            {error != null && (
+              <p className="mb-2 text-sm text-destructive">
+                {formatLoadErrorMessage(error, t)}
+              </p>
+            )}
+            <div className="flex items-center justify-end gap-3">
+              <span className="text-sm text-muted-foreground" role="status">
+                {dirty
+                  ? t('mealPlan.unsavedChanges')
+                  : justSaved
+                    ? t('mealPlan.savedIndicator')
+                    : ''}
+              </span>
+              <Button
+                onClick={save}
+                disabled={saving || !dirty}
+                className="flex-1 sm:flex-none"
+              >
+                {saving ? t('mealPlan.saving') : t('mealPlan.savePlan')}
+              </Button>
+            </div>
+          </div>
         </>
       )}
     </div>
