@@ -5,14 +5,11 @@ import {
   SHOPPING_CATEGORIES,
   normalizeIngredientName,
 } from "../domain/ingredientCategories.js";
-import type { PersistedShoppingListDoc } from "../domain/types.js";
 import { currentWeekIdentifier } from "../domain/weekIdentifier.js";
-import { buildAggregatedShoppingItems, type RecipeEntry } from "../service/shoppingListService.js";
-import { createManualEntry, syncShoppingListDoc } from "../service/shoppingListSync.js";
+import { getSyncedShoppingList } from "../service/shoppingListRead.js";
+import { createManualEntry } from "../service/shoppingListSync.js";
 import { requireUuidParam, validateBody } from "../middleware/validate.js";
 import { IngredientCategoryRepository } from "../storage/ingredientCategoryRepository.js";
-import { MealPlanRepository } from "../storage/mealPlanRepository.js";
-import { RecipeRepository } from "../storage/recipeRepository.js";
 import { ShoppingListRepository } from "../storage/shoppingListRepository.js";
 import { UserRepository } from "../storage/userRepository.js";
 import { requireUserAndFamily } from "./context.js";
@@ -42,8 +39,6 @@ function isUniqueViolation(err: unknown): boolean {
 /** Authenticated shopping-list routes; mounted under /api (after requireAuth). */
 export function shoppingListRoutes(db: Db): Router {
   const users = new UserRepository(db);
-  const mealPlans = new MealPlanRepository(db);
-  const recipes = new RecipeRepository(db);
   const shoppingLists = new ShoppingListRepository(db);
   const ingredientCategories = new IngredientCategoryRepository(db);
   const router = Router();
@@ -52,49 +47,13 @@ export function shoppingListRoutes(db: Db): Router {
     return typeof weekParam === "string" ? weekParam : currentWeekIdentifier();
   }
 
-  /**
-   * Sync the persisted list with the current meal plan and write it back, so
-   * every GET self-heals after plan edits while keeping check-offs, category
-   * choices and manual items. The row lock serializes against item mutations.
-   */
-  async function loadSyncedList(
-    familyId: string,
-    weekId: string,
-  ): Promise<PersistedShoppingListDoc> {
-    const plan = await mealPlans.findByWeek(familyId, weekId);
-    let aggregate: ReturnType<typeof buildAggregatedShoppingItems> = [];
-    if (plan) {
-      const distinctIds = [...new Set(plan.assignments.map((a) => a.recipeId))];
-      const found = await recipes.findByIds(familyId, distinctIds);
-      const recipeById = new Map<string, RecipeEntry>(found.map((r) => [r.id, r]));
-      aggregate = buildAggregatedShoppingItems(plan, recipeById);
-    }
-    const overrides = await ingredientCategories.findAllForFamily(familyId);
-
-    return db.transaction().execute(async (trx) => {
-      const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
-      const merged = syncShoppingListDoc(row?.doc, aggregate, overrides, weekId);
-      if (row) {
-        await shoppingLists.updateDoc(trx, row.id, merged);
-      } else if (merged.items.length > 0) {
-        // Don't create rows for casually browsed empty weeks.
-        await shoppingLists.insert(trx, familyId, merged);
-      }
-      return merged;
-    });
-  }
-
+  // Sync-on-read (self-heal after plan edits while keeping check-offs, category
+  // choices and manual items) lives in service/shoppingListRead.ts, shared with
+  // the machine API so Aivo sees exactly what the family sees here.
   router.get("/shopping-lists", async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeek(req.query.week);
-    try {
-      res.json(await loadSyncedList(familyId, weekId));
-    } catch (err) {
-      // Two first-GETs for the same week can race on the insert; the loser
-      // retries and takes the update path.
-      if (!isUniqueViolation(err)) throw err;
-      res.json(await loadSyncedList(familyId, weekId));
-    }
+    res.json(await getSyncedShoppingList(db, familyId, weekId));
   });
 
   router.patch("/shopping-lists/items/:id", validateBody(patchItemSchema), async (req, res) => {

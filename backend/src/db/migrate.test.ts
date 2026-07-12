@@ -23,6 +23,7 @@ describe("migrations", () => {
         "auth_migration",
         "shopping_lists",
         "ingredient_categories",
+        "api_keys",
       ]),
     );
   });
@@ -39,6 +40,7 @@ describe("migrations", () => {
       "003_families",
       "004_homectl_auth_sidecar",
       "005_shopping_lists",
+      "006_api_keys",
     ]);
   });
 });

@@ -1,6 +1,7 @@
 import type { Server } from "node:http";
 import type { Pool } from "pg";
 import { buildApp } from "./app.js";
+import { buildMachineApp } from "./machineApp.js";
 import { createDb } from "./db/kysely.js";
 import { createPool } from "./db/pool.js";
 import { env, homectlImportConfig } from "./config/env.js";
@@ -11,6 +12,8 @@ import { importUsersToHomectlOnce } from "./service/homectlUserImport.js";
 
 export interface StartedServer {
   server: Server;
+  /** The machine API listener (API-key auth only; in-cluster clients). */
+  machineServer: Server;
   pool: Pool;
 }
 
@@ -51,20 +54,37 @@ export async function startServer(connectionString?: string): Promise<StartedSer
     });
   });
 
-  registerShutdown(server, pool);
-  return { server, pool };
+  // The machine API (docs/aivo-integration.md): same process and Db, separate
+  // Express app on a separate port. Shares this process's lifecycle; /health
+  // and the k8s probes stay on the human listener.
+  const machineApp = buildMachineApp({ db });
+  const machineServer = await new Promise<Server>((resolve) => {
+    const s = machineApp.listen(env.MACHINE_PORT, () => {
+      logger.info({ port: env.MACHINE_PORT }, "machine API listening");
+      resolve(s);
+    });
+  });
+
+  registerShutdown([server, machineServer], pool);
+  return { server, machineServer, pool };
 }
 
 /** Graceful shutdown: stop accepting connections, drain, then close the pool. */
-function registerShutdown(server: Server, pool: Pool): void {
+function registerShutdown(servers: Server[], pool: Pool): void {
   let shuttingDown = false;
   const shutdown = (signal: string): void => {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info({ signal }, "shutting down");
-    server.close(() => {
-      void pool.end().finally(() => process.exit(0));
-    });
+    let remaining = servers.length;
+    for (const server of servers) {
+      server.close(() => {
+        remaining -= 1;
+        if (remaining === 0) {
+          void pool.end().finally(() => process.exit(0));
+        }
+      });
+    }
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));

@@ -23,6 +23,9 @@ spec:
           image: rg.fr-par.scw.cloud/homectl/unforked:$IMAGE_TAG
           ports:
             - containerPort: 8080
+            # Machine API (docs/aivo-integration.md): API-key auth only, exposed
+            # via the unforked-machine Service below — never via any Ingress.
+            - containerPort: 8081
           envFrom:
             - secretRef:
                 name: unforked-terraform-secrets
@@ -153,6 +156,57 @@ spec:
   ports:
     - port: 80
       targetPort: 4180 # → the auth-proxy sidecar, never the app's 8080
+---
+# Machine API (docs/aivo-integration.md §2): in-cluster clients (Aivo) reach the
+# API-key-authenticated listener via http://unforked-machine.homectl. This
+# Service is deliberately referenced by NO Ingress, so the machine endpoints are
+# unreachable from the internet by construction.
+apiVersion: v1
+kind: Service
+metadata:
+  name: unforked-machine
+  namespace: homectl
+spec:
+  selector:
+    app: unforked
+  ports:
+    - port: 80
+      targetPort: 8081 # → the machine listener; never 8080 (identity headers) or 4180
+---
+# Defence in depth for the machine API (docs/aivo-integration.md §4.2).
+# NetworkPolicy is additive-deny: selecting the unforked pod drops all
+# unselected ingress, so the existing ingress→4180 path must be re-allowed here.
+# Port 8080 gets no rule at all — which also closes today's hole where any
+# in-cluster pod could hit 8080 directly and forge X-Homectl-* headers.
+#
+# Before applying, verify on the real cluster (docs/aivo-integration.md §7 O3):
+#  - the CNI enforces NetworkPolicy (Kapsule/Cilium does:
+#    kubectl get pods -n kube-system | grep -i cilium)
+#  - the ingress controller's namespace label matches the selector below
+#    (kubectl get ns ingress-nginx --show-labels)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: unforked-machine-api
+  namespace: homectl
+spec:
+  podSelector:
+    matchLabels:
+      app: unforked
+  policyTypes: [Ingress]
+  ingress:
+    # Human traffic: ingress-nginx → auth-proxy sidecar.
+    - ports: [{ port: 4180, protocol: TCP }]
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    # Machine traffic: only Aivo's pods (same namespace) may reach the machine API.
+    - ports: [{ port: 8081, protocol: TCP }]
+      from:
+        - podSelector:
+            matchLabels:
+              app: aivo
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

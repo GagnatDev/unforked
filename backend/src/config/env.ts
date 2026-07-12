@@ -10,6 +10,10 @@ const EnvSchema = z
   .object({
     NODE_ENV: z.string().default("development"),
     PORT: z.coerce.number().int().positive().default(8080),
+    // The machine API listener (docs/aivo-integration.md). Serves only the
+    // API-key-authenticated /machine/v1 routes; must never be exposed through
+    // the auth-proxy sidecar or any Ingress.
+    MACHINE_PORT: z.coerce.number().int().positive().default(8081),
     DATABASE_URL: z.string().min(1),
     // homectl-auth: used only for the one-time user import at boot. Identity at
     // request time comes from the sidecar's X-Homectl-* headers and needs no config.

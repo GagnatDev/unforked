@@ -14,6 +14,7 @@ const MealPlan = lazy(() => import('./pages/MealPlan'))
 const Today = lazy(() => import('./pages/Today'))
 const ShoppingList = lazy(() => import('./pages/ShoppingList'))
 const Family = lazy(() => import('./pages/Family'))
+const ApiKeys = lazy(() => import('./pages/ApiKeys'))
 const JoinFamily = lazy(() => import('./pages/JoinFamily'))
 
 function AppLayout({
@@ -50,6 +51,7 @@ function AppLayout({
           <Route path="/meal-plan" element={<MealPlan />} />
           <Route path="/shopping-list" element={<ShoppingList />} />
           <Route path="/family" element={<Family />} />
+          <Route path="/api-keys" element={<ApiKeys />} />
           <Route path="/register-invite" element={<JoinFamily />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

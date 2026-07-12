@@ -1,5 +1,6 @@
 import { reloadForLogin } from '@/lib/session'
 import type {
+  ApiKey,
   MealPlanDoc,
   PersistedShoppingListDoc,
   RecipeDoc,
@@ -127,6 +128,16 @@ export const api = {
         `/api/shopping-lists/items/${id}${week ? `?week=${encodeURIComponent(week)}` : ''}`,
         { method: 'DELETE' }
       ),
+  },
+  apiKeys: {
+    list: () => request<ApiKey[]>('/api/api-keys'),
+    // The response's `key` is the plaintext, returned exactly once at creation.
+    create: (name: string) =>
+      request<ApiKey & { key: string }>('/api/api-keys', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      }),
+    revoke: (id: string) => request<void>(`/api/api-keys/${id}`, { method: 'DELETE' }),
   },
   family: {
     get: () =>
