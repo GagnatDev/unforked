@@ -31,12 +31,20 @@ export function MealPlanRecipeSelect({
   const id = `meal-plan-recipe-${idSuffix}-${day}`
   const value = byDay[day]?.recipeId ?? ''
 
+  // Base UI's Select.Value renders the raw value (the recipe id) unless the
+  // root is given an items map, so provide value -> label entries here.
+  const items = [
+    { value: '', label: t('mealPlan.noRecipe') },
+    ...recipes.map((r) => ({ value: r.id, label: r.doc.name })),
+  ]
+
   return (
     <>
       <label htmlFor={id} className="sr-only">
         {t('mealPlan.recipeForDay', { day: dayLabel })}
       </label>
       <Select
+        items={items}
         value={value}
         onValueChange={(recipeId) => {
           if (!recipeId) {
