@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
+import { XIcon } from 'lucide-react'
+import { AutoGrowTextarea } from '@/components/AutoGrowTextarea'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 
 type Props = {
   steps: string[]
@@ -16,16 +17,29 @@ export function StepListEditor({ steps, onAdd, onUpdate, onRemove }: Props) {
     <>
       <h3>{t('recipeForm.steps')}</h3>
       {steps.map((step, i) => (
-        <div key={i} className="mb-2">
-          <Textarea
+        <div key={i} className="mb-3">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              {t('recipeForm.stepLabel', { position: i + 1 })}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('recipeForm.removeStepAria', { position: i + 1 })}
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() => onRemove(i)}
+            >
+              <XIcon />
+            </Button>
+          </div>
+          <AutoGrowTextarea
+            aria-label={t('recipeForm.stepLabel', { position: i + 1 })}
             value={step}
             onChange={(e) => onUpdate(i, e.target.value)}
             rows={2}
             className="w-full"
           />
-          <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => onRemove(i)}>
-            {t('recipeForm.remove')}
-          </Button>
         </div>
       ))}
       <Button type="button" variant="secondary" size="sm" onClick={onAdd}>

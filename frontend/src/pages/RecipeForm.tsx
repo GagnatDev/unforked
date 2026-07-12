@@ -7,9 +7,9 @@ import {
 } from '@/components/RecipeTagsInput'
 import { RecipeImportUrlDialog } from '@/components/RecipeImportUrlDialog'
 import { RecipeSourceAttribution } from '@/components/RecipeSourceAttribution'
+import { AutoGrowTextarea } from '@/components/AutoGrowTextarea'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/api'
 import { IngredientListEditor } from './recipe-form/IngredientListEditor'
 import { StepListEditor } from './recipe-form/StepListEditor'
@@ -31,6 +31,7 @@ export default function RecipeForm() {
     addIngredient,
     updateIngredient,
     removeIngredient,
+    moveIngredient,
     addStep,
     updateStep,
     removeStep,
@@ -94,12 +95,12 @@ export default function RecipeForm() {
           </Button>
         </div>
       )}
-      {error && <div className="text-destructive">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
           <label className="mb-2 block font-medium">
             {t('recipeForm.name')} <Input
               required
+              autoCapitalize="none"
               value={doc.name}
               onChange={(e) => update({ name: e.target.value })}
               className="mt-1 w-full"
@@ -109,7 +110,7 @@ export default function RecipeForm() {
         <div className="mb-4">
           <label className="mb-2 block font-medium">
             {t('recipeForm.description')}{' '}
-            <Textarea
+            <AutoGrowTextarea
               value={doc.description}
               onChange={(e) => update({ description: e.target.value })}
               rows={2}
@@ -117,12 +118,17 @@ export default function RecipeForm() {
             />
           </label>
         </div>
-        <RecipeSourceAttribution sourceUrl={doc.sourceUrl} sourceName={doc.sourceName} />
+        <RecipeSourceAttribution
+          sourceUrl={doc.sourceUrl}
+          sourceName={doc.sourceName}
+          collapsible
+        />
         <div className="mb-4">
           <label className="mb-2 block font-medium">
             {t('recipeForm.servings')} <Input
               type="number"
               min={1}
+              inputMode="numeric"
               value={doc.servings}
               onChange={(e) => update({ servings: Number(e.target.value) || 1 })}
               className="mt-1 w-20"
@@ -148,6 +154,7 @@ export default function RecipeForm() {
           onAdd={addIngredient}
           onUpdate={updateIngredient}
           onRemove={removeIngredient}
+          onMove={moveIngredient}
         />
 
         <StepListEditor
@@ -157,10 +164,13 @@ export default function RecipeForm() {
           onRemove={removeStep}
         />
 
-        <div className="mt-6">
-          <Button type="submit" disabled={saving}>
-            {saving ? t('recipeForm.saving') : id ? t('recipeForm.update') : t('recipeForm.create')}
-          </Button>
+        <div className="sticky bottom-0 z-10 -mx-6 mt-6 border-t border-border bg-background/90 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+          {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
+          <div className="flex items-center justify-end">
+            <Button type="submit" disabled={saving} className="flex-1 sm:flex-none">
+              {saving ? t('recipeForm.saving') : id ? t('recipeForm.update') : t('recipeForm.create')}
+            </Button>
+          </div>
         </div>
       </form>
     </div>
