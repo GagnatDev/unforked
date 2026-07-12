@@ -53,8 +53,14 @@ All domain data is family-scoped JSONB documents (`backend/src/db/schema.ts`,
 - **Recipes** — `{ name, description, ingredients[{name, quantity, unit}], steps, servings, tags }`
 - **Meal plans** — one doc per family per ISO week (`YYYY-Wnn`, see
   `domain/weekIdentifier.ts`), with `assignments[{day, recipeId, recipeName, persons}]`
-- **Shopping lists** — not stored; aggregated on demand from the week's plan +
-  recipe ingredients (`service/shoppingListService.ts`)
+- **Shopping lists** — persisted, one doc per family per ISO week
+  (`PersistedShoppingListDoc` in the `shopping_lists` table). Every read
+  re-syncs the stored doc against the week's meal plan
+  (`service/shoppingListSync.ts`): the fresh aggregate from
+  `service/shoppingListService.ts` is reconciled with the stored entries so
+  per-item state — `checked`, store `category`, manually added items —
+  survives plan edits. Per-family ingredient→category overrides live in a
+  separate `ingredient_categories` table.
 
 The existing authenticated API already answers two of the three use cases
 almost verbatim:
@@ -262,9 +268,23 @@ Aivo's prompt or code.
 GET /machine/v1/shopping-lists/{week}  # same week aliases
 ```
 
-Reuses `buildAggregatedShoppingItems` as-is; the response is today's
-`ShoppingListDoc` (`items[{name, quantity, unit, recipeIds}]`), optionally
-with recipe names resolved for readability in Discord.
+Shopping lists are persisted and stateful (see §1), and the human API's GET
+already does sync-on-read (`loadSyncedList` in `routes/shoppingLists.ts`):
+it reconciles the stored doc with the current meal plan inside a transaction,
+preserving checked state, category assignments and manual items. The machine
+endpoint should reuse that exact path so Aivo sees what the family sees in
+the UI — including what's already checked off and any manually added items —
+rather than a fresh stateless aggregate. The response is the persisted shape
+(`items[{id, name, quantity, unit, recipeIds, category, checked, manual}]`,
+a superset of the old `ShoppingListDoc`), optionally with recipe names
+resolved for readability in Discord.
+
+One consequence to accept: the "read-only" machine GET performs the same
+idempotent sync write the human GET does today. That's fine — sync never
+destroys user state, it only reconciles with the plan (and skips creating
+rows for empty weeks). *Mutating* the list from Discord ("cross off milk",
+"add batteries") is a genuine write and stays behind the future `write`
+scope (Phase 3).
 
 ### 5.3 Fridge-ingredient suggestions — the new capability
 
@@ -397,19 +417,31 @@ Out of scope for this repo, but the contract Aivo needs:
    with normalisation + coverage ranking, if Option B's corpus approach shows
    its limits.
 3. **Phase 3 — write scope (optional).** `write`-scoped keys and endpoints to
-   assign a recipe to a day / tweak persons, enabling *"put the taco recipe on
-   Friday"* from Discord. Needs a deliberate decision on confirmation UX in
+   assign a recipe to a day / tweak persons, and to check off or add
+   shopping-list items (the persisted list makes *"cross off milk"* from
+   Discord meaningful now). Needs a deliberate decision on confirmation UX in
    Aivo before any mutating endpoint exists.
 4. **Later — MCP facade and/or ServiceAccount-token auth** as the ecosystem
    grows (more machine clients, more homectl apps talking to each other).
 
 ## 9. Open questions
 
-1. **Where does Aivo run?** Same `homectl` namespace or its own? (Changes the
-   NetworkPolicy selector, nothing else.)
-2. **How does Aivo consume tools** — bespoke function-calling glue per
-   integration, or MCP? Decides whether §5.5 is worth building first instead
-   of plain REST.
+1. **Where does Aivo run?** — **Answered** (aivo repo, `k8s/deployment.yml`):
+   the `homectl` namespace, pods labelled `app: aivo`. Exactly what the §4.2
+   policy assumes — the plain `podSelector` works, no `namespaceSelector`
+   needed.
+2. **How does Aivo consume tools?** — **Answered** (aivo repo,
+   `backend/src/agent/`): bespoke in-house function calling — an
+   OpenAI-compatible chat-completions provider (Scaleway generative API via
+   the official OpenAI SDK) driving a hand-rolled tool loop with
+   Zod-validated tools. No MCP anywhere. So plain REST is the right first
+   interface; §5.5's MCP facade has no consumer today. Two contract details
+   for the Aivo-side tool: tool schemas are advertised per turn via
+   **bilingual keyword gates** (every gated tool lists English *and*
+   Norwegian trigger words), so the unforked tool's gate must cover e.g.
+   *middag, ukemeny, handleliste, oppskrift* alongside the English terms;
+   and Aivo already provisions secrets via a k8s Secret
+   (`aivo-terraform-secrets`), matching §6's `UNFORKED_API_KEY` assumption.
 3. **Key expiry policy** — long-lived until revoked (simplest for a personal
    setup) or default `expires_at` with rotation reminders?
 4. **User vs family semantics** — a key acts as its owning user and therefore
