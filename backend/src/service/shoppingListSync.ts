@@ -8,15 +8,28 @@ import type {
 } from "../domain/types.js";
 import { normalizeUnit } from "../domain/unitConversion.js";
 
+/** True when a quantity string parses as a finite number (matches the aggregator). */
+function isNumericQuantity(quantity: string): boolean {
+  const cleaned = quantity.trim().replace(/,/g, ".");
+  return cleaned !== "" && Number.isFinite(Number(cleaned));
+}
+
 /**
- * Identity of an aggregated item across syncs. Uses the unit *family* for known
- * units so a display flip (700 g -> 1.05 kg) still matches the same entry; the
- * aggregator can emit same-name items in different unit groups, so name alone
- * is not enough.
+ * Identity of an aggregated item across syncs. Mirrors the aggregator's grouping
+ * key exactly: a known unit collapses to its *family* only when the quantity is
+ * numeric (so a display flip 700 g -> 1.05 kg still matches the same entry),
+ * otherwise the raw unit is used. Grouping purely by family would collide a
+ * numeric "pepper 2.5 ml" (family volume) with a non-numeric "pepper — ts"
+ * (also family volume) even though the aggregator emits them as two rows,
+ * assigning both the same id and making them toggle and render as one.
  */
 function matchKey(item: ShoppingListItem): string {
-  const family = normalizeUnit(item.unit)?.family ?? item.unit.trim().toLowerCase();
-  return `${normalizeIngredientName(item.name)}|${family}`;
+  const name = normalizeIngredientName(item.name);
+  const known = normalizeUnit(item.unit);
+  if (known && isNumericQuantity(item.quantity)) {
+    return `${name}|${known.family}`;
+  }
+  return `${name}|${item.unit.trim().toLowerCase()}`;
 }
 
 /**
