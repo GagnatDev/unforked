@@ -104,6 +104,43 @@ describe("syncShoppingListDoc", () => {
     expect(result.items.map((i) => i.checked)).toEqual([true, false]);
   });
 
+  it("keeps a numeric and a non-numeric same-family item distinct (no shared id)", () => {
+    // The aggregator emits "pepper 2.5 ml" (family volume) and a non-numeric
+    // "pepper — ts" as two rows. Grouping by family alone collapsed both to
+    // "pepper|volume" and handed them the same id, so toggling one toggled both.
+    const previous = doc([
+      entry({ id: "ml-id", name: "Pepper", quantity: "2.5", unit: "ml", checked: false }),
+      entry({ id: "ts-id", name: "Pepper", quantity: "—", unit: "ts", checked: true }),
+    ]);
+    const result = syncShoppingListDoc(
+      previous,
+      [
+        aggregateItem({ name: "Pepper", quantity: "2.5", unit: "ml" }),
+        aggregateItem({ name: "Pepper", quantity: "—", unit: "ts" }),
+      ],
+      NO_OVERRIDES,
+      "2026-W28",
+    );
+    expect(result.items.map((i) => i.id)).toEqual(["ml-id", "ts-id"]);
+    expect(result.items.map((i) => i.checked)).toEqual([false, true]);
+  });
+
+  it("assigns fresh unique ids to same-family numeric/non-numeric items with no previous", () => {
+    const result = syncShoppingListDoc(
+      undefined,
+      [
+        aggregateItem({ name: "Pepper", quantity: "2.5", unit: "ml" }),
+        aggregateItem({ name: "Pepper", quantity: "—", unit: "ts" }),
+      ],
+      NO_OVERRIDES,
+      "2026-W28",
+    );
+    const [a, b] = result.items;
+    expect(a!.id).toBeTruthy();
+    expect(b!.id).toBeTruthy();
+    expect(a!.id).not.toBe(b!.id);
+  });
+
   it("drops recipe items that left the plan, even when checked", () => {
     const previous = doc([entry({ checked: true })]);
     const result = syncShoppingListDoc(previous, [], NO_OVERRIDES, "2026-W28");

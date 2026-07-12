@@ -85,6 +85,25 @@ describe("scaleForAssignment", () => {
       scaleForAssignment(planWith([], 4), { day: "m", recipeId: "id", recipeName: "R" }, recipe("R", [], 0)),
     ).toBe(4);
   });
+  it("falls back to 1 when persons or servings is non-finite", () => {
+    expect(
+      scaleForAssignment(planWith([], Number.NaN), { day: "m", recipeId: "id", recipeName: "R" }, doc),
+    ).toBe(1);
+    expect(
+      scaleForAssignment(
+        planWith([], 4),
+        { day: "m", recipeId: "id", recipeName: "R", persons: Number.NaN },
+        doc,
+      ),
+    ).toBe(1);
+    expect(
+      scaleForAssignment(
+        planWith([], 4),
+        { day: "m", recipeId: "id", recipeName: "R" },
+        recipe("R", [], Number.NaN),
+      ),
+    ).toBe(4);
+  });
 });
 
 describe("buildAggregatedShoppingItems", () => {
@@ -117,6 +136,19 @@ describe("buildAggregatedShoppingItems", () => {
     );
     const [vanilla] = find(buildAggregatedShoppingItems(plan, map), "vanilla");
     expect(vanilla).toMatchObject({ quantity: "20", unit: "ml" });
+  });
+
+  it("does not split a family into a NaN row when persons is non-finite", () => {
+    // A non-finite defaultPersons previously scaled "1 ts" to "NaN", turning it
+    // non-numeric so it split off as a second "NaN ts" row instead of merging.
+    const { plan, map } = twoRecipePlan(
+      recipe("A", [{ name: "pepper", quantity: "2.5", unit: "ml" }]),
+      recipe("B", [{ name: "pepper", quantity: "1", unit: "ts" }]),
+    );
+    plan.defaultPersons = Number.NaN;
+    const pepper = find(buildAggregatedShoppingItems(plan, map), "pepper");
+    expect(pepper).toHaveLength(1);
+    expect(pepper[0]).toMatchObject({ quantity: "7.5", unit: "ml" });
   });
 
   it("keeps an unknown unit separate from a weight unit", () => {

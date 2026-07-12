@@ -74,16 +74,22 @@ export function buildAggregatedShoppingItems(
   return items.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
-/** Scale factor for an assignment: effective persons ÷ recipe servings (default 1). */
+/**
+ * Scale factor for an assignment: effective persons ÷ recipe servings (default 1).
+ * Falls back to 1 whenever any input is missing or non-finite so a bad persons
+ * or servings value can never poison a quantity with NaN (which would drop an
+ * ingredient out of its unit family and split it into a second "NaN" row).
+ */
 export function scaleForAssignment(
   plan: MealPlanDoc,
   assignment: DayAssignment,
   doc: RecipeDoc,
 ): number {
   const effective = assignment.persons ?? plan.defaultPersons;
-  if (effective == null) return 1;
-  const servings = Math.max(doc.servings, 1);
-  return effective / servings;
+  if (effective == null || !Number.isFinite(effective)) return 1;
+  const servings = Math.max(Number.isFinite(doc.servings) ? doc.servings : 1, 1);
+  const scale = effective / servings;
+  return Number.isFinite(scale) && scale > 0 ? scale : 1;
 }
 
 /**
