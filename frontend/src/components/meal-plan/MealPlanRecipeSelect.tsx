@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DayAssignment, Recipe } from '@/types'
 import {
@@ -31,12 +32,21 @@ export function MealPlanRecipeSelect({
   const id = `meal-plan-recipe-${idSuffix}-${day}`
   const value = byDay[day]?.recipeId ?? ''
 
+  const items = useMemo(
+    () => [
+      { value: '', label: t('mealPlan.noRecipe') },
+      ...recipes.map((r) => ({ value: r.id, label: r.doc.name })),
+    ],
+    [recipes, t],
+  )
+
   return (
     <>
       <label htmlFor={id} className="sr-only">
         {t('mealPlan.recipeForDay', { day: dayLabel })}
       </label>
       <Select
+        items={items}
         value={value}
         onValueChange={(recipeId) => {
           if (!recipeId) {
