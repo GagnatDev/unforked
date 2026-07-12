@@ -1,6 +1,12 @@
 # Aivo integration — machine API for meal-plan queries
 
-**Status:** exploration / design draft — nothing here is implemented yet.
+**Status:** Phase 1 (§8) is implemented — per-user API keys (issued from the
+API-keys page in the UI, `/api/api-keys` endpoints), the machine listener on
+`MACHINE_PORT` (default 8081, `backend/src/machineApp.ts`) with the
+`/machine/v1/` read endpoints, the `unforked-machine` Service and the
+NetworkPolicy (`k8s/deployment.yml`). On the Aivo side the key is registered
+from Aivo's dashboard (Settings page), not via a k8s Secret as §6 originally
+assumed. Phases 2–4 remain open, as do the operational checks in §7 (O3).
 
 This document explores how [Aivo](https://github.com/GagnatDev/aivo) (the
 personal AI assistant reachable through Discord) could query unforked on

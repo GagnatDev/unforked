@@ -71,6 +71,19 @@ export interface FamilyInvitationsTable {
   expires_at: ColumnType<Date, Date, Date>;
 }
 
+/** Per-user machine-API keys; only the SHA-256 hash of the key is stored. */
+export interface ApiKeysTable {
+  id: Generated<string>;
+  created_at: DefaultTimestamp;
+  user_id: string;
+  name: string;
+  key_hash: string;
+  scopes: Generated<string[]>;
+  last_used_at: ColumnType<Date | null, never, Date | string>;
+  expires_at: ColumnType<Date | null, Date | string | null, never>;
+  revoked_at: ColumnType<Date | null, never, Date | string>;
+}
+
 /** One-time auth-migration steps; a row per completed step (see 004 migration). */
 export interface AuthMigrationTable {
   id: string;
@@ -79,6 +92,7 @@ export interface AuthMigrationTable {
 }
 
 export interface Database {
+  api_keys: ApiKeysTable;
   recipes: RecipesTable;
   meal_plans: MealPlansTable;
   shopping_lists: ShoppingListsTable;

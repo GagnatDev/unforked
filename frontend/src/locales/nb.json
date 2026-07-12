@@ -11,7 +11,8 @@
     "more": "Mer",
     "account": "Konto",
     "accountLanguage": "Språk",
-    "accountTheme": "Tema"
+    "accountTheme": "Tema",
+    "apiKeys": "API-nøkler"
   },
   "common": {
     "loading": "Laster…",
@@ -163,6 +164,24 @@
     "inviteTokenPlaceholder": "Invitasjonstoken",
     "joinFamily": "Bli med i familien",
     "inviteToken": "Invitasjonstoken"
+  },
+  "apiKeys": {
+    "title": "API-nøkler",
+    "intro": "API-nøkler lar en betrodd app (som Aivo-assistenten) lese familiens ukemenyer, handlelister og oppskrifter på dine vegne. En nøkkel opptrer som din bruker og ser alt familien deler.",
+    "nameLabel": "Navn",
+    "namePlaceholder": "f.eks. Aivo",
+    "create": "Opprett nøkkel",
+    "createdTitle": "Nøkkel opprettet — kopier den nå",
+    "createdHint": "Nøkkelen vises bare denne ene gangen. Lagre den et trygt sted.",
+    "copy": "Kopier nøkkel",
+    "copied": "Kopiert",
+    "empty": "Ingen API-nøkler ennå.",
+    "createdAt": "Opprettet",
+    "lastUsed": "Sist brukt",
+    "neverUsed": "Aldri brukt",
+    "revoked": "Trukket tilbake",
+    "revoke": "Trekk tilbake",
+    "revokeConfirm": "Trekke tilbake «{{name}}»? Apper som bruker den mister tilgangen umiddelbart."
   },
   "theme": {
     "switchToLight": "Bytt til lys modus",

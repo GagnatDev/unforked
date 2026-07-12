@@ -6,6 +6,7 @@ import type { Db } from "./db/kysely.js";
 import { httpLogger } from "./logger.js";
 import { errorHandler } from "./middleware/error.js";
 import { requireAuth } from "./middleware/auth.js";
+import { apiKeyRoutes } from "./routes/apiKeys.js";
 import { healthRouter } from "./routes/health.js";
 import { userRoutes } from "./routes/users.js";
 import { familyRoutes } from "./routes/family.js";
@@ -50,6 +51,7 @@ export function buildApp(deps: AppDeps): Express {
   const api = Router();
   api.use(requireAuth(deps.db));
   api.use(userRoutes(deps.db));
+  api.use(apiKeyRoutes(deps.db));
   api.use(familyRoutes(deps.db));
   api.use(recipeRoutes(deps.db));
   api.use(mealPlanRoutes(deps.db));

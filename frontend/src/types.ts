@@ -70,3 +70,14 @@ export interface PersistedShoppingListDoc {
   weekIdentifier: string
   items: ShoppingListEntry[]
 }
+
+/** A machine-API key as listed by GET /api/api-keys (never the secret itself). */
+export interface ApiKey {
+  id: string
+  name: string
+  scopes: string[]
+  createdAt: string
+  lastUsedAt: string | null
+  expiresAt: string | null
+  revokedAt: string | null
+}

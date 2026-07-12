@@ -11,7 +11,8 @@
     "more": "More",
     "account": "Account",
     "accountLanguage": "Language",
-    "accountTheme": "Theme"
+    "accountTheme": "Theme",
+    "apiKeys": "API keys"
   },
   "common": {
     "loading": "Loading…",
@@ -163,6 +164,24 @@
     "inviteTokenPlaceholder": "Invitation token",
     "joinFamily": "Join family",
     "inviteToken": "Invitation token"
+  },
+  "apiKeys": {
+    "title": "API keys",
+    "intro": "API keys let a trusted app (like the Aivo assistant) read your family's meal plans, shopping lists and recipes on your behalf. A key acts as your user, so it sees everything your family shares.",
+    "nameLabel": "Name",
+    "namePlaceholder": "e.g. Aivo",
+    "create": "Create key",
+    "createdTitle": "Key created — copy it now",
+    "createdHint": "This is the only time the key is shown. Store it somewhere safe.",
+    "copy": "Copy key",
+    "copied": "Copied",
+    "empty": "No API keys yet.",
+    "createdAt": "Created",
+    "lastUsed": "Last used",
+    "neverUsed": "Never used",
+    "revoked": "Revoked",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke “{{name}}”? Apps using it lose access immediately."
   },
   "theme": {
     "switchToLight": "Switch to light mode",
