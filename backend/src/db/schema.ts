@@ -1,5 +1,5 @@
 import type { ColumnType, Generated } from "kysely";
-import type { MealPlanDoc, RecipeDoc } from "../domain/types.js";
+import type { MealPlanDoc, PersistedShoppingListDoc, RecipeDoc } from "../domain/types.js";
 
 // JSONB columns: node-postgres parses them to objects on read; we write a
 // JSON-stringified value (text → jsonb cast) — hence the string insert/update type.
@@ -24,6 +24,24 @@ export interface MealPlansTable {
   updated_at: UpdatableTimestamp;
   doc: JsonColumn<MealPlanDoc>;
   family_id: string;
+}
+
+export interface ShoppingListsTable {
+  id: Generated<string>;
+  created_at: DefaultTimestamp;
+  updated_at: UpdatableTimestamp;
+  doc: JsonColumn<PersistedShoppingListDoc>;
+  family_id: string;
+}
+
+/** Per-family ingredient -> store-category overrides (normalized names). */
+export interface IngredientCategoriesTable {
+  id: Generated<string>;
+  created_at: DefaultTimestamp;
+  updated_at: UpdatableTimestamp;
+  family_id: string;
+  ingredient_name: string;
+  category: string;
 }
 
 export interface UsersTable {
@@ -63,6 +81,8 @@ export interface AuthMigrationTable {
 export interface Database {
   recipes: RecipesTable;
   meal_plans: MealPlansTable;
+  shopping_lists: ShoppingListsTable;
+  ingredient_categories: IngredientCategoriesTable;
   users: UsersTable;
   families: FamiliesTable;
   family_invitations: FamilyInvitationsTable;
