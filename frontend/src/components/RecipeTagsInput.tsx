@@ -229,7 +229,7 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
             id={listboxId}
             role="listbox"
             aria-label={t('recipeForm.tagSuggestionsAria')}
-            className="no-scrollbar max-h-72 overflow-y-auto overflow-x-hidden rounded-lg p-1 outline-none"
+            className="no-scrollbar max-h-72 overflow-y-auto overflow-x-hidden rounded-lg p-1 outline-hidden"
           >
             {filtered.map((s, i) => (
               <button
@@ -239,7 +239,7 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
                 role="option"
                 aria-selected={i === highlightIndex}
                 className={cn(
-                  'relative flex w-full cursor-default items-center rounded-sm px-2 py-1.5 text-left text-sm outline-none select-none',
+                  'relative flex w-full cursor-default items-center rounded-sm px-2 py-1.5 text-left text-sm outline-hidden select-none',
                   i === highlightIndex ? 'bg-muted text-foreground' : 'text-foreground'
                 )}
                 onMouseDown={(e) => e.preventDefault()}

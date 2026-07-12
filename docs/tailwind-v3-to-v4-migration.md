@@ -1,5 +1,11 @@
 # Migrating the frontend from Tailwind CSS v3 to v4
 
+> **Status: ✅ Completed July 2026.** The frontend now runs Tailwind CSS 4.3.2 via
+> `@tailwindcss/vite`, configured CSS-first in `frontend/src/index.css`.
+> `tailwind.config.js`, `postcss.config.js`, `tailwindcss-animate`, `autoprefixer`
+> and `postcss` were removed. See the completion notes at the end of this document
+> for deviations from the original plan discovered during the migration.
+
 A handoff guide for upgrading this repository's frontend from **Tailwind CSS 3.4.19** to **Tailwind CSS 4.3.x** (latest patch at migration time). This is a **major migration**, not a routine dependency bump.
 
 Use this document when you have time to assign the work to an agent (or developer). It captures the current state, rationale, risks, and a concrete checklist.
@@ -408,6 +414,47 @@ The migration is **done** when:
 - [Playwright best practices (this repo)](../../.agents/skills/playwright-best-practices/SKILL.md)
 
 ---
+
+## Completion notes (July 2026)
+
+Deviations from the plan above, found while executing the migration:
+
+1. **The official upgrade tool crashes on this repo.** `npx @tailwindcss/upgrade`
+   migrated `package.json`/`tailwind.config.js`/`index.css` but crashed while
+   migrating templates: it rewrites `@import "shadcn/tailwind.css"` into a
+   `layer(base)` + `shadcn/tailwind.utilities.css` pair, and the latter subpath is
+   not in the `shadcn` package's `exports` map. Its CSS output was also redundant
+   (duplicate imports, plain `@theme` instead of `@theme inline`); `index.css` was
+   rewritten by hand instead, and the template migration was done manually.
+2. **`tw-animate-css` was pinned to 1.3.8, not `^1.4.0`.** 1.4.0 moved all
+   `@utility` definitions (`fade-in-*`, `zoom-in-*`, `slide-in-from-*`, …) out of
+   the exported `dist/tw-animate.css` into `dist/tw-animate.utilities.css`, which
+   is neither exported nor imported by the main file. With 1.4.0, popover /
+   dropdown / select open-close animations silently disappear from the compiled
+   CSS. 1.3.8 ships the utilities inline in the exported file. Revisit when a
+   fixed release is out.
+3. **`shadcn` was bumped `^4.0.0` → `^4.13.0`** for the same reason: 4.0.0 split
+   `@utility` rules (including `no-scrollbar`, used by `RecipeTagsInput`) into an
+   unexported `dist/tailwind.utilities.css`; 4.13.0 merges them back into the
+   exported `tailwind.css`.
+4. **The UI components were already v4-registry components** (`data-slot`
+   attributes, `@base-ui/react`, v4-only classes like `rounded-4xl`, `ring-3`,
+   `outline-hidden`, `backdrop-blur-xs`). No `shadcn add --overwrite` pass was
+   needed — those v4-only classes simply start rendering now that v4 compiles
+   them. The step-6 "re-add components" instruction in this doc did not apply.
+5. **Preserved v3 behavior explicitly:** `backdrop-blur` → `backdrop-blur-sm`
+   (2 app-code usages), `outline-none` → `outline-hidden` (app code only —
+   `outline-none` inside v4-authored ui components was left as intended),
+   `border-color` default restored via the existing `* { @apply border-border }`
+   base rule, and `cursor: pointer` on enabled buttons re-added in `@layer base`
+   (v4 preflight switched buttons to `cursor: default`).
+6. **Content scanning is pinned to the v3 `content` globs** with
+   `@import 'tailwindcss' source(none)` + explicit `@source` directives, so
+   e2e specs and server files are not scanned for class names.
+7. **React stayed on 18.3.x** — React 19 was not required.
+8. **Node in CI/dev containers:** `frontend/package.json` declares
+   `engines.node >= 24`; the migration itself only needs Node 20+ for the
+   Tailwind tooling.
 
 ## Agent handoff prompt (copy-paste)
 

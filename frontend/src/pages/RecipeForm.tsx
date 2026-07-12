@@ -164,7 +164,7 @@ export default function RecipeForm() {
           onRemove={removeStep}
         />
 
-        <div className="sticky bottom-0 z-10 -mx-6 mt-6 border-t border-border bg-background/90 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="sticky bottom-0 z-10 -mx-6 mt-6 border-t border-border bg-background/90 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm">
           {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
           <div className="flex items-center justify-end">
             <Button type="submit" disabled={saving} className="flex-1 sm:flex-none">

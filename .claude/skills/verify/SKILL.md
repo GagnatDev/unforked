@@ -47,6 +47,7 @@ queries or take `[0]`).
 - Select popups: assert no horizontal overflow via
   `document.scrollingElement.scrollWidth === clientWidth`; the open popup is
   `[data-slot="select-content"][data-open]` (closed ones also match the slot).
-- Tailwind here is **v3**: v4 class syntax like `w-(--var)` or `*:` variants
-  silently compiles to nothing — check generated CSS when a layout constraint
-  "doesn't work".
+- Tailwind here is **v4** (CSS-first config in `src/index.css`; no
+  `tailwind.config.js`). Content scanning is pinned via `@source` to
+  `index.html` and `src/**` — classes that only appear in e2e specs or
+  scripts compile to nothing.
