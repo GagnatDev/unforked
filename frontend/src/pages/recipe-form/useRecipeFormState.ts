@@ -65,6 +65,17 @@ export function useRecipeFormState(id: string | undefined) {
     }))
   }, [])
 
+  const moveIngredient = useCallback((from: number, to: number) => {
+    setDoc((d) => {
+      const last = d.ingredients.length - 1
+      if (from === to || from < 0 || to < 0 || from > last || to > last) return d
+      const ingredients = [...d.ingredients]
+      const [moved] = ingredients.splice(from, 1)
+      ingredients.splice(to, 0, moved)
+      return { ...d, ingredients }
+    })
+  }, [])
+
   const addStep = useCallback(() => {
     setDoc((d) => ({ ...d, steps: [...d.steps, ''] }))
   }, [])
@@ -93,6 +104,7 @@ export function useRecipeFormState(id: string | undefined) {
     addIngredient,
     updateIngredient,
     removeIngredient,
+    moveIngredient,
     addStep,
     updateStep,
     removeStep,

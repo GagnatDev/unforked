@@ -191,6 +191,7 @@ export const RecipeTagsInput = forwardRef<RecipeTagsInputHandle, RecipeTagsInput
               <Input
                 id={id}
                 type="text"
+                autoCapitalize="none"
                 role="combobox"
                 aria-expanded={showPopover}
                 aria-haspopup="listbox"
