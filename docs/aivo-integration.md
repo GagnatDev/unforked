@@ -67,9 +67,14 @@ almost verbatim:
 
 | Use case | Existing endpoint |
 |---|---|
-| Meals this week | `GET /api/meal-plans/current?week=YYYY-Wnn` |
-| Shopping list next week | `GET /api/shopping-lists?week=YYYY-Wnn` |
+| Meals this week | `GET /api/meal-plans/current` (defaults to current ISO week) or `?week=YYYY-Wnn` |
+| Shopping list next week | `GET /api/shopping-lists?week=YYYY-Wnn` (week is required for a specific week; omitting it defaults to current) |
 | Recipes from fridge ingredients | *(nothing yet — see §5.3)* |
+
+The human API takes the week as a **query parameter** and expects a literal
+`YYYY-Wnn` string (or omits it to mean "now"). It does **not** accept
+`current` / `next` path aliases — those are proposed for the machine API
+only (§5).
 
 Auth resolves an identity to a local user by email and every query is keyed on
 that user's `family_id` (`routes/context.ts`). The machine API can reuse this
@@ -107,12 +112,28 @@ Pieces:
    Same Node process, separate Express app instance. It mounts only the
    machine routes, authenticates exclusively by API key, and never consults
    `X-Homectl-*` headers. Port 8080 keeps its current behaviour untouched.
-2. **A dedicated ClusterIP Service** (e.g. `unforked-machine`) targeting 8081.
-   It is **not** referenced by any Ingress, so the endpoints are unreachable
-   from the internet. Aivo discovers it by DNS:
-   `http://unforked-machine.homectl.svc.cluster.local` (short form
-   `unforked-machine.homectl` — the same convention the deployment already
-   uses for `http://homectl-auth.homectl`).
+2. **A dedicated ClusterIP Service** (`unforked-machine`) exposing port
+   **8081 → targetPort 8081** (same port inside and out — unlike the human
+   Service, which maps `:80 → :4180`). It is **not** referenced by any
+   Ingress, so the endpoints are unreachable from the internet. Aivo discovers
+   it by DNS at `http://unforked-machine.homectl:8081` (long form
+   `http://unforked-machine.homectl.svc.cluster.local:8081` — the same
+   short-name convention the deployment already uses for
+   `http://homectl-auth.homectl`):
+
+   ```yaml
+   apiVersion: v1
+   kind: Service
+   metadata:
+     name: unforked-machine
+     namespace: homectl
+   spec:
+     selector:
+       app: unforked
+     ports:
+       - port: 8081
+         targetPort: 8081
+   ```
 3. **Per-user API keys**, generated from the unforked UI (behind the normal
    sidecar auth) and stored hashed. The plaintext key is shown once and pasted
    into Aivo's config (a k8s Secret in Aivo's deployment).
@@ -138,6 +159,10 @@ Why a second port instead of path-based separation on 8080:
 - **Issuance:** new authenticated endpoints on the *human* API
   (`POST /api/api-keys`, `GET /api/api-keys`, `DELETE /api/api-keys/:id`) plus
   a small settings UI. Creating a key returns the plaintext **once**.
+  `DELETE` is a **soft revoke**: it sets `revoked_at` to the current time and
+  leaves the row in place for audit; revoked keys no longer authenticate.
+  Listing endpoints omit revoked keys (or mark them explicitly — pick one in
+  implementation, default to omit).
 - **Format:** `ufk_` + 32+ bytes of `crypto.randomBytes` base64url. A
   recognisable prefix makes keys identifiable in logs/secret scanners.
 - **Storage:** new `api_keys` table — `id`, `user_id`, `name` ("Aivo"),
@@ -145,12 +170,16 @@ Why a second port instead of path-based separation on 8080:
   high-entropy), `scopes`, `created_at`, `last_used_at`, `expires_at?`,
   `revoked_at?`. Lookup is by hash equality, O(1) with a unique index.
 - **Verification middleware:** `Authorization: Bearer ufk_…` → hash → row →
-  reject if revoked/expired → `req.user = { userId, role }` exactly like
-  `requireAuth` does, so `requireUserAndFamily` and everything below it just
-  works.
-- **Scopes:** start with a single `read` scope (all three use cases are
-  read-only). A future `write` scope would gate things like "add this recipe
-  to Thursday". Keys default to read-only.
+  reject if revoked/expired → load the owning user row →
+  `req.user = { userId, role }` with `role` taken from the **user row** (same
+  shape as `requireAuth`), so `requireUserAndFamily` and everything below it
+  just works.
+- **Scopes:** stored as a JSON array of strings on the key row. v1 allows
+  `read` only; `write` is reserved for Phase 3. New keys are created with
+  `["read"]`. Machine routes wrap handlers in `requireScope("read")`; Phase 3
+  mutating routes additionally require `write`. Attempting a write-scoped
+  operation with a read-only key returns **403**. Scope values are echoed on
+  `GET /machine/v1/me`.
 
 Trade-off: a bearer secret that must be provisioned into Aivo and rotated by
 hand. Acceptable for a personal, single-family deployment; the network
@@ -224,8 +253,10 @@ Things to be aware of:
 - **CNI must enforce it.** Scaleway Kapsule's default CNI (Cilium) enforces
   `NetworkPolicy`; this is a requirement to verify on the actual cluster
   (`kubectl get pods -n kube-system | grep -i cilium`).
-- If Aivo runs in a different namespace, add a `namespaceSelector` to the
-  8081 rule.
+- **Aivo's current deployment** (aivo repo, `homectl` namespace, `app: aivo`)
+  matches the plain `podSelector` above — no `namespaceSelector` needed today.
+  If Aivo is ever moved to another namespace, add a matching
+  `namespaceSelector` to the 8081 rule.
 - **Optional L7 tightening:** a `CiliumNetworkPolicy` could additionally
   restrict Aivo to `GET` on `/machine/v1/*`. Nice-to-have, Cilium-specific,
   not required for v1.
@@ -236,8 +267,25 @@ hold a valid API key.
 
 ## 5. The machine API surface
 
-Versioned under `/machine/v1/` on the dedicated port. All responses JSON, all
-routes require a valid API key, all data scoped to the key owner's family.
+Versioned under `/machine/v1/` on port **8081**. This is **not** a path-for-path
+port of the human `/api/*` routes — URL shapes differ deliberately (e.g.
+`/machine/v1/meal-plans/{week}` vs `/api/meal-plans/current?week=…`). All
+responses are JSON, all routes require a valid API key with the `read` scope,
+and all data is scoped to the key owner's family.
+
+#### Week parameter (`{week}`)
+
+Used by meal-plan and shopping-list routes. Accepted values:
+
+| Value | Resolution |
+|---|---|
+| `YYYY-Wnn` | Literal ISO week identifier (same strings as the human API query param) |
+| `current` | `currentWeekIdentifier()` — same helper the human API uses when `week` is omitted |
+| `next` | The ISO week immediately after `current`, including year rollover (week 52/53 → next year week 01). Implement as a new helper alongside `currentWeekIdentifier()` in `domain/weekIdentifier.ts`. |
+
+These aliases exist **only on the machine API**. The human API continues to
+use query parameters with literal `YYYY-Wnn` (or default-to-now). Keeping
+week arithmetic in unforked avoids re-implementing ISO week rules in Aivo.
 
 ### 5.1 Meal plans
 
@@ -245,22 +293,28 @@ routes require a valid API key, all data scoped to the key owner's family.
 GET /machine/v1/meal-plans/{week}      # week = YYYY-Wnn | "current" | "next"
 ```
 
-Response mirrors `MealPlanDoc` but resolves recipe details inline so Aivo can
-answer in one round trip:
+Response is `MealPlanDoc` plus an inline `recipe` summary on each assignment
+so Aivo can answer in one round trip without a follow-up fetch. Stored fields
+(`recipeId`, `recipeName`, `defaultPersons`) are retained:
 
 ```json
 {
   "weekIdentifier": "2026-W29",
+  "defaultPersons": 4,
   "assignments": [
-    { "day": "MONDAY", "recipe": { "id": "…", "name": "Kikertsalat", "tags": ["vegetar"] }, "persons": 4 }
+    {
+      "day": "MONDAY",
+      "recipeId": "…",
+      "recipeName": "Kikertsalat",
+      "recipe": { "id": "…", "name": "Kikertsalat", "tags": ["vegetar"] },
+      "persons": 4
+    }
   ]
 }
 ```
 
-Accepting `current`/`next` aliases server-side keeps ISO-week arithmetic
-(week 52/53 rollovers, week-start conventions) in unforked, where
-`domain/weekIdentifier.ts` already lives, instead of re-implementing it in
-Aivo's prompt or code.
+Filtering to a single day (e.g. *"what's for dinner Thursday?"*) is Aivo's
+job — it reads the week and picks the matching `day` from `assignments`.
 
 ### 5.2 Shopping lists
 
@@ -274,15 +328,39 @@ it reconciles the stored doc with the current meal plan inside a transaction,
 preserving checked state, category assignments and manual items. The machine
 endpoint should reuse that exact path so Aivo sees what the family sees in
 the UI — including what's already checked off and any manually added items —
-rather than a fresh stateless aggregate. The response is the persisted shape
-(`items[{id, name, quantity, unit, recipeIds, category, checked, manual}]`,
-a superset of the old `ShoppingListDoc`), optionally with recipe names
-resolved for readability in Discord.
+rather than a fresh stateless aggregate. v1 returns the same
+`PersistedShoppingListDoc` shape the human API returns today — no extra
+fields:
+
+```json
+{
+  "weekIdentifier": "2026-W29",
+  "items": [
+    {
+      "id": "…",
+      "name": "melk",
+      "quantity": "1",
+      "unit": "L",
+      "recipeIds": ["…"],
+      "category": "dairy",
+      "checked": false,
+      "manual": false
+    }
+  ]
+}
+```
+
+Items reference recipes by `recipeIds` only. Resolving names for Discord
+readability is Aivo's job (via `GET /machine/v1/recipes/{id}` or the compact
+corpus). A top-level `recipeNames` map is a possible Phase 2 convenience if
+follow-up fetches prove too chatty.
 
 One consequence to accept: the "read-only" machine GET performs the same
 idempotent sync write the human GET does today. That's fine — sync never
 destroys user state, it only reconciles with the plan (and skips creating
-rows for empty weeks). *Mutating* the list from Discord ("cross off milk",
+rows for empty weeks). v1 **read** scope therefore means *no user-visible
+mutations* (check-offs, manual adds/deletes), not "the database is never
+written to". *Mutating* the list from Discord ("cross off milk",
 "add batteries") is a genuine write and stays behind the future `write`
 scope (Phase 3).
 
@@ -337,27 +415,37 @@ becomes a problem.
 
 ### 5.5 A step further: expose the machine API as an MCP server?
 
-If Aivo consumes tools via the Model Context Protocol, unforked could expose
-the same capabilities as MCP tools (`get_meal_plan`, `get_shopping_list`,
-`suggest_recipes`) over streamable HTTP on the machine port — the tool schema
-then travels with the server and Aivo needs no unforked-specific glue code.
-This is additive: the REST surface above stands on its own, and an MCP layer
-would be a thin wrapper over the same service functions. **Open question #2
-below — depends on how Aivo's tool-calling is built.**
+If a future machine client consumes tools via the Model Context Protocol,
+unforked could expose the same capabilities as MCP tools (`get_meal_plan`,
+`get_shopping_list`, `get_recipes_compact`) over streamable HTTP on the
+machine port — the tool schema then travels with the server and the client
+needs no unforked-specific glue code. This is additive: the REST surface
+above stands on its own, and an MCP layer would be a thin wrapper over the
+same service functions. **No consumer today** — Aivo uses bespoke function
+calling, not MCP (see §9.2). Defer unless that changes.
 
 ## 6. What happens on the Aivo side (for context)
 
 Out of scope for this repo, but the contract Aivo needs:
 
-- Config: `UNFORKED_BASE_URL=http://unforked-machine.homectl:80` and
-  `UNFORKED_API_KEY` from a k8s Secret.
+- Config: `UNFORKED_BASE_URL=http://unforked-machine.homectl:8081` and
+  `UNFORKED_API_KEY` from a k8s Secret (e.g. `aivo-terraform-secrets`).
 - Its pods carry the label the NetworkPolicy allowlists (`app: aivo`).
-- Tool definitions (function calling or MCP) for: get meal plan (week),
-  get shopping list (week), suggest recipes (ingredient list), get recipe by
-  id — plus prompt guidance that weeks are ISO `YYYY-Wnn` and the aliases
-  `current`/`next` exist.
-- Discord UX is Aivo's: it turns *"what's for dinner Thursday?"* into
-  `GET /machine/v1/meal-plans/current` and formats the answer.
+- **Phase 1 tool definitions** (bespoke function calling — see §9.2), each
+  with bilingual keyword gates (English *and* Norwegian trigger words):
+  - **get meal plan** — `GET /machine/v1/meal-plans/{week}`; week accepts
+    `YYYY-Wnn`, `current`, or `next`.
+  - **get shopping list** — `GET /machine/v1/shopping-lists/{week}`; same
+    week aliases.
+  - **get recipe corpus** — `GET /machine/v1/recipes/compact`; Aivo's LLM
+    matches fridge ingredients client-side (§5.3 Option B). No
+    `POST …/recipes/suggest` in Phase 1.
+  - **get recipe by id** — `GET /machine/v1/recipes/{id}` for follow-ups
+    (*"how do I make Tuesday's dinner?"*).
+  - **credential check** — `GET /machine/v1/me` at startup.
+- Discord UX is Aivo's: *"what's for dinner Thursday?"* becomes
+  `GET /machine/v1/meal-plans/current`, then Aivo filters `assignments` for
+  the requested day and formats the answer.
 
 ## 7. Requirements
 
@@ -368,9 +456,12 @@ Out of scope for this repo, but the contract Aivo needs:
 - **F2** The machine API authenticates requests solely by API key and scopes
   all data to the key owner's family.
 - **F3** Machine endpoints exist for: meal plan by week (with `current`/`next`
-  aliases), shopping list by week, recipe by id, compact recipe corpus and/or
-  ingredient-based suggestions, credential self-check (`/machine/v1/me`).
-- **F4** v1 keys are read-only; write operations are rejected.
+  aliases), shopping list by week, recipe by id, compact recipe corpus,
+  credential self-check (`/machine/v1/me`). Server-side ingredient
+  suggestions (`POST …/recipes/suggest`) are Phase 2 optional.
+- **F4** v1 keys carry the `read` scope only; user-visible write operations
+  (check-offs, manual list edits, plan edits) are rejected with 403. Read
+  endpoints may still perform idempotent sync writes (shopping list §5.2).
 - **F5** Revoking a key takes effect immediately (next request fails 401).
 
 ### Security
@@ -390,10 +481,14 @@ Out of scope for this repo, but the contract Aivo needs:
 ### Operational
 
 - **O1** No new containers or infra components: second listener in the
-  existing Node process; one Service + one NetworkPolicy added to
+  existing Node process (`MACHINE_PORT=8081`, default 8081); add
+  `containerPort: 8081` to the unforked Deployment, plus one Service
+  (`unforked-machine`, port 8081) and one NetworkPolicy in
   `k8s/deployment.yml`.
-- **O2** `/health` semantics unchanged; probes keep targeting 8080. The
-  machine listener starts/stops with the same process lifecycle.
+- **O2** `/health` on port 8080 is unchanged; k8s probes keep targeting 8080.
+  The machine listener has no dedicated health route in v1 — liveness is
+  tied to the shared process. Aivo uses `GET /machine/v1/me` to verify
+  credentials at startup.
 - **O3** Verify on the real cluster that the CNI enforces NetworkPolicy and
   capture the ingress-controller selector labels before applying (§4.2).
 - **O4** Migration adds only the `api_keys` table; no changes to existing
