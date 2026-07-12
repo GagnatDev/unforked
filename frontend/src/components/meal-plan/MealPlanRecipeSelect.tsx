@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DayAssignment, Recipe } from '@/types'
 import {
@@ -33,10 +34,16 @@ export function MealPlanRecipeSelect({
 
   // Base UI's Select.Value renders the raw value (the recipe id) unless the
   // root is given an items map, so provide value -> label entries here.
-  const items = [
-    { value: '', label: t('mealPlan.noRecipe') },
-    ...recipes.map((r) => ({ value: r.id, label: r.doc.name })),
-  ]
+  // Memoized so the reference stays stable across the parent's frequent
+  // re-renders; a fresh array would push a store update into Select on every
+  // render and re-render the trigger label needlessly.
+  const items = useMemo(
+    () => [
+      { value: '', label: t('mealPlan.noRecipe') },
+      ...recipes.map((r) => ({ value: r.id, label: r.doc.name })),
+    ],
+    [recipes, t],
+  )
 
   return (
     <>
