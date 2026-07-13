@@ -7,7 +7,7 @@ import {
 } from "../domain/ingredientCategories.js";
 import { currentWeekIdentifier } from "../domain/weekIdentifier.js";
 import { getSyncedShoppingList } from "../service/shoppingListRead.js";
-import { createManualEntry } from "../service/shoppingListSync.js";
+import { addManualItems } from "../service/shoppingListWrite.js";
 import { requireUuidParam, validateBody } from "../middleware/validate.js";
 import { IngredientCategoryRepository } from "../storage/ingredientCategoryRepository.js";
 import { ShoppingListRepository } from "../storage/shoppingListRepository.js";
@@ -31,10 +31,6 @@ const addItemSchema = z.object({
   unit: z.string().default(""),
   category: categorySchema.optional(),
 });
-
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505";
-}
 
 /** Authenticated shopping-list routes; mounted under /api (after requireAuth). */
 export function shoppingListRoutes(db: Db): Router {
@@ -93,29 +89,7 @@ export function shoppingListRoutes(db: Db): Router {
     const { familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeek(req.query.week);
     const body = req.body as z.infer<typeof addItemSchema>;
-    const overrides = await ingredientCategories.findAllForFamily(familyId);
-
-    const insertManualItem = () =>
-      db.transaction().execute(async (trx) => {
-        const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
-        const entry = createManualEntry(body, overrides);
-        if (row) {
-          row.doc.items.push(entry);
-          await shoppingLists.updateDoc(trx, row.id, row.doc);
-        } else {
-          // First item of a week without a plan: create the list on the fly.
-          await shoppingLists.insert(trx, familyId, { weekIdentifier: weekId, items: [entry] });
-        }
-        return entry;
-      });
-
-    let created;
-    try {
-      created = await insertManualItem();
-    } catch (err) {
-      if (!isUniqueViolation(err)) throw err;
-      created = await insertManualItem();
-    }
+    const [created] = await addManualItems(db, familyId, weekId, [body]);
     res.status(201).json(created);
   });
 

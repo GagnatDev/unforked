@@ -22,6 +22,7 @@ export default function ApiKeys() {
   )
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
+  const [allowWrite, setAllowWrite] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createdKey, setCreatedKey] = useState<{ name: string; key: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -35,9 +36,10 @@ export default function ApiKeys() {
     setCreatedKey(null)
     setCopied(false)
     try {
-      const created = await api.apiKeys.create(name.trim())
+      const created = await api.apiKeys.create(name.trim(), allowWrite ? ['write'] : [])
       setCreatedKey({ name: created.name, key: created.key })
       setName('')
+      setAllowWrite(false)
       refetch()
     } catch (err) {
       setError(mapAsyncCatchError(err))
@@ -85,18 +87,29 @@ export default function ApiKeys() {
         </p>
       )}
 
-      <form onSubmit={(e) => void createKey(e)} className="flex max-w-md flex-col gap-2 sm:flex-row">
-        <Input
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t('apiKeys.namePlaceholder')}
-          aria-label={t('apiKeys.nameLabel')}
-          className="flex-1"
-        />
-        <Button type="submit" disabled={creating}>
-          {creating ? t('common.loading') : t('apiKeys.create')}
-        </Button>
+      <form onSubmit={(e) => void createKey(e)} className="max-w-md space-y-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('apiKeys.namePlaceholder')}
+            aria-label={t('apiKeys.nameLabel')}
+            className="flex-1"
+          />
+          <Button type="submit" disabled={creating}>
+            {creating ? t('common.loading') : t('apiKeys.create')}
+          </Button>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={allowWrite}
+            onChange={(e) => setAllowWrite(e.target.checked)}
+          />
+          {t('apiKeys.writeLabel')}
+          <span className="text-xs text-muted-foreground">{t('apiKeys.writeHint')}</span>
+        </label>
       </form>
 
       {createdKey && (
@@ -121,6 +134,11 @@ export default function ApiKeys() {
               <div className="min-w-0 flex-1">
                 <p className={key.revokedAt ? 'font-medium line-through opacity-60' : 'font-medium'}>
                   {key.name}
+                  {key.scopes.includes('write') && (
+                    <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
+                      {t('apiKeys.writeBadge')}
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {t('apiKeys.createdAt')} {new Date(key.createdAt).toLocaleDateString()}

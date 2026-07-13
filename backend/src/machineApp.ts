@@ -24,8 +24,9 @@ export function buildMachineApp(deps: MachineAppDeps): Express {
   const app = express();
   app.set("trust proxy", true);
   app.use(httpLogger);
-  // No JSON body parsing: the v1 surface is read-only (GET only). A future
-  // `write` scope adds the parser alongside its endpoints.
+  // Write-scoped endpoints (adding shopping-list items) take small JSON bodies;
+  // the tight limit is defence in depth on a surface that never sees uploads.
+  app.use(express.json({ limit: "64kb" }));
 
   const v1 = Router();
   v1.use(requireApiKey(deps.db));
