@@ -29,8 +29,10 @@ export function AppNav({ onLogout }: AppNavProps) {
   const recipesMatch = useMatch({ path: '/recipes', end: false })
 
   return (
-    <nav className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <nav className="mb-6 flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
+      {/* Wide screens: primary navigation stays inline. On narrow screens it
+          collapses into the single hamburger menu on the right. */}
+      <div className="hidden items-center gap-2 sm:flex">
         <NavLink to="/" end className={navLinkClass}>
           {t('nav.today')}
         </NavLink>
@@ -65,7 +67,7 @@ export function AppNav({ onLogout }: AppNavProps) {
         </DropdownMenu>
       </div>
 
-      <div className="ml-auto flex flex-wrap items-center gap-2">
+      <div className="ml-auto flex items-center gap-2">
         <OfflineIndicator />
         <UserMenu onLogout={onLogout} />
       </div>
