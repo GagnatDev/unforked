@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { generateApiKey, hashApiKey } from "../auth/apiKeys.js";
+import { API_KEY_SCOPES, generateApiKey, hashApiKey } from "../auth/apiKeys.js";
 import type { Db } from "../db/kysely.js";
 import { currentUser } from "../middleware/auth.js";
 import { requireUuidParam, validateBody } from "../middleware/validate.js";
@@ -8,6 +8,13 @@ import { ApiKeyRepository, type ApiKeyRow } from "../storage/apiKeyRepository.js
 
 const createKeySchema = z.object({
   name: z.string().trim().min(1, "name is required").max(100, "name is too long"),
+  // Every key can read; "write" additionally unlocks the mutating machine
+  // endpoints. Normalized so stored scopes are always ["read"] or ["read","write"].
+  scopes: z
+    .array(z.enum(API_KEY_SCOPES))
+    .max(API_KEY_SCOPES.length, "unknown scope")
+    .default([])
+    .transform((scopes) => API_KEY_SCOPES.filter((s) => s === "read" || scopes.includes(s))),
 });
 
 /** The wire shape of a key. Never contains the plaintext or the hash. */
@@ -35,9 +42,9 @@ export function apiKeyRoutes(db: Db): Router {
 
   router.post("/api-keys", validateBody(createKeySchema), async (req, res) => {
     const { userId } = currentUser(req);
-    const { name } = req.body as z.infer<typeof createKeySchema>;
+    const { name, scopes } = req.body as z.infer<typeof createKeySchema>;
     const plaintext = generateApiKey();
-    const row = await keys.insert({ userId, name, keyHash: hashApiKey(plaintext) });
+    const row = await keys.insert({ userId, name, keyHash: hashApiKey(plaintext), scopes });
     // `key` (the plaintext) exists only in this response — it is not stored and
     // cannot be retrieved again.
     res.status(201).json({ ...toApiKeyDto(row), key: plaintext });

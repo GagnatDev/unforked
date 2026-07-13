@@ -27,10 +27,21 @@ const API_KEY_COLUMNS = [
 export class ApiKeyRepository {
   constructor(private readonly db: Db) {}
 
-  insert(input: { userId: string; name: string; keyHash: string }): Promise<ApiKeyRow> {
+  insert(input: {
+    userId: string;
+    name: string;
+    keyHash: string;
+    scopes?: string[];
+  }): Promise<ApiKeyRow> {
     return this.db
       .insertInto("api_keys")
-      .values({ user_id: input.userId, name: input.name, key_hash: input.keyHash })
+      .values({
+        user_id: input.userId,
+        name: input.name,
+        key_hash: input.keyHash,
+        // Omitting scopes takes the column default ('{read}').
+        ...(input.scopes ? { scopes: input.scopes } : {}),
+      })
       .returning(API_KEY_COLUMNS)
       .executeTakeFirstOrThrow();
   }

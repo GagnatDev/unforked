@@ -8,6 +8,14 @@ import { createHash, randomBytes } from "node:crypto";
  */
 export const API_KEY_PREFIX = "ufk_";
 
+/**
+ * The scopes a key can carry. Every key can read; `write` additionally allows
+ * the mutating machine endpoints (docs/aivo-integration.md §8 Phase 3 — today:
+ * adding shopping-list items). Keys default to read-only at creation.
+ */
+export const API_KEY_SCOPES = ["read", "write"] as const;
+export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
+
 /** Generate a fresh plaintext API key. Shown to the user exactly once. */
 export function generateApiKey(): string {
   return API_KEY_PREFIX + randomBytes(32).toString("base64url");

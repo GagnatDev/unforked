@@ -1,20 +1,39 @@
 import { Router, type Response } from "express";
+import { z } from "zod";
 import type { Db } from "../db/kysely.js";
+import { SHOPPING_CATEGORIES } from "../domain/ingredientCategories.js";
 import { resolveWeekAlias } from "../domain/weekIdentifier.js";
-import { currentApiKey } from "../middleware/machineAuth.js";
-import { requireUuidParam } from "../middleware/validate.js";
+import { currentApiKey, requireScope } from "../middleware/machineAuth.js";
+import { requireUuidParam, validateBody } from "../middleware/validate.js";
 import { getSyncedShoppingList } from "../service/shoppingListRead.js";
+import { addManualItems } from "../service/shoppingListWrite.js";
 import { MealPlanRepository } from "../storage/mealPlanRepository.js";
 import { RecipeRepository } from "../storage/recipeRepository.js";
 import { UserRepository } from "../storage/userRepository.js";
 import { requireUserAndFamily } from "./context.js";
 
+const addItemsSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1, "item name is required"),
+        quantity: z.string().default(""),
+        unit: z.string().default(""),
+        category: z.enum(SHOPPING_CATEGORIES).optional(),
+      }),
+    )
+    .min(1, "at least one item is required")
+    .max(50, "at most 50 items per request"),
+});
+
 /**
- * The machine API surface (docs/aivo-integration.md §5): read-only endpoints
- * versioned under /machine/v1, served exclusively on the machine listener after
+ * The machine API surface (docs/aivo-integration.md §5): endpoints versioned
+ * under /machine/v1, served exclusively on the machine listener after
  * requireApiKey. All data is scoped to the key owner's family; the week path
  * segment accepts `current`/`next` aliases so callers never re-implement
- * ISO-week arithmetic.
+ * ISO-week arithmetic. Reads need any valid key; the one mutating endpoint
+ * (adding shopping-list items, §8 Phase 3) additionally requires the `write`
+ * scope.
  */
 export function machineRoutes(db: Db): Router {
   const users = new UserRepository(db);
@@ -68,6 +87,26 @@ export function machineRoutes(db: Db): Router {
     if (!weekId) return;
     res.json(await getSyncedShoppingList(db, familyId, weekId));
   });
+
+  // Batch-add manual items to a week's list — the first write-scoped endpoint
+  // (Phase 3). Reuses the human POST's service path: items are auto-categorized
+  // from the family's overrides, and a missing week row is created on the fly.
+  // Aivo sends what the owner asked for in chat ("add milk and batteries").
+  router.post(
+    "/shopping-lists/:week/items",
+    requireScope("write"),
+    validateBody(addItemsSchema),
+    async (req, res) => {
+      const { familyId } = await requireUserAndFamily(users, req);
+      // With middleware in front Express widens params to string | string[];
+      // a repeated segment stringifies to "a,b" and fails week validation.
+      const weekId = resolveWeekOr400(String(req.params.week), res);
+      if (!weekId) return;
+      const { items } = req.body as z.infer<typeof addItemsSchema>;
+      const created = await addManualItems(db, familyId, weekId, items);
+      res.status(201).json({ weekIdentifier: weekId, items: created });
+    },
+  );
 
   // Compact recipe corpus (docs/aivo-integration.md §5.3 Option B): a
   // token-efficient shape for LLM-side ingredient matching. Ingredient names

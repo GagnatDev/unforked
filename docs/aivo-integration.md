@@ -6,7 +6,12 @@ API-keys page in the UI, `/api/api-keys` endpoints), the machine listener on
 `/machine/v1/` read endpoints, the `unforked-machine` Service and the
 NetworkPolicy (`k8s/deployment.yml`). On the Aivo side the key is registered
 from Aivo's dashboard (Settings page), not via a k8s Secret as §6 originally
-assumed. Phases 2–4 remain open, as do the operational checks in §7 (O3).
+assumed. Phase 3 (§8) is partially implemented: keys can be created with the
+`write` scope (opt-in checkbox on the API-keys page; read-only stays the
+default) and a write-scoped `POST /machine/v1/shopping-lists/{week}/items`
+batch-adds manual items to a week's list (`current`/`next` aliases included).
+Checking items off and the other Phase 3 mutations remain open, as do
+Phases 2 and 4 and the operational checks in §7 (O3).
 
 This document explores how [Aivo](https://github.com/GagnatDev/aivo) (the
 personal AI assistant reachable through Discord) could query unforked on

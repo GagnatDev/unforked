@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { API_KEY_PREFIX, hashApiKey } from "../auth/apiKeys.js";
+import { API_KEY_PREFIX, hashApiKey, type ApiKeyScope } from "../auth/apiKeys.js";
 import type { Db } from "../db/kysely.js";
 import { logger } from "../logger.js";
 import { ApiKeyRepository, type ApiKeyRow } from "../storage/apiKeyRepository.js";
@@ -60,6 +60,22 @@ export function requireApiKey(db: Db): RequestHandler {
     } catch (err) {
       next(err);
     }
+  };
+}
+
+/**
+ * Gate a machine route on a key scope (F4: read-only keys get their write
+ * operations rejected). Unlike auth failures, this is a 403 that *names* the
+ * missing scope — the caller is already authenticated, so there is no oracle
+ * to protect and the message tells the key owner exactly what to fix.
+ */
+export function requireScope(scope: ApiKeyScope): RequestHandler {
+  return (req, res, next) => {
+    if (!currentApiKey(req).scopes.includes(scope)) {
+      res.status(403).json({ error: `This API key does not have the '${scope}' scope` });
+      return;
+    }
+    next();
   };
 }
 

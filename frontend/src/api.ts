@@ -132,10 +132,12 @@ export const api = {
   apiKeys: {
     list: () => request<ApiKey[]>('/api/api-keys'),
     // The response's `key` is the plaintext, returned exactly once at creation.
-    create: (name: string) =>
+    // Scopes: every key can read; pass ['write'] to also allow mutations
+    // (adding shopping-list items) — the server always includes 'read'.
+    create: (name: string, scopes: string[] = []) =>
       request<ApiKey & { key: string }>('/api/api-keys', {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, scopes }),
       }),
     revoke: (id: string) => request<void>(`/api/api-keys/${id}`, { method: 'DELETE' }),
   },

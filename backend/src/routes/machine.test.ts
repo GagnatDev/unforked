@@ -26,6 +26,19 @@ function machineGet(path: string, key: string = apiKey) {
   return request(machineApp).get(path).set("Authorization", `Bearer ${key}`);
 }
 
+async function createWriteKey(identity: TestIdentity = token): Promise<string> {
+  const res = await withAuth(request(humanApp).post("/api/api-keys"), identity).send({
+    name: "Aivo rw",
+    scopes: ["write"],
+  });
+  expect(res.status).toBe(201);
+  return res.body.key as string;
+}
+
+function machinePost(path: string, body: object, key: string = apiKey) {
+  return request(machineApp).post(path).set("Authorization", `Bearer ${key}`).send(body);
+}
+
 async function createRecipe(identity: TestIdentity, doc: Record<string, unknown>) {
   const res = await withAuth(request(humanApp).post("/api/recipes"), identity).send(doc);
   expect(res.status).toBe(201);
@@ -163,6 +176,97 @@ describe("GET /machine/v1/shopping-lists/:week", () => {
   it("returns an empty list for a week without a plan", async () => {
     const res = await machineGet("/machine/v1/shopping-lists/next");
     expect(res.body).toEqual({ weekIdentifier: nextWeekIdentifier(), items: [] });
+  });
+});
+
+describe("POST /machine/v1/shopping-lists/:week/items", () => {
+  const items = { items: [{ name: "melk", quantity: "1", unit: "l" }] };
+
+  it("403s for a read-only key, naming the missing scope (F4)", async () => {
+    const res = await machinePost("/machine/v1/shopping-lists/current/items", items);
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "This API key does not have the 'write' scope" });
+  });
+
+  it("adds items to the current week and the family sees them in the UI", async () => {
+    const writeKey = await createWriteKey();
+    const res = await machinePost("/machine/v1/shopping-lists/current/items", items, writeKey);
+    expect(res.status).toBe(201);
+    expect(res.body.weekIdentifier).toBe(currentWeekIdentifier());
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0]).toMatchObject({
+      name: "melk",
+      quantity: "1",
+      unit: "l",
+      checked: false,
+      manual: true,
+      recipeIds: [],
+    });
+    expect(res.body.items[0].category).toBe("dairy");
+
+    // The human API's synced read keeps the manual item.
+    const humanList = await withAuth(request(humanApp).get("/api/shopping-lists"), token);
+    expect(humanList.body.items).toHaveLength(1);
+    expect(humanList.body.items[0].id).toBe(res.body.items[0].id);
+  });
+
+  it("batch-adds several items to next week's list, creating it on the fly", async () => {
+    const writeKey = await createWriteKey();
+    const res = await machinePost(
+      "/machine/v1/shopping-lists/next/items",
+      { items: [{ name: "batterier" }, { name: "tannkrem", quantity: "2", unit: "stk" }] },
+      writeKey,
+    );
+    expect(res.status).toBe(201);
+    expect(res.body.weekIdentifier).toBe(nextWeekIdentifier());
+    expect(res.body.items.map((i: { name: string }) => i.name)).toEqual([
+      "batterier",
+      "tannkrem",
+    ]);
+
+    const read = await machineGet("/machine/v1/shopping-lists/next", writeKey);
+    expect(read.body.items).toHaveLength(2);
+  });
+
+  it("respects an explicit category over auto-categorization", async () => {
+    const writeKey = await createWriteKey();
+    const res = await machinePost(
+      "/machine/v1/shopping-lists/current/items",
+      { items: [{ name: "melk", category: "beverages" }] },
+      writeKey,
+    );
+    expect(res.status).toBe(201);
+    expect(res.body.items[0].category).toBe("beverages");
+  });
+
+  it("400s on an empty items array, a blank name and a bad week", async () => {
+    const writeKey = await createWriteKey();
+    const empty = await machinePost(
+      "/machine/v1/shopping-lists/current/items",
+      { items: [] },
+      writeKey,
+    );
+    expect(empty.status).toBe(400);
+    const blank = await machinePost(
+      "/machine/v1/shopping-lists/current/items",
+      { items: [{ name: "  " }] },
+      writeKey,
+    );
+    expect(blank.status).toBe(400);
+    const badWeek = await machinePost("/machine/v1/shopping-lists/tomorrow/items", items, writeKey);
+    expect(badWeek.status).toBe(400);
+  });
+
+  it("writes into the key owner's family only", async () => {
+    const other = await setupAdmin(humanApp, { id: "hs-other", email: "other@example.com" });
+    const otherWriteKey = await createWriteKey(other);
+    await machinePost("/machine/v1/shopping-lists/current/items", items, otherWriteKey).expect(
+      201,
+    );
+
+    // The first family's list is untouched.
+    const res = await machineGet("/machine/v1/shopping-lists/current");
+    expect(res.body.items).toEqual([]);
   });
 });
 

@@ -45,6 +45,23 @@ describe("POST /api/api-keys", () => {
     const res = await withAuth(request(app).post("/api/api-keys"), token).send({ name: "  " });
     expect(res.status).toBe(400);
   });
+
+  it("creates a write-capable key when asked, always keeping read", async () => {
+    const res = await withAuth(request(app).post("/api/api-keys"), token).send({
+      name: "Aivo rw",
+      scopes: ["write"],
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.scopes).toEqual(["read", "write"]);
+  });
+
+  it("rejects unknown scopes", async () => {
+    const res = await withAuth(request(app).post("/api/api-keys"), token).send({
+      name: "Aivo",
+      scopes: ["admin"],
+    });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("GET /api/api-keys", () => {
