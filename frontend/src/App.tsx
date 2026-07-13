@@ -16,6 +16,7 @@ const ShoppingList = lazy(() => import('./pages/ShoppingList'))
 const Family = lazy(() => import('./pages/Family'))
 const ApiKeys = lazy(() => import('./pages/ApiKeys'))
 const JoinFamily = lazy(() => import('./pages/JoinFamily'))
+const Profile = lazy(() => import('./pages/Profile'))
 
 function AppLayout({
   canInstall,
@@ -50,6 +51,7 @@ function AppLayout({
           <Route path="/recipes/:id/edit" element={<RecipeForm />} />
           <Route path="/meal-plan" element={<MealPlan />} />
           <Route path="/shopping-list" element={<ShoppingList />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/family" element={<Family />} />
           <Route path="/api-keys" element={<ApiKeys />} />
           <Route path="/register-invite" element={<JoinFamily />} />

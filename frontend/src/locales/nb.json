@@ -7,12 +7,17 @@
     "newRecipe": "Ny oppskrift",
     "weeklyMenu": "Ukemeny",
     "shoppingList": "Handleliste",
-    "family": "Familie",
-    "more": "Mer",
-    "account": "Konto",
-    "accountLanguage": "Språk",
-    "accountTheme": "Tema",
-    "apiKeys": "API-nøkler"
+    "menu": "Meny",
+    "profile": "Profil"
+  },
+  "profile": {
+    "title": "Profil",
+    "preferences": "Innstillinger",
+    "language": "Språk",
+    "theme": "Tema",
+    "manage": "Administrer",
+    "familyHint": "Medlemmer, invitasjoner og standardvalg for ukemenyen.",
+    "apiKeysHint": "Nøkler som gir pålitelige apper tilgang til dataene dine."
   },
   "common": {
     "loading": "Laster…",

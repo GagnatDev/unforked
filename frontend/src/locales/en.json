@@ -7,12 +7,17 @@
     "newRecipe": "New recipe",
     "weeklyMenu": "Weekly menu",
     "shoppingList": "Shopping list",
-    "family": "Family",
-    "more": "More",
-    "account": "Account",
-    "accountLanguage": "Language",
-    "accountTheme": "Theme",
-    "apiKeys": "API keys"
+    "menu": "Menu",
+    "profile": "Profile"
+  },
+  "profile": {
+    "title": "Profile",
+    "preferences": "Preferences",
+    "language": "Language",
+    "theme": "Theme",
+    "manage": "Manage",
+    "familyHint": "Members, invitations and meal planning defaults.",
+    "apiKeysHint": "Keys that let trusted apps access your data."
   },
   "common": {
     "loading": "Loading…",
