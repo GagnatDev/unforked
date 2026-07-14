@@ -39,6 +39,20 @@ function op(overrides: Partial<OutboxOp> = {}): OutboxOp {
   }
 }
 
+function recipeDoc(overrides: Record<string, unknown> = {}) {
+  return {
+    name: 'Recipe',
+    description: '',
+    sourceUrl: null,
+    sourceName: null,
+    ingredients: [],
+    steps: [],
+    servings: 4,
+    tags: [],
+    ...overrides,
+  }
+}
+
 beforeEach(async () => {
   await __resetLocalDbForTests()
   __resetOutboxSyncForTests()
@@ -68,15 +82,19 @@ describe('drainOutbox — success paths', () => {
     expect(await listOutboxOps()).toHaveLength(0)
   })
 
-  it('sends an update as PUT to the recipe id', async () => {
+  it('sends an update as PUT to the recipe id with its baseVersion', async () => {
     fetchMock.mockResolvedValue(res(200, '{}'))
-    await appendOutboxOp(op({ type: 'update', key: 'r7', payload: { name: 'New' } }))
+    const doc = recipeDoc({ name: 'New' })
+    await appendOutboxOp(
+      op({ type: 'update', key: 'r7', payload: { baseDoc: doc, nextDoc: doc }, baseVersion: 2 }),
+    )
 
     await drainOutbox()
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('/api/recipes/r7')
     expect(init.method).toBe('PUT')
+    expect(JSON.parse(init.body).baseVersion).toBe(2)
     expect(await listOutboxOps()).toHaveLength(0)
   })
 
@@ -278,6 +296,106 @@ describe('drainOutbox — shopping items', () => {
 
     await drainOutbox()
 
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+})
+
+describe('drainOutbox — optimistic concurrency (409 resolution)', () => {
+  it('field-merges a recipe on 409 and retries with the fresh version', async () => {
+    const base = recipeDoc({ name: 'Old', servings: 4 })
+    const ours = recipeDoc({ name: 'Renamed', servings: 4 }) // we changed the name
+    const server = recipeDoc({ name: 'Old', servings: 8 }) // they changed servings
+    let call = 0
+    fetchMock.mockImplementation(() => {
+      call += 1
+      if (call === 1) {
+        return Promise.resolve(res(409, JSON.stringify({ error: 'conflict', doc: server, version: 5 })))
+      }
+      return Promise.resolve(res(200, '{}'))
+    })
+    await appendOutboxOp(
+      op({ type: 'update', key: 'r1', payload: { baseDoc: base, nextDoc: ours }, baseVersion: 4 }),
+    )
+
+    await drainOutbox()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const retry = JSON.parse(fetchMock.mock.calls[1][1].body)
+    expect(retry.name).toBe('Renamed') // our disjoint change survives
+    expect(retry.servings).toBe(8) // the server's disjoint change survives
+    expect(retry.baseVersion).toBe(5) // retried against the current version
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+
+  it('re-GETs and retries a meal-plan PUT on 409', async () => {
+    const assignment = (day: string, recipeId: string) => ({
+      day,
+      recipeId,
+      recipeName: recipeId.toUpperCase(),
+      persons: null,
+    })
+    const server1 = {
+      weekIdentifier: 'w',
+      defaultPersons: null,
+      assignments: [assignment('monday', 'a')],
+      version: 1,
+    }
+    const server2 = { ...server1, version: 2 }
+    let gets = 0
+    let puts = 0
+    fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+      if (!init || init.method == null) {
+        gets += 1
+        return Promise.resolve(res(200, JSON.stringify(gets === 1 ? server1 : server2)))
+      }
+      puts += 1
+      return Promise.resolve(puts === 1 ? res(409, JSON.stringify({ error: 'conflict' })) : res(200, '{}'))
+    })
+    const baseDoc = { weekIdentifier: 'w', defaultPersons: null, assignments: [] }
+    const nextDoc = {
+      weekIdentifier: 'w',
+      defaultPersons: null,
+      assignments: [assignment('tuesday', 'b')],
+    }
+    await appendOutboxOp(
+      op({ entity: 'mealPlan', type: 'update', key: 'w', payload: { baseDoc, nextDoc } }),
+    )
+
+    await drainOutbox()
+
+    const putCalls = fetchMock.mock.calls.filter(([, i]) => i?.method === 'PUT')
+    expect(putCalls).toHaveLength(2)
+    expect(JSON.parse(putCalls[0][1].body).baseVersion).toBe(1)
+    expect(JSON.parse(putCalls[1][1].body).baseVersion).toBe(2)
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+
+  it('sends baseVersion on a shopping PATCH and recovers from a 409', async () => {
+    let call = 0
+    fetchMock.mockImplementation(() => {
+      call += 1
+      if (call === 1) {
+        return Promise.resolve(
+          res(409, JSON.stringify({ error: 'conflict', version: 7, weekIdentifier: 'w', items: [] })),
+        )
+      }
+      return Promise.resolve(res(200, '{}'))
+    })
+    await appendOutboxOp(
+      op({
+        entity: 'shoppingItem',
+        type: 'update',
+        key: 'i1',
+        payload: { weekId: 'w', patch: { checked: true } },
+        baseVersion: 3,
+      }),
+    )
+
+    await drainOutbox()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ checked: true, baseVersion: 3 })
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ checked: true, baseVersion: 7 })
     expect(await listOutboxOps()).toHaveLength(0)
   })
 })

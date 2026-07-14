@@ -52,21 +52,21 @@ export const api = {
       if (params?.name) q.set('name', params.name)
       if (params?.tag) q.set('tag', params.tag)
       const query = q.toString()
-      return request<{ id: string; doc: Partial<RecipeDoc> }[]>(
+      return request<{ id: string; doc: Partial<RecipeDoc>; version?: number }[]>(
         `/api/recipes${query ? `?${query}` : ''}`
       ).then((list) => list.map((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })))
     },
     get: (id: string) =>
-      request<{ id: string; doc: Partial<RecipeDoc> }>(`/api/recipes/${id}`).then(
+      request<{ id: string; doc: Partial<RecipeDoc>; version?: number }>(`/api/recipes/${id}`).then(
         (r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })
       ),
     create: (doc: RecipeDoc) =>
-      request<{ id: string; doc: Partial<RecipeDoc> }>('/api/recipes', {
+      request<{ id: string; doc: Partial<RecipeDoc>; version?: number }>('/api/recipes', {
         method: 'POST',
         body: JSON.stringify(doc),
       }).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
     update: (id: string, doc: RecipeDoc) =>
-      request<{ id: string; doc: Partial<RecipeDoc> }>(`/api/recipes/${id}`, {
+      request<{ id: string; doc: Partial<RecipeDoc>; version?: number }>(`/api/recipes/${id}`, {
         method: 'PUT',
         body: JSON.stringify(doc),
       }).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
