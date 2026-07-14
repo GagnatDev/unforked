@@ -87,9 +87,15 @@ test('adds a manual item into its section', async ({ page }) => {
 
   const other = page.getByRole('region', { name: 'Other' })
   await expect(other.getByText('Toothpaste')).toBeVisible()
-  await expect
-    .poll(() => requests.filter((r) => r.method === 'POST').map((r) => r.body))
-    .toEqual([{ name: 'Toothpaste' }])
+  // Offline-first: the client mints the item id and POSTs it (the drain runs in
+  // the background); category is left to the server to (re)assign on sync.
+  await expect.poll(() => requests.filter((r) => r.method === 'POST').length).toBe(1)
+  const posted = requests.find((r) => r.method === 'POST')!.body as {
+    id: string
+    name: string
+  }
+  expect(posted.name).toBe('Toothpaste')
+  expect(posted.id).toMatch(/^[0-9a-f-]{36}$/)
   await expect(page.getByLabel('Add item')).toHaveValue('')
 })
 

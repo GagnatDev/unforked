@@ -4,7 +4,8 @@ import { MealPlanWeekAssignments } from '@/components/meal-plan/MealPlanWeekAssi
 import { DAYS } from '@/components/meal-plan/constants'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
-import { getLocalMealPlan, getSyncMeta, listLocalRecipes, putLocalMealPlan } from '@/local/db'
+import { getLocalMealPlan, getSyncMeta, listLocalRecipes } from '@/local/db'
+import { saveMealPlan } from '@/local/mutations'
 import {
   FAMILY_DEFAULT_PERSONS_KEY,
   pullFamilyMealPlanDefaults,
@@ -16,7 +17,6 @@ import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
 import { Input } from '@/components/ui/input'
 import { getNextWeekId } from '@/lib/utils'
-import { api } from '@/api'
 import type { MealPlanDoc, DayAssignment, Recipe } from '@/types'
 
 function parsePositiveInt(raw: string): number | null {
@@ -171,12 +171,11 @@ export default function MealPlan() {
     setSaving(true)
     setError(null)
     try {
-      const saved = await api.mealPlans.putCurrent(plan, weekId)
+      // Offline-first: apply to the local store and queue the server PUT (with
+      // a day-level merge on sync). Succeeds offline; nothing awaits the network.
+      await saveMealPlan(weekId, plan)
       setSavedPlan(plan)
       setJustSaved(true)
-      // Reflect the saved plan in the local store so Today and the shopping
-      // list see it without refetching.
-      await putLocalMealPlan(weekId, saved)
     } catch (e) {
       setError(mapAsyncCatchError(e))
     } finally {

@@ -1,4 +1,10 @@
-import type { MealPlanDoc, PersistedShoppingListDoc, Recipe } from '@/types'
+import type {
+  MealPlanDoc,
+  PersistedShoppingListDoc,
+  Recipe,
+  ShoppingCategory,
+  ShoppingListEntry,
+} from '@/types'
 
 /**
  * Persistent local store (IndexedDB) for domain data — the read source of
@@ -22,9 +28,41 @@ type SyncMetaRecord = { key: string; value: unknown }
 
 // --- durable mutation outbox (offline-first spec A3) ---
 
-/** Domain entities a queued mutation can target. Only `recipe` in phase 2. */
+/** Domain entities a queued mutation can target. */
 export type OutboxEntity = 'recipe' | 'mealPlan' | 'shoppingItem'
 export type OutboxOpType = 'create' | 'update' | 'delete'
+
+/** Fields a shopping-list item PATCH may carry. */
+export interface ShoppingItemPatch {
+  checked?: boolean
+  category?: ShoppingCategory
+  name?: string
+  quantity?: string
+  unit?: string
+}
+
+/**
+ * Meal-plan op payload. `baseDoc` is the plan our edit started from and
+ * `nextDoc` is the plan after it; the sync engine uses both for the day-level
+ * merge (see `mealPlanMerge.ts`). The op `key` is the weekIdentifier.
+ */
+export interface MealPlanOpPayload {
+  baseDoc: MealPlanDoc
+  nextDoc: MealPlanDoc
+}
+
+/** Shopping-item op payloads. The op `key` is the item id; `weekId` locates the list. */
+export interface ShoppingItemCreatePayload {
+  weekId: string
+  item: ShoppingListEntry
+}
+export interface ShoppingItemUpdatePayload {
+  weekId: string
+  patch: ShoppingItemPatch
+}
+export interface ShoppingItemDeletePayload {
+  weekId: string
+}
 
 /**
  * One durable, replayable mutation. Applied optimistically to the local store
@@ -36,9 +74,13 @@ export interface OutboxOp {
   opId: string
   entity: OutboxEntity
   type: OutboxOpType
-  /** Entity identity: recipe id (phase 2), later weekIdentifier / item id. */
+  /** Entity identity: recipe id, meal-plan weekIdentifier, or shopping item id. */
   key: string
-  /** The doc for create/update; omitted for delete. */
+  /**
+   * Op-specific payload. Recipe ops carry the `RecipeDoc`; meal-plan ops a
+   * `MealPlanOpPayload`; shopping-item ops one of the `ShoppingItem*Payload`s.
+   * Omitted for recipe deletes.
+   */
   payload?: unknown
   /** Reserved for phase-4 optimistic concurrency; unused while recipes are LWW. */
   baseVersion?: number

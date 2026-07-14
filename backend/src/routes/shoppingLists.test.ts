@@ -346,6 +346,48 @@ describe("POST /api/shopping-lists/items", () => {
     ).send({ name: "   " });
     expect(res.status).toBe(400);
   });
+
+  it("honours a client-minted item id (offline-first)", async () => {
+    const clientId = "11111111-1111-4111-8111-111111111111";
+    const created = await withAuth(
+      request(app).post(`/api/shopping-lists/items?week=${week}`),
+      token,
+    ).send({ id: clientId, name: "Kaffe" });
+    expect(created.status).toBe(201);
+    expect(created.body.id).toBe(clientId);
+
+    const res = await getList();
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].id).toBe(clientId);
+  });
+
+  it("is idempotent when the same client id is replayed", async () => {
+    const clientId = "22222222-2222-4222-8222-222222222222";
+    const first = await withAuth(
+      request(app).post(`/api/shopping-lists/items?week=${week}`),
+      token,
+    ).send({ id: clientId, name: "Kaffe" });
+    const second = await withAuth(
+      request(app).post(`/api/shopping-lists/items?week=${week}`),
+      token,
+    ).send({ id: clientId, name: "Kaffe (renamed after replay)" });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    // The replay returns the original item, unchanged, and does not duplicate it.
+    expect(second.body.id).toBe(clientId);
+    expect(second.body.name).toBe("Kaffe");
+    const res = await getList();
+    expect(res.body.items).toHaveLength(1);
+  });
+
+  it("400s on a malformed client id", async () => {
+    const res = await withAuth(
+      request(app).post(`/api/shopping-lists/items?week=${week}`),
+      token,
+    ).send({ id: "not-a-uuid", name: "Kaffe" });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("DELETE /api/shopping-lists/items/:id", () => {

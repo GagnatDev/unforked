@@ -5,19 +5,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   __resetLocalDbForTests,
   appendOutboxOp,
+  getLocalMealPlan,
   getLocalRecipe,
   listOutboxOps,
   type OutboxOp,
 } from './db'
-import { createRecipe, deleteRecipe, updateRecipe } from './mutations'
+import { createRecipe, deleteRecipe, saveMealPlan, updateRecipe } from './mutations'
 import { __resetOutboxSyncForTests, drainOutbox } from './outboxSync'
 
 type FetchMock = ReturnType<typeof vi.fn>
 let fetchMock: FetchMock
 
-/** Minimal Response-like for the sync client (uses ok/status/text only). */
+/** Minimal Response-like for the sync client (uses ok/status/text/json). */
 function res(status: number, body = ''): Partial<Response> {
-  return { ok: status >= 200 && status < 300, status, text: async () => body }
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => body,
+    json: async () => JSON.parse(body || 'null'),
+  }
 }
 
 function op(overrides: Partial<OutboxOp> = {}): OutboxOp {
@@ -155,6 +161,127 @@ describe('drainOutbox — failure handling', () => {
   })
 })
 
+describe('drainOutbox — meal plans (day-level merge)', () => {
+  const assignment = (day: string, recipeId: string) => ({
+    day,
+    recipeId,
+    recipeName: recipeId.toUpperCase(),
+    persons: null,
+  })
+
+  it('GETs the server plan, merges our changed day onto it, and PUTs the result', async () => {
+    const baseDoc = { weekIdentifier: 'w', defaultPersons: null, assignments: [assignment('monday', 'a')] }
+    // We added Tuesday offline.
+    const nextDoc = {
+      weekIdentifier: 'w',
+      defaultPersons: null,
+      assignments: [assignment('monday', 'a'), assignment('tuesday', 'b')],
+    }
+    // The server independently gained a Thursday.
+    const server = {
+      weekIdentifier: 'w',
+      defaultPersons: null,
+      assignments: [assignment('monday', 'a'), assignment('thursday', 'c')],
+    }
+    fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+      if (!init || init.method == null) return Promise.resolve(res(200, JSON.stringify(server)))
+      return Promise.resolve(res(200, '{}'))
+    })
+    await appendOutboxOp(op({ entity: 'mealPlan', type: 'update', key: 'w', payload: { baseDoc, nextDoc } }))
+
+    await drainOutbox()
+
+    const getCall = fetchMock.mock.calls.find(([, init]) => !init || init.method == null)
+    const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')
+    expect(getCall![0]).toBe('/api/meal-plans/current?week=w')
+    const putDays = JSON.parse(putCall![1].body).assignments.map((a: { day: string }) => a.day).sort()
+    // Our Tuesday plus the server's untouched Thursday and Monday all survive.
+    expect(putDays).toEqual(['monday', 'thursday', 'tuesday'])
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+
+  it('keeps the op queued when the GET is unreachable', async () => {
+    fetchMock.mockRejectedValue(new TypeError('offline'))
+    await appendOutboxOp(
+      op({
+        entity: 'mealPlan',
+        type: 'update',
+        key: 'w',
+        payload: {
+          baseDoc: { weekIdentifier: 'w', assignments: [] },
+          nextDoc: { weekIdentifier: 'w', assignments: [] },
+        },
+      }),
+    )
+
+    await drainOutbox()
+
+    expect(await listOutboxOps()).toHaveLength(1)
+  })
+})
+
+describe('drainOutbox — shopping items', () => {
+  const item = {
+    id: 'i1',
+    name: 'Kaffe',
+    quantity: '',
+    unit: '',
+    recipeIds: [],
+    category: 'beverages',
+    checked: false,
+    manual: true,
+  }
+
+  it('POSTs a create with the client id and omits the category (server re-categorizes)', async () => {
+    fetchMock.mockResolvedValue(res(201, '{}'))
+    await appendOutboxOp(
+      op({ entity: 'shoppingItem', type: 'create', key: 'i1', payload: { weekId: 'w', item } }),
+    )
+
+    await drainOutbox()
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/shopping-lists/items?week=w')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({ id: 'i1', name: 'Kaffe', quantity: '', unit: '' })
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+
+  it('PATCHes an update to the item id', async () => {
+    fetchMock.mockResolvedValue(res(200, '{}'))
+    await appendOutboxOp(
+      op({
+        entity: 'shoppingItem',
+        type: 'update',
+        key: 'i1',
+        payload: { weekId: 'w', patch: { checked: true } },
+      }),
+    )
+
+    await drainOutbox()
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/shopping-lists/items/i1?week=w')
+    expect(init.method).toBe('PATCH')
+    expect(JSON.parse(init.body)).toEqual({ checked: true })
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+
+  it('treats a 404 on update or delete as idempotent success', async () => {
+    fetchMock.mockResolvedValue(res(404, 'not found'))
+    await appendOutboxOp(
+      op({ entity: 'shoppingItem', type: 'update', key: 'gone', payload: { weekId: 'w', patch: { checked: true } } }),
+    )
+    await appendOutboxOp(
+      op({ entity: 'shoppingItem', type: 'delete', key: 'gone2', payload: { weekId: 'w' } }),
+    )
+
+    await drainOutbox()
+
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+})
+
 describe('optimistic recipe mutations', () => {
   it('createRecipe writes locally and queues a create op with a minted id', async () => {
     // Offline so the kicked drain leaves the op queued (deterministic assertion).
@@ -204,5 +331,23 @@ describe('optimistic recipe mutations', () => {
     expect(await getLocalRecipe('r1')).toBeNull()
     const ops = await listOutboxOps()
     expect(ops.some((o) => o.type === 'delete' && o.key === 'r1')).toBe(true)
+  })
+
+  it('saveMealPlan writes the plan locally and queues an update op carrying base + next', async () => {
+    fetchMock.mockRejectedValue(new TypeError('offline'))
+    const nextDoc = {
+      weekIdentifier: 'w',
+      defaultPersons: null,
+      assignments: [{ day: 'monday', recipeId: 'a', recipeName: 'A', persons: null }],
+    }
+    await saveMealPlan('w', nextDoc)
+
+    expect((await getLocalMealPlan('w'))?.assignments).toHaveLength(1)
+    const ops = await listOutboxOps()
+    expect(ops).toHaveLength(1)
+    expect(ops[0]).toMatchObject({ entity: 'mealPlan', type: 'update', key: 'w' })
+    // Base was empty (nothing local before), next is the saved doc.
+    expect((ops[0].payload as { baseDoc: { assignments: unknown[] } }).baseDoc.assignments).toEqual([])
+    expect((ops[0].payload as { nextDoc: typeof nextDoc }).nextDoc).toEqual(nextDoc)
   })
 })

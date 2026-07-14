@@ -1,11 +1,15 @@
-import type { RecipeDoc } from '@/types'
+import type { MealPlanDoc, RecipeDoc } from '@/types'
 
 import {
   deleteOutboxOp,
   listOutboxOps,
+  type MealPlanOpPayload,
   type OutboxOp,
   putOutboxOp,
+  type ShoppingItemCreatePayload,
+  type ShoppingItemUpdatePayload,
 } from './db'
+import { mergeMealPlan } from './mealPlanMerge'
 
 /**
  * Outbox sync engine — the push half of the offline-first sync (spec A6).
@@ -31,53 +35,168 @@ type SendResult =
   /** Validation/permission 4xx: park this op, keep draining other entities. */
   | { ok: false; retry: 'park'; message: string }
 
-function recipeUrl(op: OutboxOp): string {
-  return op.type === 'create' ? `${base}/api/recipes` : `${base}/api/recipes/${op.key}`
-}
-
-function requestInit(op: OutboxOp): RequestInit {
-  const headers: Record<string, string> = {
+function headers(op: OutboxOp): Record<string, string> {
+  return {
     'Content-Type': 'application/json',
     // Idempotency key so a reload mid-flush cannot double-apply on replay.
     'X-Client-Op-Id': op.opId,
   }
-  if (op.type === 'delete') return { method: 'DELETE', headers }
+}
+
+function weekQuery(weekId: string): string {
+  return `?week=${encodeURIComponent(weekId)}`
+}
+
+/**
+ * Classify a failed (non-2xx) response into a retry disposition, shared by all
+ * entities. 401/5xx are transient (queue-wide wait); 409 blocks just this key
+ * (phase-4 resolution); other 4xx are permanent (park). Never navigates.
+ */
+function classifyFailure(status: number, body: string): SendResult {
+  if (status === 401) return { ok: false, retry: 'queue', message: 'session expired' }
+  if (status === 409) return { ok: false, retry: 'key', message: 'conflict' }
+  if (status >= 500) return { ok: false, retry: 'queue', message: `server error ${status}` }
+  return { ok: false, retry: 'park', message: body || `HTTP ${status}` }
+}
+
+// --- recipe ops ---
+
+function recipeUrl(op: OutboxOp): string {
+  return op.type === 'create' ? `${base}/api/recipes` : `${base}/api/recipes/${op.key}`
+}
+
+function recipeInit(op: OutboxOp): RequestInit {
+  if (op.type === 'delete') return { method: 'DELETE', headers: headers(op) }
   if (op.type === 'create') {
     return {
       method: 'POST',
-      headers,
+      headers: headers(op),
       body: JSON.stringify({ id: op.key, ...(op.payload as RecipeDoc) }),
     }
   }
-  return { method: 'PUT', headers, body: JSON.stringify(op.payload) }
+  return { method: 'PUT', headers: headers(op), body: JSON.stringify(op.payload) }
+}
+
+async function sendRecipeOp(op: OutboxOp): Promise<SendResult> {
+  let res: Response
+  try {
+    res = await fetch(recipeUrl(op), recipeInit(op))
+  } catch {
+    return { ok: false, retry: 'queue', message: 'network unreachable' }
+  }
+  if (res.ok) return { ok: true }
+  // Deleting something the server no longer has is a no-op success (idempotent).
+  if (op.type === 'delete' && res.status === 404) return { ok: true }
+  return classifyFailure(res.status, await res.text().catch(() => ''))
+}
+
+// --- meal-plan ops (whole-doc PUT with a day-level merge onto the server doc) ---
+
+const EMPTY_PLAN = (weekId: string): MealPlanDoc => ({
+  weekIdentifier: weekId,
+  defaultPersons: null,
+  assignments: [],
+})
+
+/**
+ * Push one meal-plan edit. Re-reads the server's current plan, re-applies only
+ * our changed days onto it (so a co-editor's other-day edits survive), then
+ * PUTs the merged doc. There is no `409` precondition yet (phase 4); merging
+ * before every PUT is what prevents different-day clobbering under LWW. The
+ * reconciled state reaches the local store on the next background pull.
+ */
+async function sendMealPlanOp(op: OutboxOp): Promise<SendResult> {
+  const { baseDoc, nextDoc } = op.payload as MealPlanOpPayload
+  const weekId = op.key
+  const url = `${base}/api/meal-plans/current${weekQuery(weekId)}`
+
+  let getRes: Response
+  try {
+    getRes = await fetch(url, { headers: headers(op) })
+  } catch {
+    return { ok: false, retry: 'queue', message: 'network unreachable' }
+  }
+  if (!getRes.ok) return classifyFailure(getRes.status, await getRes.text().catch(() => ''))
+  const server = ((await getRes.json().catch(() => null)) as MealPlanDoc | null) ?? EMPTY_PLAN(weekId)
+
+  const merged = mergeMealPlan(baseDoc, nextDoc, server, weekId)
+
+  let putRes: Response
+  try {
+    putRes = await fetch(url, {
+      method: 'PUT',
+      headers: headers(op),
+      body: JSON.stringify(merged),
+    })
+  } catch {
+    return { ok: false, retry: 'queue', message: 'network unreachable' }
+  }
+  if (putRes.ok) return { ok: true }
+  return classifyFailure(putRes.status, await putRes.text().catch(() => ''))
+}
+
+// --- shopping-item ops (per-item create/update/delete) ---
+
+function shoppingItemInit(op: OutboxOp): { url: string; init: RequestInit } {
+  if (op.type === 'create') {
+    const { weekId, item } = op.payload as ShoppingItemCreatePayload
+    return {
+      url: `${base}/api/shopping-lists/items${weekQuery(weekId)}`,
+      init: {
+        method: 'POST',
+        headers: headers(op),
+        // The client mints the id; category is omitted so the server
+        // (re-)categorizes with its own heuristic + family overrides on sync.
+        body: JSON.stringify({
+          id: op.key,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+        }),
+      },
+    }
+  }
+  if (op.type === 'update') {
+    const { weekId, patch } = op.payload as ShoppingItemUpdatePayload
+    return {
+      url: `${base}/api/shopping-lists/items/${op.key}${weekQuery(weekId)}`,
+      init: { method: 'PATCH', headers: headers(op), body: JSON.stringify(patch) },
+    }
+  }
+  const { weekId } = op.payload as { weekId: string }
+  return {
+    url: `${base}/api/shopping-lists/items/${op.key}${weekQuery(weekId)}`,
+    init: { method: 'DELETE', headers: headers(op) },
+  }
+}
+
+async function sendShoppingItemOp(op: OutboxOp): Promise<SendResult> {
+  const { url, init } = shoppingItemInit(op)
+  let res: Response
+  try {
+    res = await fetch(url, init)
+  } catch {
+    return { ok: false, retry: 'queue', message: 'network unreachable' }
+  }
+  if (res.ok) return { ok: true }
+  // A 404 on update/delete means the item is already gone server-side (a
+  // recipe-derived item left the plan, or it was removed elsewhere) — the
+  // client's intent is satisfied, so treat it as an idempotent success.
+  if ((op.type === 'delete' || op.type === 'update') && res.status === 404) return { ok: true }
+  return classifyFailure(res.status, await res.text().catch(() => ''))
 }
 
 async function sendOp(op: OutboxOp): Promise<SendResult> {
-  if (op.entity !== 'recipe') {
-    // Non-recipe entities are not synced until phase 3; park so they don't
-    // wedge the queue if one is somehow enqueued early.
-    return { ok: false, retry: 'park', message: `unsupported entity: ${op.entity}` }
+  switch (op.entity) {
+    case 'recipe':
+      return sendRecipeOp(op)
+    case 'mealPlan':
+      return sendMealPlanOp(op)
+    case 'shoppingItem':
+      return sendShoppingItemOp(op)
+    default:
+      return { ok: false, retry: 'park', message: `unsupported entity: ${op.entity as string}` }
   }
-
-  let res: Response
-  try {
-    res = await fetch(recipeUrl(op), requestInit(op))
-  } catch {
-    // fetch throwing means the network is unreachable — stay offline, retry later.
-    return { ok: false, retry: 'queue', message: 'network unreachable' }
-  }
-
-  if (res.ok) return { ok: true }
-
-  // Deleting something the server no longer has is a no-op success (idempotent).
-  if (op.type === 'delete' && res.status === 404) return { ok: true }
-
-  if (res.status === 401) return { ok: false, retry: 'queue', message: 'session expired' }
-  if (res.status === 409) return { ok: false, retry: 'key', message: 'conflict' }
-  if (res.status >= 500) return { ok: false, retry: 'queue', message: `server error ${res.status}` }
-
-  const text = await res.text().catch(() => '')
-  return { ok: false, retry: 'park', message: text || `HTTP ${res.status}` }
 }
 
 // --- retry/backoff ---

@@ -71,13 +71,19 @@ export function syncShoppingListDoc(
   return { weekIdentifier, items: [...items, ...manualItems] };
 }
 
-/** Build a manual (user-added) entry, auto-categorized unless one is given. */
+/**
+ * Build a manual (user-added) entry, auto-categorized unless one is given.
+ * An `id` may be supplied (a client-minted UUID for offline-first adds); the
+ * server otherwise mints one. The category is always (re)computed server-side
+ * unless explicitly provided, so an offline client's local heuristic guess is
+ * corrected on sync (offline-first resolved decision 3).
+ */
 export function createManualEntry(
-  input: { name: string; quantity: string; unit: string; category?: ShoppingCategory },
+  input: { id?: string; name: string; quantity: string; unit: string; category?: ShoppingCategory },
   overrides: ReadonlyMap<string, ShoppingCategory>,
 ): ShoppingListEntry {
   return {
-    id: randomUUID(),
+    id: input.id ?? randomUUID(),
     name: input.name,
     quantity: input.quantity,
     unit: input.unit,
