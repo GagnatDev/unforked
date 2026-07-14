@@ -41,6 +41,7 @@ describe("migrations", () => {
       "004_homectl_auth_sidecar",
       "005_shopping_lists",
       "006_api_keys",
+      "007_add_version_columns",
     ]);
   });
 });
