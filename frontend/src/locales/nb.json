@@ -31,7 +31,8 @@
     "email": "E-post",
     "logOut": "Logg ut",
     "sessionExpired": "Økten din er utløpt. Last inn siden på nytt for å logge inn igjen.",
-    "reload": "Last inn på nytt"
+    "reload": "Last inn på nytt",
+    "reloading": "Logger deg inn igjen…"
   },
   "recipes": {
     "title": "Oppskrifter",

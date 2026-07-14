@@ -31,7 +31,8 @@
     "email": "Email",
     "logOut": "Log out",
     "sessionExpired": "Your session has expired. Reload to log in again.",
-    "reload": "Reload"
+    "reload": "Reload",
+    "reloading": "Logging you back in…"
   },
   "recipes": {
     "title": "Recipes",

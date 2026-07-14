@@ -20,6 +20,12 @@ export type UserInfo = { id: string; email: string; role: string; familyId: stri
 type AuthContextValue = {
   user: UserInfo | null
   loading: boolean
+  /**
+   * A silent re-auth full page load has been triggered and is in flight. The UI
+   * shows a spinner (not the manual session-expired screen) because the page is
+   * about to reload on its own.
+   */
+  reloading: boolean
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -37,6 +43,7 @@ const base = import.meta.env.VITE_API_URL ?? ''
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [reloading, setReloading] = useState(false)
 
   const loadUser = useCallback(async (): Promise<void> => {
     try {
@@ -45,10 +52,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // A confirmed identity means the session is healthy again: clear the
         // re-auth loop counters so a later expiry gets a fresh set of attempts.
         markAuthenticated()
+        setReloading(false)
         setUser((await res.json()) as UserInfo)
         return
       }
-      if (res.status === 401) reloadForLogin()
+      // A silent re-auth navigation was triggered: keep the identity as-is and
+      // flag the reload so the UI shows a spinner instead of flashing the
+      // manual session-expired screen for the moment before the page reloads.
+      if (res.status === 401 && reloadForLogin()) {
+        setReloading(true)
+        return
+      }
       setUser(null)
     } catch {
       setUser(null)
@@ -62,7 +76,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // A data request may hit a 401 and exhaust the silent re-auth budget without
   // this provider being the one that observed it. Drop the identity when that
   // happens so RequireAuth can surface the manual session-expired screen.
-  useEffect(() => onSessionLost(() => setUser(null)), [])
+  useEffect(
+    () =>
+      onSessionLost(() => {
+        setReloading(false)
+        setUser(null)
+      }),
+    []
+  )
 
   // Proactively re-check the session when the tab regains focus. On mobile the
   // app is typically backgrounded for a long time, so the session often expires
@@ -103,8 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, logout, refreshUser }),
-    [user, loading, logout, refreshUser]
+    () => ({ user, loading, reloading, logout, refreshUser }),
+    [user, loading, reloading, logout, refreshUser]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
