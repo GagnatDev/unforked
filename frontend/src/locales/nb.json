@@ -145,6 +145,13 @@
     "addItem": "Legg til vare",
     "addItemPlaceholder": "F.eks. tannkrem",
     "changeCategoryAria": "Endre kategori for {{name}}",
+    "editItem": "Rediger {{name}}",
+    "editItemHeading": "Rediger {{name}}",
+    "editName": "Navn",
+    "editQuantity": "Mengde",
+    "editUnit": "Enhet",
+    "editSave": "Lagre",
+    "editCancel": "Avbryt",
     "deleteItem": "Fjern {{name}}",
     "itemCheckboxAria": "Merk {{name}} som handlet",
     "updateFailed": "Kunne ikke lagre endringen. Prøv igjen."

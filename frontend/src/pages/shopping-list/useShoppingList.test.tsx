@@ -83,6 +83,36 @@ describe('useShoppingList', () => {
     )
   })
 
+  it('edits name/quantity/unit optimistically and confirms with the server entry', async () => {
+    const edited = entry({ id: 'item-1', name: 'Whole milk', quantity: '2', unit: 'l', manual: true })
+    mocks.patchItem.mockResolvedValue(edited)
+    const { result } = await renderLoaded()
+
+    act(() =>
+      result.current.editItem('item-1', { name: 'Whole milk', quantity: '2', unit: 'l' }),
+    )
+    expect(result.current.items?.[0]).toMatchObject({ name: 'Whole milk', quantity: '2', unit: 'l' })
+
+    await waitFor(() =>
+      expect(mocks.patchItem).toHaveBeenCalledWith(
+        'item-1',
+        { name: 'Whole milk', quantity: '2', unit: 'l' },
+        week,
+      ),
+    )
+  })
+
+  it('rolls back an edit and flags the failure when the PATCH rejects', async () => {
+    mocks.patchItem.mockRejectedValue(new Error('offline'))
+    const { result } = await renderLoaded()
+
+    act(() => result.current.editItem('item-1', { name: 'Whole milk' }))
+    expect(result.current.items?.[0].name).toBe('Whole milk')
+
+    await waitFor(() => expect(result.current.mutationFailed).toBe(true))
+    expect(result.current.items?.[0].name).toBe('Milk')
+  })
+
   it('appends the server-created entry on add', async () => {
     const created = entry({ id: 'manual-1', name: 'Kaffe', category: 'beverages', manual: true })
     mocks.addItem.mockResolvedValue(created)

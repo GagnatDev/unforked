@@ -145,6 +145,13 @@
     "addItem": "Add item",
     "addItemPlaceholder": "e.g. toothpaste",
     "changeCategoryAria": "Change category for {{name}}",
+    "editItem": "Edit {{name}}",
+    "editItemHeading": "Edit {{name}}",
+    "editName": "Name",
+    "editQuantity": "Quantity",
+    "editUnit": "Unit",
+    "editSave": "Save",
+    "editCancel": "Cancel",
     "deleteItem": "Remove {{name}}",
     "itemCheckboxAria": "Mark {{name}} as in cart",
     "updateFailed": "Could not save the change. Try again."

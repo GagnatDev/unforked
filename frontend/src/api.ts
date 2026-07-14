@@ -108,7 +108,13 @@ export const api = {
       ),
     patchItem: (
       id: string,
-      body: { checked?: boolean; category?: ShoppingCategory },
+      body: {
+        checked?: boolean
+        category?: ShoppingCategory
+        name?: string
+        quantity?: string
+        unit?: string
+      },
       week?: string
     ) =>
       request<ShoppingListEntry>(

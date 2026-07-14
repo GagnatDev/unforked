@@ -30,6 +30,7 @@ export default function ShoppingList() {
     adding,
     toggleChecked,
     changeCategory,
+    editItem,
     addItem,
     deleteItem,
   } = useShoppingList(weekId)
@@ -75,6 +76,7 @@ export default function ShoppingList() {
                 group={group}
                 onToggle={toggleChecked}
                 onChangeCategory={changeCategory}
+                onEdit={editItem}
                 onDelete={deleteItem}
               />
             ))
