@@ -1,5 +1,8 @@
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { __resetLocalDbForTests } from '@/local/db'
 import type { ShoppingListEntry } from '@/types'
 import { useShoppingList } from './useShoppingList'
 
@@ -30,8 +33,10 @@ function entry(overrides: Partial<ShoppingListEntry>): ShoppingListEntry {
 
 const week = '2026-W28'
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetAllMocks()
+  await __resetLocalDbForTests()
+  globalThis.indexedDB = new IDBFactory()
   mocks.get.mockResolvedValue({ weekIdentifier: week, items: [entry({})] })
 })
 
@@ -42,7 +47,7 @@ async function renderLoaded() {
 }
 
 describe('useShoppingList', () => {
-  it('loads items for the week', async () => {
+  it('loads items for the week into the local store', async () => {
     const { result } = await renderLoaded()
     expect(mocks.get).toHaveBeenCalledWith(week)
     expect(result.current.items).toHaveLength(1)
@@ -53,7 +58,7 @@ describe('useShoppingList', () => {
     const { result } = await renderLoaded()
 
     act(() => result.current.toggleChecked('item-1'))
-    expect(result.current.items?.[0].checked).toBe(true)
+    await waitFor(() => expect(result.current.items?.[0].checked).toBe(true))
 
     await waitFor(() =>
       expect(mocks.patchItem).toHaveBeenCalledWith('item-1', { checked: true }, week),
@@ -61,14 +66,18 @@ describe('useShoppingList', () => {
   })
 
   it('rolls back the toggle and flags the failure when the PATCH rejects', async () => {
-    mocks.patchItem.mockRejectedValue(new Error('offline'))
+    let rejectPatch!: (e: Error) => void
+    mocks.patchItem.mockImplementation(
+      () => new Promise((_, reject) => (rejectPatch = reject)),
+    )
     const { result } = await renderLoaded()
 
     act(() => result.current.toggleChecked('item-1'))
-    expect(result.current.items?.[0].checked).toBe(true)
+    await waitFor(() => expect(result.current.items?.[0].checked).toBe(true))
 
+    act(() => rejectPatch(new Error('offline')))
     await waitFor(() => expect(result.current.mutationFailed).toBe(true))
-    expect(result.current.items?.[0].checked).toBe(false)
+    await waitFor(() => expect(result.current.items?.[0].checked).toBe(false))
   })
 
   it('changes category via PATCH', async () => {
@@ -76,7 +85,7 @@ describe('useShoppingList', () => {
     const { result } = await renderLoaded()
 
     act(() => result.current.changeCategory('item-1', 'beverages'))
-    expect(result.current.items?.[0].category).toBe('beverages')
+    await waitFor(() => expect(result.current.items?.[0].category).toBe('beverages'))
 
     await waitFor(() =>
       expect(mocks.patchItem).toHaveBeenCalledWith('item-1', { category: 'beverages' }, week),
@@ -91,7 +100,9 @@ describe('useShoppingList', () => {
     act(() =>
       result.current.editItem('item-1', { name: 'Whole milk', quantity: '2', unit: 'l' }),
     )
-    expect(result.current.items?.[0]).toMatchObject({ name: 'Whole milk', quantity: '2', unit: 'l' })
+    await waitFor(() =>
+      expect(result.current.items?.[0]).toMatchObject({ name: 'Whole milk', quantity: '2', unit: 'l' }),
+    )
 
     await waitFor(() =>
       expect(mocks.patchItem).toHaveBeenCalledWith(
@@ -103,14 +114,18 @@ describe('useShoppingList', () => {
   })
 
   it('rolls back an edit and flags the failure when the PATCH rejects', async () => {
-    mocks.patchItem.mockRejectedValue(new Error('offline'))
+    let rejectPatch!: (e: Error) => void
+    mocks.patchItem.mockImplementation(
+      () => new Promise((_, reject) => (rejectPatch = reject)),
+    )
     const { result } = await renderLoaded()
 
     act(() => result.current.editItem('item-1', { name: 'Whole milk' }))
-    expect(result.current.items?.[0].name).toBe('Whole milk')
+    await waitFor(() => expect(result.current.items?.[0].name).toBe('Whole milk'))
 
+    act(() => rejectPatch(new Error('offline')))
     await waitFor(() => expect(result.current.mutationFailed).toBe(true))
-    expect(result.current.items?.[0].name).toBe('Milk')
+    await waitFor(() => expect(result.current.items?.[0].name).toBe('Milk'))
   })
 
   it('appends the server-created entry on add', async () => {
@@ -124,7 +139,9 @@ describe('useShoppingList', () => {
     })
     expect(ok).toBe(true)
     expect(mocks.addItem).toHaveBeenCalledWith({ name: 'Kaffe' }, week)
-    expect(result.current.items?.map((i) => i.id)).toEqual(['item-1', 'manual-1'])
+    await waitFor(() =>
+      expect(result.current.items?.map((i) => i.id)).toEqual(['item-1', 'manual-1']),
+    )
   })
 
   it('reports a failed add without touching the list', async () => {
@@ -141,13 +158,17 @@ describe('useShoppingList', () => {
   })
 
   it('removes optimistically and restores the item when DELETE fails', async () => {
-    mocks.deleteItem.mockRejectedValue(new Error('offline'))
+    let rejectDelete!: (e: Error) => void
+    mocks.deleteItem.mockImplementation(
+      () => new Promise((_, reject) => (rejectDelete = reject)),
+    )
     const { result } = await renderLoaded()
 
     act(() => result.current.deleteItem('item-1'))
-    expect(result.current.items).toHaveLength(0)
+    await waitFor(() => expect(result.current.items).toHaveLength(0))
 
+    act(() => rejectDelete(new Error('offline')))
     await waitFor(() => expect(result.current.mutationFailed).toBe(true))
-    expect(result.current.items?.map((i) => i.id)).toEqual(['item-1'])
+    await waitFor(() => expect(result.current.items?.map((i) => i.id)).toEqual(['item-1']))
   })
 })

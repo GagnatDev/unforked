@@ -11,6 +11,7 @@ import { AutoGrowTextarea } from '@/components/AutoGrowTextarea'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/api'
+import { putLocalRecipe } from '@/local/db'
 import { IngredientListEditor } from './recipe-form/IngredientListEditor'
 import { StepListEditor } from './recipe-form/StepListEditor'
 import { useRecipeFormState } from './recipe-form/useRecipeFormState'
@@ -47,10 +48,14 @@ export default function RecipeForm() {
     setSaving(true)
     setError(null)
     try {
+      // Mirror the server's response into the local store so the recipe
+      // list and Today view reflect the save without refetching.
       if (id) {
-        await api.recipes.update(id, docToSave)
+        const res = await api.recipes.update(id, docToSave)
+        await putLocalRecipe(res)
       } else {
         const res = await api.recipes.create(docToSave)
+        await putLocalRecipe(res)
         navigate(`/recipes/${res.id}/edit`, { replace: true })
       }
     } catch (e) {

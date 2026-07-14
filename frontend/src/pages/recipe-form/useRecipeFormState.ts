@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import { api } from '@/api'
-import { useAsync } from '@/hooks/useAsync'
+import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react'
+import { getLocalRecipe } from '@/local/db'
+import { pullRecipe } from '@/local/sync'
+import { useBackgroundPull } from '@/local/useBackgroundPull'
+import { useLocal } from '@/local/useLocal'
 import type { Ingredient, RecipeDoc } from '@/types'
 
 const emptyDoc: RecipeDoc = {
@@ -15,28 +17,42 @@ const emptyDoc: RecipeDoc = {
 }
 
 export function useRecipeFormState(id: string | undefined) {
-  const [doc, setDoc] = useState<RecipeDoc>(emptyDoc)
+  const [doc, setDocState] = useState<RecipeDoc>(emptyDoc)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  /** Once the user edits, background store updates must not clobber the form. */
+  const editedRef = useRef(false)
 
-  const { data: fetchedDoc, loading, error: loadError } = useAsync(
-    async (signal) => {
-      const r = await api.recipes.get(id!)
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      return r.doc
-    },
+  const { data: localRecipe, loading: localLoading } = useLocal(
+    () => getLocalRecipe(id ?? ''),
+    ['recipes'],
+    [id],
+    { enabled: !!id },
+  )
+  const { error: pullError } = useBackgroundPull(
+    () => pullRecipe(id ?? ''),
     [id],
     { enabled: !!id },
   )
 
+  // With no local copy yet, stay in loading until the pull lands in the
+  // store (or fails); with a local copy, pull errors are irrelevant offline noise.
+  const loading = !!id && (localLoading || (localRecipe == null && pullError == null))
+  const loadError = id && localRecipe == null ? pullError : null
   const error = submitError ?? loadError
 
   useEffect(() => {
-    if (!id) setDoc(emptyDoc)
+    editedRef.current = false
+    if (!id) setDocState(emptyDoc)
   }, [id])
 
   useEffect(() => {
-    if (fetchedDoc) setDoc(fetchedDoc)
-  }, [fetchedDoc])
+    if (localRecipe && !editedRef.current) setDocState(localRecipe.doc)
+  }, [localRecipe])
+
+  const setDoc = useCallback((next: SetStateAction<RecipeDoc>) => {
+    editedRef.current = true
+    setDocState(next)
+  }, [])
 
   const update = useCallback((patch: Partial<RecipeDoc>) => {
     setDoc((d) => ({ ...d, ...patch }))
