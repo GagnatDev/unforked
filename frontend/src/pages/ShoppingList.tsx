@@ -26,7 +26,6 @@ export default function ShoppingList() {
     items,
     loading,
     error,
-    mutationFailed,
     adding,
     toggleChecked,
     changeCategory,
@@ -62,7 +61,6 @@ export default function ShoppingList() {
           locale={i18n.resolvedLanguage ?? i18n.language}
         />
       </div>
-      {mutationFailed && <p className="mb-2 text-destructive">{t('shoppingList.updateFailed')}</p>}
       {loading && !items ? (
         <p>{t('shoppingList.loading')}</p>
       ) : error ? (

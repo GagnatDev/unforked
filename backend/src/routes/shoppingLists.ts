@@ -29,6 +29,10 @@ const patchItemSchema = z
   });
 
 const addItemSchema = z.object({
+  // Optional client-minted UUID (offline-first: the client mints the item id so
+  // an add need not wait for a server round-trip). Replaying the same create is
+  // idempotent on this id. Malformed ids are rejected.
+  id: z.string().uuid().optional(),
   name: z.string().trim().min(1, "name is required"),
   quantity: z.string().default(""),
   unit: z.string().default(""),

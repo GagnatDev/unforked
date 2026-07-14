@@ -1,11 +1,16 @@
-import type { Recipe, RecipeDoc } from '@/types'
+import { categorizeIngredient } from '@/lib/categorize'
+import type { MealPlanDoc, Recipe, RecipeDoc, ShoppingListEntry } from '@/types'
 
 import {
   appendOutboxOp,
   deleteLocalRecipe,
+  getLocalMealPlan,
+  mutateLocalShoppingList,
   type OutboxOp,
   type OutboxOpType,
+  putLocalMealPlan,
   putLocalRecipe,
+  type ShoppingItemPatch,
 } from './db'
 import { kickOutboxSync } from './outboxSync'
 
@@ -56,5 +61,95 @@ export async function updateRecipe(id: string, doc: RecipeDoc): Promise<Recipe> 
 export async function deleteRecipe(id: string): Promise<void> {
   await deleteLocalRecipe(id)
   await appendOutboxOp(recipeOp('delete', id))
+  kickOutboxSync()
+}
+
+// --- meal plans (whole-doc edits; day-level merge happens on sync) ---
+
+/**
+ * Save a whole-week meal plan optimistically and queue the server update.
+ * We snapshot the plan we started from (`baseDoc`, read from the store before
+ * applying the edit) alongside the new doc, so the sync engine can re-apply
+ * only our changed days onto the server's current plan (see `mealPlanMerge.ts`).
+ * When offline edits stack, each op's base is the previous op's doc, so the
+ * merges compose.
+ */
+export async function saveMealPlan(weekId: string, nextDoc: MealPlanDoc): Promise<void> {
+  const baseDoc: MealPlanDoc =
+    (await getLocalMealPlan(weekId)) ?? { weekIdentifier: weekId, defaultPersons: null, assignments: [] }
+  await putLocalMealPlan(weekId, nextDoc)
+  await appendOutboxOp({
+    opId: uuid(),
+    entity: 'mealPlan',
+    type: 'update',
+    key: weekId,
+    payload: { baseDoc, nextDoc },
+    createdAt: Date.now(),
+    attempts: 0,
+  })
+  kickOutboxSync()
+}
+
+// --- shopping-list items (per-item create/update/delete through the outbox) ---
+
+function shoppingItemOp(
+  type: OutboxOpType,
+  itemId: string,
+  payload: unknown,
+): OutboxOp {
+  return {
+    opId: uuid(),
+    entity: 'shoppingItem',
+    type,
+    key: itemId,
+    payload,
+    createdAt: Date.now(),
+    attempts: 0,
+  }
+}
+
+/**
+ * Add a manual shopping-list item offline: mint the item UUID (A4), categorize
+ * it with the local heuristic (the server re-categorizes on sync), apply it to
+ * the store, and queue the create. Returns the optimistic entry.
+ */
+export async function addShoppingItem(weekId: string, name: string): Promise<ShoppingListEntry> {
+  const item: ShoppingListEntry = {
+    id: uuid(),
+    name,
+    quantity: '',
+    unit: '',
+    recipeIds: [],
+    category: categorizeIngredient(name),
+    checked: false,
+    manual: true,
+  }
+  await mutateLocalShoppingList(weekId, (doc) =>
+    doc ? { ...doc, items: [...doc.items, item] } : { weekIdentifier: weekId, items: [item] },
+  )
+  await appendOutboxOp(shoppingItemOp('create', item.id, { weekId, item }))
+  kickOutboxSync()
+  return item
+}
+
+/** Apply a shopping-item patch (checked / category / content) locally and queue it. */
+export async function patchShoppingItem(
+  weekId: string,
+  itemId: string,
+  patch: ShoppingItemPatch,
+): Promise<void> {
+  await mutateLocalShoppingList(weekId, (doc) =>
+    doc ? { ...doc, items: doc.items.map((i) => (i.id === itemId ? { ...i, ...patch } : i)) } : doc,
+  )
+  await appendOutboxOp(shoppingItemOp('update', itemId, { weekId, patch }))
+  kickOutboxSync()
+}
+
+/** Remove a shopping-list item locally and queue the server delete. */
+export async function deleteShoppingItem(weekId: string, itemId: string): Promise<void> {
+  await mutateLocalShoppingList(weekId, (doc) =>
+    doc ? { ...doc, items: doc.items.filter((i) => i.id !== itemId) } : doc,
+  )
+  await appendOutboxOp(shoppingItemOp('delete', itemId, { weekId }))
   kickOutboxSync()
 }

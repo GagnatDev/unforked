@@ -5,6 +5,8 @@ import { ShoppingListRepository } from "../storage/shoppingListRepository.js";
 import { createManualEntry } from "./shoppingListSync.js";
 
 export interface ManualItemInput {
+  /** Client-minted UUID (offline-first). Omitted for server-minted ids. */
+  id?: string;
   name: string;
   quantity: string;
   unit: string;
@@ -21,6 +23,11 @@ function isUniqueViolation(err: unknown): boolean {
  * from the family's overrides unless a category is given. If the week has no
  * list row yet (no plan, never viewed), one is created on the fly; the unique
  * (family, week) index race with a concurrent first write is retried once.
+ *
+ * When an input carries a client-minted `id` that already exists in the row,
+ * the existing item is returned unchanged rather than appended again, so
+ * replaying an offline outbox create (e.g. after a reload mid-flush) is
+ * idempotent.
  */
 export async function addManualItems(
   db: Db,
@@ -35,14 +42,30 @@ export async function addManualItems(
   const insertItems = () =>
     db.transaction().execute(async (trx) => {
       const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
-      const entries = inputs.map((input) => createManualEntry(input, overrides));
-      if (row) {
-        row.doc.items.push(...entries);
-        await shoppingLists.updateDoc(trx, row.id, row.doc);
-      } else {
-        await shoppingLists.insert(trx, familyId, { weekIdentifier: weekId, items: entries });
+      const existingById = new Map(
+        (row?.doc.items ?? []).map((item) => [item.id, item]),
+      );
+      const created: ShoppingListEntry[] = [];
+      const appended: ShoppingListEntry[] = [];
+      for (const input of inputs) {
+        const existing = input.id ? existingById.get(input.id) : undefined;
+        if (existing) {
+          created.push(existing);
+          continue;
+        }
+        const entry = createManualEntry(input, overrides);
+        created.push(entry);
+        appended.push(entry);
       }
-      return entries;
+      if (appended.length > 0) {
+        if (row) {
+          row.doc.items.push(...appended);
+          await shoppingLists.updateDoc(trx, row.id, row.doc);
+        } else {
+          await shoppingLists.insert(trx, familyId, { weekIdentifier: weekId, items: appended });
+        }
+      }
+      return created;
     });
 
   try {

@@ -1,8 +1,9 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { __resetLocalDbForTests } from '@/local/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { __resetLocalDbForTests, listOutboxOps } from '@/local/db'
+import { __resetOutboxSyncForTests } from '@/local/outboxSync'
 import type { ShoppingListEntry } from '@/types'
 import { useShoppingList } from './useShoppingList'
 
@@ -36,8 +37,17 @@ const week = '2026-W28'
 beforeEach(async () => {
   vi.resetAllMocks()
   await __resetLocalDbForTests()
+  __resetOutboxSyncForTests()
   globalThis.indexedDB = new IDBFactory()
   mocks.get.mockResolvedValue({ weekIdentifier: week, items: [entry({})] })
+  // Mutations kick the outbox sync engine, which uses global fetch; keep it
+  // "offline" so ops stay queued and assertions on the queue are deterministic.
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
+})
+
+afterEach(() => {
+  __resetOutboxSyncForTests()
+  vi.unstubAllGlobals()
 })
 
 async function renderLoaded() {
@@ -53,84 +63,47 @@ describe('useShoppingList', () => {
     expect(result.current.items).toHaveLength(1)
   })
 
-  it('toggles optimistically and confirms with the server entry', async () => {
-    mocks.patchItem.mockResolvedValue(entry({ checked: true }))
+  it('toggles optimistically and queues an update op', async () => {
     const { result } = await renderLoaded()
 
     act(() => result.current.toggleChecked('item-1'))
     await waitFor(() => expect(result.current.items?.[0].checked).toBe(true))
 
-    await waitFor(() =>
-      expect(mocks.patchItem).toHaveBeenCalledWith('item-1', { checked: true }, week),
-    )
+    await waitFor(async () => {
+      const ops = await listOutboxOps()
+      expect(ops).toHaveLength(1)
+      expect(ops[0]).toMatchObject({ entity: 'shoppingItem', type: 'update', key: 'item-1' })
+      expect((ops[0].payload as { patch: unknown }).patch).toEqual({ checked: true })
+    })
   })
 
-  it('rolls back the toggle and flags the failure when the PATCH rejects', async () => {
-    let rejectPatch!: (e: Error) => void
-    mocks.patchItem.mockImplementation(
-      () => new Promise((_, reject) => (rejectPatch = reject)),
-    )
-    const { result } = await renderLoaded()
-
-    act(() => result.current.toggleChecked('item-1'))
-    await waitFor(() => expect(result.current.items?.[0].checked).toBe(true))
-
-    act(() => rejectPatch(new Error('offline')))
-    await waitFor(() => expect(result.current.mutationFailed).toBe(true))
-    await waitFor(() => expect(result.current.items?.[0].checked).toBe(false))
-  })
-
-  it('changes category via PATCH', async () => {
-    mocks.patchItem.mockResolvedValue(entry({ category: 'beverages' }))
+  it('changes category optimistically and queues an update op', async () => {
     const { result } = await renderLoaded()
 
     act(() => result.current.changeCategory('item-1', 'beverages'))
     await waitFor(() => expect(result.current.items?.[0].category).toBe('beverages'))
 
-    await waitFor(() =>
-      expect(mocks.patchItem).toHaveBeenCalledWith('item-1', { category: 'beverages' }, week),
-    )
+    const ops = await listOutboxOps()
+    expect((ops[0].payload as { patch: unknown }).patch).toEqual({ category: 'beverages' })
   })
 
-  it('edits name/quantity/unit optimistically and confirms with the server entry', async () => {
-    const edited = entry({ id: 'item-1', name: 'Whole milk', quantity: '2', unit: 'l', manual: true })
-    mocks.patchItem.mockResolvedValue(edited)
+  it('edits name/quantity/unit optimistically and queues an update op', async () => {
     const { result } = await renderLoaded()
 
-    act(() =>
-      result.current.editItem('item-1', { name: 'Whole milk', quantity: '2', unit: 'l' }),
-    )
+    act(() => result.current.editItem('item-1', { name: 'Whole milk', quantity: '2', unit: 'l' }))
     await waitFor(() =>
       expect(result.current.items?.[0]).toMatchObject({ name: 'Whole milk', quantity: '2', unit: 'l' }),
     )
 
-    await waitFor(() =>
-      expect(mocks.patchItem).toHaveBeenCalledWith(
-        'item-1',
-        { name: 'Whole milk', quantity: '2', unit: 'l' },
-        week,
-      ),
-    )
+    const ops = await listOutboxOps()
+    expect((ops[0].payload as { patch: unknown }).patch).toEqual({
+      name: 'Whole milk',
+      quantity: '2',
+      unit: 'l',
+    })
   })
 
-  it('rolls back an edit and flags the failure when the PATCH rejects', async () => {
-    let rejectPatch!: (e: Error) => void
-    mocks.patchItem.mockImplementation(
-      () => new Promise((_, reject) => (rejectPatch = reject)),
-    )
-    const { result } = await renderLoaded()
-
-    act(() => result.current.editItem('item-1', { name: 'Whole milk' }))
-    await waitFor(() => expect(result.current.items?.[0].name).toBe('Whole milk'))
-
-    act(() => rejectPatch(new Error('offline')))
-    await waitFor(() => expect(result.current.mutationFailed).toBe(true))
-    await waitFor(() => expect(result.current.items?.[0].name).toBe('Milk'))
-  })
-
-  it('appends the server-created entry on add', async () => {
-    const created = entry({ id: 'manual-1', name: 'Kaffe', category: 'beverages', manual: true })
-    mocks.addItem.mockResolvedValue(created)
+  it('adds a manual item optimistically with a local category and queues a create op', async () => {
     const { result } = await renderLoaded()
 
     let ok = false
@@ -138,37 +111,25 @@ describe('useShoppingList', () => {
       ok = await result.current.addItem('Kaffe')
     })
     expect(ok).toBe(true)
-    expect(mocks.addItem).toHaveBeenCalledWith({ name: 'Kaffe' }, week)
-    await waitFor(() =>
-      expect(result.current.items?.map((i) => i.id)).toEqual(['item-1', 'manual-1']),
-    )
+    await waitFor(() => expect(result.current.items).toHaveLength(2))
+
+    const added = result.current.items?.find((i) => i.name === 'Kaffe')
+    expect(added).toMatchObject({ manual: true, checked: false, category: 'beverages', recipeIds: [] })
+
+    const ops = await listOutboxOps()
+    const createOp = ops.find((o) => o.type === 'create')
+    expect(createOp).toMatchObject({ entity: 'shoppingItem', key: added!.id })
   })
 
-  it('reports a failed add without touching the list', async () => {
-    mocks.addItem.mockRejectedValue(new Error('offline'))
-    const { result } = await renderLoaded()
-
-    let ok = true
-    await act(async () => {
-      ok = await result.current.addItem('Kaffe')
-    })
-    expect(ok).toBe(false)
-    expect(result.current.mutationFailed).toBe(true)
-    expect(result.current.items).toHaveLength(1)
-  })
-
-  it('removes optimistically and restores the item when DELETE fails', async () => {
-    let rejectDelete!: (e: Error) => void
-    mocks.deleteItem.mockImplementation(
-      () => new Promise((_, reject) => (rejectDelete = reject)),
-    )
+  it('removes optimistically and queues a delete op', async () => {
     const { result } = await renderLoaded()
 
     act(() => result.current.deleteItem('item-1'))
     await waitFor(() => expect(result.current.items).toHaveLength(0))
 
-    act(() => rejectDelete(new Error('offline')))
-    await waitFor(() => expect(result.current.mutationFailed).toBe(true))
-    await waitFor(() => expect(result.current.items?.map((i) => i.id)).toEqual(['item-1']))
+    const ops = await listOutboxOps()
+    expect(ops.some((o) => o.entity === 'shoppingItem' && o.type === 'delete' && o.key === 'item-1')).toBe(
+      true,
+    )
   })
 })
