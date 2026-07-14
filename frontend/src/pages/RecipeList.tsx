@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { deleteLocalRecipe, listLocalRecipes } from '@/local/db'
+import { listLocalRecipes } from '@/local/db'
+import { deleteRecipe } from '@/local/mutations'
 import { pullRecipes } from '@/local/sync'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
-import { api } from '@/api'
 
 export default function RecipeList() {
   const { t } = useTranslation()
@@ -37,8 +37,8 @@ export default function RecipeList() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(t('recipes.deleteConfirm', { name }))) return
     try {
-      await api.recipes.delete(id)
-      await deleteLocalRecipe(id)
+      // Optimistic: removes locally and queues the server delete (offline-first).
+      await deleteRecipe(id)
     } catch (e) {
       alert((e as Error).message)
     }

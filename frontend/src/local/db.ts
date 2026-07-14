@@ -11,14 +11,46 @@ import type { MealPlanDoc, PersistedShoppingListDoc, Recipe } from '@/types'
  */
 
 const DB_NAME = 'unforked-local'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
-export type LocalStoreName = 'recipes' | 'mealPlans' | 'shoppingLists' | 'syncMeta'
+export type LocalStoreName = 'recipes' | 'mealPlans' | 'shoppingLists' | 'syncMeta' | 'outbox'
 
 /** syncMeta key set when the full recipe list was last pulled from the server. */
 const RECIPES_PULLED_AT_KEY = 'recipes:pulledAt'
 
 type SyncMetaRecord = { key: string; value: unknown }
+
+// --- durable mutation outbox (offline-first spec A3) ---
+
+/** Domain entities a queued mutation can target. Only `recipe` in phase 2. */
+export type OutboxEntity = 'recipe' | 'mealPlan' | 'shoppingItem'
+export type OutboxOpType = 'create' | 'update' | 'delete'
+
+/**
+ * One durable, replayable mutation. Applied optimistically to the local store
+ * first, then appended here and drained against the server by the sync engine.
+ * `opId` is the idempotency key sent as `X-Client-Op-Id`; `seq` is the
+ * IndexedDB primary key (auto-assigned) and defines the FIFO drain order.
+ */
+export interface OutboxOp {
+  opId: string
+  entity: OutboxEntity
+  type: OutboxOpType
+  /** Entity identity: recipe id (phase 2), later weekIdentifier / item id. */
+  key: string
+  /** The doc for create/update; omitted for delete. */
+  payload?: unknown
+  /** Reserved for phase-4 optimistic concurrency; unused while recipes are LWW. */
+  baseVersion?: number
+  createdAt: number
+  attempts: number
+  /** Set when a permanent (non-retryable) failure parks the op off the queue. */
+  parkedAt?: number
+  /** Last failure message, for surfacing parked ops. */
+  lastError?: string
+  /** FIFO sequence / IndexedDB key; present once stored. */
+  seq?: number
+}
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
@@ -39,6 +71,12 @@ function openLocalDb(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains('syncMeta')) {
           db.createObjectStore('syncMeta', { keyPath: 'key' })
+        }
+        // v2: durable mutation outbox. Auto-incrementing `seq` keeps a stable
+        // FIFO order across reloads (recipe ids are UUIDs, so getAll on an
+        // id key would not be chronological).
+        if (!db.objectStoreNames.contains('outbox')) {
+          db.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true })
         }
       }
       request.onsuccess = () => resolve(request.result)
@@ -232,6 +270,47 @@ export async function setSyncMeta(key: string, value: unknown): Promise<void> {
   await writeTx(['syncMeta'], (tx) => {
     tx.objectStore('syncMeta').put({ key, value })
   })
+}
+
+// --- outbox (durable mutation queue) ---
+
+/**
+ * Append a mutation to the outbox. `seq` is left unset so IndexedDB assigns
+ * the next FIFO number; the stored record carries it back on read.
+ */
+export async function appendOutboxOp(op: OutboxOp): Promise<void> {
+  await writeTx(['outbox'], (tx) => {
+    const { seq: _seq, ...rest } = op
+    tx.objectStore('outbox').add(rest)
+  })
+}
+
+/** All queued ops (parked included), oldest first. */
+export async function listOutboxOps(): Promise<OutboxOp[]> {
+  return readTx(['outbox'], async (tx) => {
+    const ops = await promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll())
+    return ops.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
+  })
+}
+
+/** Persist an existing op (must have `seq`), e.g. to record attempts/parking. */
+export async function putOutboxOp(op: OutboxOp): Promise<void> {
+  await writeTx(['outbox'], (tx) => {
+    tx.objectStore('outbox').put(op)
+  })
+}
+
+/** Remove a drained op by its sequence key. */
+export async function deleteOutboxOp(seq: number): Promise<void> {
+  await writeTx(['outbox'], (tx) => {
+    tx.objectStore('outbox').delete(seq)
+  })
+}
+
+export async function countOutboxOps(): Promise<number> {
+  return readTx(['outbox'], async (tx) =>
+    promisifyRequest<number>(tx.objectStore('outbox').count()),
+  )
 }
 
 // --- test support ---

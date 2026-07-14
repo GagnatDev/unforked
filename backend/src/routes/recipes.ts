@@ -26,6 +26,13 @@ const recipeDocSchema = z.object({
   tags: z.array(z.string()).default([]),
 });
 
+// Create accepts an optional client-minted UUID (offline-first: the client
+// mints the id so a create need not wait for a server round-trip). The doc
+// itself is unchanged; `id` is stripped off before it is persisted.
+const recipeCreateSchema = recipeDocSchema.extend({
+  id: z.string().uuid().optional(),
+});
+
 const importSchema = z.object({ url: z.string() });
 
 /** Authenticated recipe routes; mounted under /api (after requireAuth). */
@@ -76,10 +83,10 @@ export function recipeRoutes(db: Db): Router {
     }
   });
 
-  router.post("/recipes", validateBody(recipeDocSchema), async (req, res) => {
+  router.post("/recipes", validateBody(recipeCreateSchema), async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
-    const doc = req.body as z.infer<typeof recipeDocSchema>;
-    const id = await recipes.insert(familyId, doc);
+    const { id: clientId, ...doc } = req.body as z.infer<typeof recipeCreateSchema>;
+    const id = await recipes.insert(familyId, doc, clientId);
     res.status(201).json({ id, doc });
   });
 

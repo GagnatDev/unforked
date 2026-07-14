@@ -4,16 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MealPlanDoc, PersistedShoppingListDoc, Recipe } from '@/types'
 import {
   __resetLocalDbForTests,
+  appendOutboxOp,
+  countOutboxOps,
   deleteLocalRecipe,
+  deleteOutboxOp,
   getLocalMealPlan,
   getLocalRecipe,
   getLocalShoppingList,
   getSyncMeta,
   listLocalRecipes,
+  listOutboxOps,
   mutateLocalShoppingList,
+  type OutboxOp,
   putLocalMealPlan,
   putLocalRecipe,
   putLocalShoppingList,
+  putOutboxOp,
   replaceLocalRecipes,
   setSyncMeta,
   subscribeLocal,
@@ -121,6 +127,57 @@ describe('syncMeta store', () => {
     expect(await getSyncMeta('nope')).toBeUndefined()
     await setSyncMeta('family:defaultMealPlanPersons', 4)
     expect(await getSyncMeta<number>('family:defaultMealPlanPersons')).toBe(4)
+  })
+})
+
+describe('outbox store', () => {
+  function op(overrides: Partial<OutboxOp> = {}): OutboxOp {
+    return {
+      opId: 'op-1',
+      entity: 'recipe',
+      type: 'create',
+      key: 'r1',
+      payload: { name: 'Soup' },
+      createdAt: 1,
+      attempts: 0,
+      ...overrides,
+    }
+  }
+
+  it('appends ops and returns them in FIFO order with assigned seq', async () => {
+    await appendOutboxOp(op({ opId: 'a', key: 'r1' }))
+    await appendOutboxOp(op({ opId: 'b', key: 'r2' }))
+    const ops = await listOutboxOps()
+    expect(ops.map((o) => o.opId)).toEqual(['a', 'b'])
+    expect(ops[0].seq).toBeLessThan(ops[1].seq!)
+  })
+
+  it('deletes a drained op by its seq', async () => {
+    await appendOutboxOp(op({ opId: 'a' }))
+    await appendOutboxOp(op({ opId: 'b' }))
+    const [first] = await listOutboxOps()
+    await deleteOutboxOp(first.seq!)
+    const remaining = await listOutboxOps()
+    expect(remaining.map((o) => o.opId)).toEqual(['b'])
+  })
+
+  it('updates an op in place (parking) without reordering', async () => {
+    await appendOutboxOp(op({ opId: 'a' }))
+    await appendOutboxOp(op({ opId: 'b' }))
+    const [first] = await listOutboxOps()
+    await putOutboxOp({ ...first, parkedAt: 99, attempts: 1, lastError: 'bad' })
+    const ops = await listOutboxOps()
+    expect(ops.map((o) => o.opId)).toEqual(['a', 'b'])
+    expect(ops[0].parkedAt).toBe(99)
+    expect(await countOutboxOps()).toBe(2)
+  })
+
+  it('notifies outbox subscribers on append', async () => {
+    const callback = vi.fn()
+    const unsubscribe = subscribeLocal(['outbox'], callback)
+    await appendOutboxOp(op())
+    expect(callback).toHaveBeenCalledTimes(1)
+    unsubscribe()
   })
 })
 
