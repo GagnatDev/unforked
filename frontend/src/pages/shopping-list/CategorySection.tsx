@@ -7,6 +7,7 @@ type CategorySectionProps = {
   group: CategoryGroup
   onToggle: (id: string) => void
   onChangeCategory: (id: string, category: ShoppingCategory) => void
+  onEdit: (id: string, patch: { name: string; quantity: string; unit: string }) => void
   onDelete: (id: string) => void
 }
 
@@ -15,6 +16,7 @@ export function CategorySection({
   group,
   onToggle,
   onChangeCategory,
+  onEdit,
   onDelete,
 }: CategorySectionProps) {
   const { t } = useTranslation()
@@ -37,6 +39,7 @@ export function CategorySection({
             item={item}
             onToggle={() => onToggle(item.id)}
             onChangeCategory={(category) => onChangeCategory(item.id, category)}
+            onEdit={(patch) => onEdit(item.id, patch)}
             onDelete={() => onDelete(item.id)}
           />
         ))}

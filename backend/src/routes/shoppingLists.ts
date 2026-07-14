@@ -20,9 +20,12 @@ const patchItemSchema = z
   .object({
     checked: z.boolean().optional(),
     category: categorySchema.optional(),
+    name: z.string().trim().min(1, "name must not be empty").optional(),
+    quantity: z.string().optional(),
+    unit: z.string().optional(),
   })
-  .refine((body) => body.checked !== undefined || body.category !== undefined, {
-    message: "at least one of checked or category is required",
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    message: "at least one field is required",
   });
 
 const addItemSchema = z.object({
@@ -58,11 +61,21 @@ export function shoppingListRoutes(db: Db): Router {
     const itemId = requireUuidParam(req.params.id, res);
     if (!itemId) return;
     const body = req.body as z.infer<typeof patchItemSchema>;
+    // name/quantity/unit describe the item itself; recipe-derived items rebuild
+    // those from the plan on the next sync, so only manual entries may edit them.
+    const editsContent =
+      body.name !== undefined || body.quantity !== undefined || body.unit !== undefined;
 
-    const updated = await db.transaction().execute(async (trx) => {
+    const outcome = await db.transaction().execute(async (trx) => {
       const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
       const item = row?.doc.items.find((i) => i.id === itemId);
-      if (!row || !item) return null;
+      if (!row || !item) return { status: "notFound" as const };
+      if (editsContent && !item.manual) return { status: "notManual" as const };
+      // Apply name/quantity/unit before category so the remembered override
+      // below is keyed to the item's new name.
+      if (body.name !== undefined) item.name = body.name;
+      if (body.quantity !== undefined) item.quantity = body.quantity;
+      if (body.unit !== undefined) item.unit = body.unit;
       if (body.checked !== undefined) item.checked = body.checked;
       if (body.category !== undefined) {
         item.category = body.category;
@@ -75,14 +88,18 @@ export function shoppingListRoutes(db: Db): Router {
         );
       }
       await shoppingLists.updateDoc(trx, row.id, row.doc);
-      return item;
+      return { status: "ok" as const, item };
     });
 
-    if (!updated) {
+    if (outcome.status === "notFound") {
       res.status(404).json({ error: "Shopping-list item not found" });
       return;
     }
-    res.json(updated);
+    if (outcome.status === "notManual") {
+      res.status(400).json({ error: "Only manually added items can be edited" });
+      return;
+    }
+    res.json(outcome.item);
   });
 
   router.post("/shopping-lists/items", validateBody(addItemSchema), async (req, res) => {

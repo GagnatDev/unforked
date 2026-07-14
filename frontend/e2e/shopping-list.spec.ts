@@ -93,6 +93,67 @@ test('adds a manual item into its section', async ({ page }) => {
   await expect(page.getByLabel('Add item')).toHaveValue('')
 })
 
+test('edits a manual item via the pencil button and PATCHes the change', async ({ page }) => {
+  const { requests } = await mockShoppingList(page, '2026-W13', [
+    entry({
+      id: '55555555-5555-4555-8555-555555555555',
+      name: 'Coffee',
+      quantity: '1',
+      unit: 'bag',
+      recipeIds: [],
+      category: 'beverages',
+      manual: true,
+    }),
+  ])
+
+  await page.goto('/shopping-list')
+
+  const beverages = page.getByRole('region', { name: 'Beverages' })
+  await beverages.getByRole('button', { name: 'Edit Coffee' }).click()
+
+  await page.getByLabel('Name').fill('Ground coffee')
+  await page.getByLabel('Quantity').fill('2')
+  await page.getByLabel('Unit').fill('bags')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  await expect(beverages.getByText('Ground coffee')).toBeVisible()
+  await expect(beverages.getByText('2 bags')).toBeVisible()
+  await expect
+    .poll(() => requests.filter((r) => r.method === 'PATCH').map((r) => r.body))
+    .toEqual([{ name: 'Ground coffee', quantity: '2', unit: 'bags' }])
+})
+
+test('cancelling an edit leaves the item untouched', async ({ page }) => {
+  const { requests } = await mockShoppingList(page, '2026-W13', [
+    entry({
+      id: '55555555-5555-4555-8555-555555555555',
+      name: 'Coffee',
+      recipeIds: [],
+      category: 'beverages',
+      manual: true,
+    }),
+  ])
+
+  await page.goto('/shopping-list')
+
+  const beverages = page.getByRole('region', { name: 'Beverages' })
+  await beverages.getByRole('button', { name: 'Edit Coffee' }).click()
+  await page.getByLabel('Name').fill('Tea')
+  await page.getByRole('button', { name: 'Cancel' }).click()
+
+  await expect(beverages.getByText('Coffee')).toBeVisible()
+  expect(requests.filter((r) => r.method === 'PATCH')).toHaveLength(0)
+})
+
+test('recipe items offer no edit control', async ({ page }) => {
+  await mockShoppingList(page, '2026-W13', WEEK_ITEMS)
+
+  await page.goto('/shopping-list')
+
+  await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Edit Milk' })).toHaveCount(0)
+})
+
 test('changing category moves the item to the other section', async ({ page }) => {
   const { requests } = await mockShoppingList(page, '2026-W13', WEEK_ITEMS)
 

@@ -12,6 +12,7 @@ export type UseShoppingListResult = {
   adding: boolean
   toggleChecked: (id: string) => void
   changeCategory: (id: string, category: ShoppingCategory) => void
+  editItem: (id: string, patch: { name?: string; quantity?: string; unit?: string }) => void
   addItem: (name: string) => Promise<boolean>
   deleteItem: (id: string) => void
 }
@@ -38,7 +39,10 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
   }, [])
 
   const patchItem = useCallback(
-    (id: string, patch: { checked?: boolean; category?: ShoppingCategory }) => {
+    (
+      id: string,
+      patch: { checked?: boolean; category?: ShoppingCategory; name?: string; quantity?: string; unit?: string },
+    ) => {
       setMutationFailed(false)
       let previous: ShoppingListEntry | undefined
       setItems((prev) => {
@@ -66,6 +70,11 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
 
   const changeCategory = useCallback(
     (id: string, category: ShoppingCategory) => patchItem(id, { category }),
+    [patchItem],
+  )
+
+  const editItem = useCallback(
+    (id: string, patch: { name?: string; quantity?: string; unit?: string }) => patchItem(id, patch),
     [patchItem],
   )
 
@@ -120,6 +129,7 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
     adding,
     toggleChecked,
     changeCategory,
+    editItem,
     addItem,
     deleteItem,
   }

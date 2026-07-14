@@ -244,6 +244,57 @@ describe("PATCH /api/shopping-lists/items/:id", () => {
     ).send({});
     expect(res.status).toBe(400);
   });
+
+  it("edits name, quantity and unit of a manual item", async () => {
+    const created = await withAuth(
+      request(app).post(`/api/shopping-lists/items?week=${week}`),
+      token,
+    ).send({ name: "Kaffe" });
+
+    const res = await withAuth(
+      request(app).patch(`/api/shopping-lists/items/${created.body.id}?week=${week}`),
+      token,
+    ).send({ name: "Filterkaffe", quantity: "2", unit: "poser" });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ name: "Filterkaffe", quantity: "2", unit: "poser" });
+
+    const stored = findItem(await getList(), "Filterkaffe");
+    expect(stored).toMatchObject({ id: created.body.id, quantity: "2", unit: "poser" });
+  });
+
+  it("rejects editing name/quantity/unit on a recipe-derived item", async () => {
+    const milk = await itemFromPlan();
+    const res = await withAuth(
+      request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`),
+      token,
+    ).send({ name: "Skummet melk" });
+    expect(res.status).toBe(400);
+
+    // The recipe item is untouched.
+    expect(findItem(await getList(), "milk").name.toLowerCase()).toBe("milk");
+  });
+
+  it("still lets a recipe item change category", async () => {
+    const milk = await itemFromPlan();
+    const res = await withAuth(
+      request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`),
+      token,
+    ).send({ category: "beverages" });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ category: "beverages" });
+  });
+
+  it("400s when editing a manual item to a blank name", async () => {
+    const created = await withAuth(
+      request(app).post(`/api/shopping-lists/items?week=${week}`),
+      token,
+    ).send({ name: "Kaffe" });
+    const res = await withAuth(
+      request(app).patch(`/api/shopping-lists/items/${created.body.id}?week=${week}`),
+      token,
+    ).send({ name: "   " });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("POST /api/shopping-lists/items", () => {
