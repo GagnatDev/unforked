@@ -5,9 +5,10 @@ import { getISODay } from 'date-fns'
 import type { DayKey } from '@/components/meal-plan/constants'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { cn, getCurrentWeekId } from '@/lib/utils'
-import { useAsync } from '@/hooks/useAsync'
-import { api } from '@/api'
-import type { Recipe } from '@/types'
+import { getLocalMealPlan, getLocalRecipe } from '@/local/db'
+import { pullMealPlan, pullRecipe } from '@/local/sync'
+import { useBackgroundPull } from '@/local/useBackgroundPull'
+import { useLocal } from '@/local/useLocal'
 import { TodayIngredients } from './today/TodayIngredients'
 import { TodayMealCard } from './today/TodayMealCard'
 import { TodayStepChecklist } from './today/TodayStepChecklist'
@@ -51,20 +52,34 @@ export default function Today() {
   const weekNumber = useMemo(() => weekNumberFromWeekId(weekId), [weekId])
   const dateKey = useMemo(() => now.toISOString().slice(0, 10), [now])
 
-  const { data, loading, error } = useAsync(
-    async (signal) => {
-      const p = await api.mealPlans.getCurrent(weekId)
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+  const { data, loading: localLoading } = useLocal(
+    async () => {
+      const p = await getLocalMealPlan(weekId)
+      if (!p) return null
       const assignment =
         (p.assignments ?? []).find((x) => x.day === dayKey) ?? null
-      let recipe: Recipe | null = null
-      if (assignment?.recipeId) {
-        recipe = await api.recipes.get(assignment.recipeId)
-      }
+      if (!assignment?.recipeId) return { plan: p, assignment, recipe: null }
+      const recipe = await getLocalRecipe(assignment.recipeId)
+      // The assigned recipe isn't local yet: treat as unknown until pulled.
+      if (!recipe) return null
       return { plan: p, assignment, recipe }
+    },
+    ['mealPlans', 'recipes'],
+    [dayKey, weekId],
+  )
+  const { error: pullError } = useBackgroundPull(
+    async () => {
+      await pullMealPlan(weekId)
+      const p = await getLocalMealPlan(weekId)
+      const assignment = (p?.assignments ?? []).find((x) => x.day === dayKey)
+      if (assignment?.recipeId) await pullRecipe(assignment.recipeId)
     },
     [dayKey, weekId],
   )
+  // With nothing local yet, stay in loading until the pull lands in the
+  // store (or fails); with local data, pull errors are irrelevant offline noise.
+  const loading = localLoading || (data == null && pullError == null)
+  const error = data == null ? pullError : null
 
   const plan = data?.plan ?? null
   const assignment = data?.assignment ?? null

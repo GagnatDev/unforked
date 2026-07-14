@@ -4,7 +4,15 @@ import { MealPlanWeekAssignments } from '@/components/meal-plan/MealPlanWeekAssi
 import { DAYS } from '@/components/meal-plan/constants'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
-import { useAsync } from '@/hooks/useAsync'
+import { getLocalMealPlan, getSyncMeta, listLocalRecipes, putLocalMealPlan } from '@/local/db'
+import {
+  FAMILY_DEFAULT_PERSONS_KEY,
+  pullFamilyMealPlanDefaults,
+  pullMealPlan,
+  pullRecipes,
+} from '@/local/sync'
+import { useBackgroundPull } from '@/local/useBackgroundPull'
+import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
 import { Input } from '@/components/ui/input'
 import { getNextWeekId } from '@/lib/utils'
@@ -41,34 +49,55 @@ export default function MealPlan() {
   const [justSaved, setJustSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const { data, loading, error: loadError } = useAsync(
-    async (signal) => {
-      const [planData, recipesData, familyData] = await Promise.all([
-        api.mealPlans.getCurrent(weekId),
-        api.recipes.list(),
-        api.family.get().catch(() => null),
+  const { data, loading: localLoading } = useLocal(
+    async () => {
+      const [planData, recipesData, familyDefault] = await Promise.all([
+        getLocalMealPlan(weekId),
+        listLocalRecipes(),
+        getSyncMeta<number | null>(FAMILY_DEFAULT_PERSONS_KEY),
       ])
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      if (!planData) return null
       let merged = planData
-      if (
-        merged.defaultPersons == null &&
-        familyData != null &&
-        familyData.defaultMealPlanPersons != null
-      ) {
-        merged = { ...merged, defaultPersons: familyData.defaultMealPlanPersons }
+      if (merged.defaultPersons == null && familyDefault != null) {
+        merged = { ...merged, defaultPersons: familyDefault }
       }
-      return { plan: merged, recipes: recipesData }
+      return { plan: merged, recipes: recipesData ?? [] }
+    },
+    ['mealPlans', 'recipes', 'syncMeta'],
+    [weekId],
+  )
+  const { error: pullError } = useBackgroundPull(
+    async () => {
+      await Promise.all([
+        pullMealPlan(weekId),
+        pullRecipes(),
+        pullFamilyMealPlanDefaults(),
+      ])
     },
     [weekId],
   )
+  // With nothing local yet, stay in loading until the pull lands in the
+  // store (or fails); with local data, pull errors are irrelevant offline noise.
+  const loading = localLoading || (data == null && pullError == null)
+  const loadError = data == null ? pullError : null
 
   useEffect(() => {
-    if (data) {
-      setPlan(data.plan)
-      setSavedPlan(data.plan)
-      setJustSaved(false)
-      setRecipes(data.recipes)
-    }
+    setPlan(null)
+    setSavedPlan(null)
+    setJustSaved(false)
+  }, [weekId])
+
+  useEffect(() => {
+    if (!data) return
+    setRecipes(data.recipes)
+    // Background store updates must never clobber unsaved edits; adopt the
+    // incoming plan only while the editor is clean (or not yet initialized).
+    const hasUnsavedEdits =
+      plan != null && savedPlan != null && planFingerprint(plan) !== planFingerprint(savedPlan)
+    if (hasUnsavedEdits) return
+    setPlan(data.plan)
+    setSavedPlan(data.plan)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs per store snapshot; plan/savedPlan only guard adoption
   }, [data])
 
   const assignments = plan?.assignments ?? []
@@ -142,9 +171,12 @@ export default function MealPlan() {
     setSaving(true)
     setError(null)
     try {
-      await api.mealPlans.putCurrent(plan, weekId)
+      const saved = await api.mealPlans.putCurrent(plan, weekId)
       setSavedPlan(plan)
       setJustSaved(true)
+      // Reflect the saved plan in the local store so Today and the shopping
+      // list see it without refetching.
+      await putLocalMealPlan(weekId, saved)
     } catch (e) {
       setError(mapAsyncCatchError(e))
     } finally {

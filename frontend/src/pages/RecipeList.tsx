@@ -1,31 +1,44 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useAsync } from '@/hooks/useAsync'
+import { deleteLocalRecipe, listLocalRecipes } from '@/local/db'
+import { pullRecipes } from '@/local/sync'
+import { useBackgroundPull } from '@/local/useBackgroundPull'
+import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { api } from '@/api'
-import type { Recipe } from '@/types'
 
 export default function RecipeList() {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const { data, loading, error } = useAsync(
-    (_signal) => api.recipes.list(search ? { name: search } : undefined),
-    [search],
+  const { data: allRecipes, loading: localLoading } = useLocal(
+    () => listLocalRecipes(),
+    ['recipes'],
+    [],
   )
-  const [recipes, setRecipes] = useState<Recipe[]>([])
+  const { error: pullError } = useBackgroundPull(() => pullRecipes(), [])
 
-  useEffect(() => {
-    if (data) setRecipes(data)
-  }, [data])
+  // Search filters the local store (matches the server's case-insensitive
+  // substring match), so it works offline and never waits on the network.
+  const recipes = useMemo(() => {
+    if (!allRecipes) return []
+    const query = search.trim().toLowerCase()
+    if (!query) return allRecipes
+    return allRecipes.filter((r) => r.doc.name.toLowerCase().includes(query))
+  }, [allRecipes, search])
+
+  // With nothing local yet, stay in loading until the pull lands in the
+  // store (or fails); with local data, pull errors are irrelevant offline noise.
+  const loading = localLoading || (allRecipes == null && pullError == null)
+  const error = allRecipes == null ? pullError : null
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(t('recipes.deleteConfirm', { name }))) return
     try {
       await api.recipes.delete(id)
-      setRecipes((prev) => prev.filter((r) => r.id !== id))
+      await deleteLocalRecipe(id)
     } catch (e) {
       alert((e as Error).message)
     }

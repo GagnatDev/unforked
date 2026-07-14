@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { api } from '@/api'
-import { useAsync } from '@/hooks/useAsync'
-import type { ShoppingCategory, ShoppingListEntry } from '@/types'
+import { getLocalShoppingList, mutateLocalShoppingList } from '@/local/db'
+import { pullShoppingList } from '@/local/sync'
+import { useBackgroundPull } from '@/local/useBackgroundPull'
+import { useLocal } from '@/local/useLocal'
+import type { PersistedShoppingListDoc, ShoppingCategory, ShoppingListEntry } from '@/types'
 
 export type UseShoppingListResult = {
   items: ShoppingListEntry[] | null
@@ -17,26 +20,40 @@ export type UseShoppingListResult = {
   deleteItem: (id: string) => void
 }
 
+function replaceEntry(
+  doc: PersistedShoppingListDoc | null,
+  entry: ShoppingListEntry,
+): PersistedShoppingListDoc | null {
+  if (!doc) return doc
+  return { ...doc, items: doc.items.map((i) => (i.id === entry.id ? entry : i)) }
+}
+
 /**
- * Loads the persisted shopping list for a week and owns its local item state.
- * useAsync has no refetch, so mutations update the local list optimistically
- * and roll back on API failure; the server confirms via each call's response.
+ * Reads one week's shopping list from the local store (populated from the
+ * network in the background) and mutates it optimistically: item changes are
+ * applied to the store first, confirmed with the server's entry, and rolled
+ * back on API failure.
  */
 export function useShoppingList(weekId: string): UseShoppingListResult {
-  const { data, loading, error } = useAsync((_signal) => api.shoppingList.get(weekId), [weekId], {
-    keepPreviousData: true,
-  })
-  const [items, setItems] = useState<ShoppingListEntry[] | null>(null)
+  const { data: doc, loading: localLoading } = useLocal(
+    () => getLocalShoppingList(weekId),
+    ['shoppingLists'],
+    [weekId],
+  )
+  const { error: pullError } = useBackgroundPull(() => pullShoppingList(weekId), [weekId])
   const [mutationFailed, setMutationFailed] = useState(false)
   const [adding, setAdding] = useState(false)
 
-  useEffect(() => {
-    if (data) setItems(data.items)
-  }, [data])
+  const items = doc?.items ?? null
+  // With nothing local yet, stay in loading until the pull lands in the
+  // store (or fails); with local data, pull errors are irrelevant offline noise.
+  const loading = localLoading || (doc == null && pullError == null)
+  const error = doc == null ? pullError : null
 
-  const applyEntry = useCallback((entry: ShoppingListEntry) => {
-    setItems((prev) => prev?.map((i) => (i.id === entry.id ? entry : i)) ?? prev)
-  }, [])
+  const applyEntry = useCallback(
+    (entry: ShoppingListEntry) => mutateLocalShoppingList(weekId, (d) => replaceEntry(d, entry)),
+    [weekId],
+  )
 
   const patchItem = useCallback(
     (
@@ -44,18 +61,21 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
       patch: { checked?: boolean; category?: ShoppingCategory; name?: string; quantity?: string; unit?: string },
     ) => {
       setMutationFailed(false)
-      let previous: ShoppingListEntry | undefined
-      setItems((prev) => {
-        previous = prev?.find((i) => i.id === id)
-        return prev?.map((i) => (i.id === id ? { ...i, ...patch } : i)) ?? prev
-      })
-      api.shoppingList
-        .patchItem(id, patch, weekId)
-        .then(applyEntry)
-        .catch(() => {
-          setMutationFailed(true)
-          if (previous) applyEntry(previous)
+      void (async () => {
+        let previous: ShoppingListEntry | undefined
+        await mutateLocalShoppingList(weekId, (d) => {
+          if (!d) return d
+          previous = d.items.find((i) => i.id === id)
+          return { ...d, items: d.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) }
         })
+        try {
+          const entry = await api.shoppingList.patchItem(id, patch, weekId)
+          await applyEntry(entry)
+        } catch {
+          setMutationFailed(true)
+          if (previous) await applyEntry(previous)
+        }
+      })()
     },
     [weekId, applyEntry],
   )
@@ -85,7 +105,11 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
       try {
         // POST first: the entry's id and auto-assigned category come from the server.
         const entry = await api.shoppingList.addItem({ name }, weekId)
-        setItems((prev) => (prev ? [...prev, entry] : [entry]))
+        await mutateLocalShoppingList(weekId, (d) =>
+          d
+            ? { ...d, items: [...d.items, entry] }
+            : { weekIdentifier: weekId, items: [entry] },
+        )
         return true
       } catch {
         setMutationFailed(true)
@@ -100,23 +124,31 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
   const deleteItem = useCallback(
     (id: string) => {
       setMutationFailed(false)
-      let removed: ShoppingListEntry | undefined
-      let removedIndex = -1
-      setItems((prev) => {
-        removedIndex = prev?.findIndex((i) => i.id === id) ?? -1
-        if (!prev || removedIndex === -1) return prev
-        removed = prev[removedIndex]
-        return prev.filter((i) => i.id !== id)
-      })
-      api.shoppingList.deleteItem(id, weekId).catch(() => {
-        setMutationFailed(true)
-        setItems((prev) => {
-          if (!prev || !removed) return prev
-          const next = prev.slice()
-          next.splice(Math.min(removedIndex, next.length), 0, removed)
-          return next
+      void (async () => {
+        let removed: ShoppingListEntry | undefined
+        let removedIndex = -1
+        await mutateLocalShoppingList(weekId, (d) => {
+          if (!d) return d
+          removedIndex = d.items.findIndex((i) => i.id === id)
+          if (removedIndex === -1) return d
+          removed = d.items[removedIndex]
+          return { ...d, items: d.items.filter((i) => i.id !== id) }
         })
-      })
+        try {
+          await api.shoppingList.deleteItem(id, weekId)
+        } catch {
+          setMutationFailed(true)
+          if (!removed) return
+          const entry = removed
+          const index = removedIndex
+          await mutateLocalShoppingList(weekId, (d) => {
+            if (!d) return d
+            const next = d.items.slice()
+            next.splice(Math.min(index, next.length), 0, entry)
+            return { ...d, items: next }
+          })
+        }
+      })()
     },
     [weekId],
   )
