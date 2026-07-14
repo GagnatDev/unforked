@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { navigateForLogin } from '@/lib/session'
@@ -11,10 +12,28 @@ import { navigateForLogin } from '@/lib/session'
  * kicked in (see lib/session.ts).
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth()
+  const { user, loading, reloading } = useAuth()
   const { t } = useTranslation()
 
   if (loading) return <div className="p-6">{t('common.loading')}</div>
+
+  // An expired session usually recovers on its own: a silent full page load
+  // lets the sidecar re-authenticate. While that reload is in flight, show a
+  // spinner rather than the manual screen — the button below would only flash
+  // for a moment before the page reloads itself, which reads as a glitch.
+  if (reloading) {
+    return (
+      <div
+        className="flex flex-col items-center gap-3 pt-16 text-center text-muted-foreground"
+        role="status"
+        aria-live="polite"
+      >
+        <Loader2 className="size-6 animate-spin" aria-hidden="true" />
+        <p className="text-sm">{t('auth.reloading')}</p>
+      </div>
+    )
+  }
+
   if (!user) {
     return (
       <div className="mx-auto max-w-sm space-y-4 pt-12 text-center">
