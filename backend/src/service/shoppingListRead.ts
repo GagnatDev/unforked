@@ -18,17 +18,24 @@ function isUniqueViolation(err: unknown): boolean {
  * writes it back inside a transaction; the row lock serializes against item
  * mutations. Creates no row for empty, casually browsed weeks.
  */
+export interface SyncedShoppingList {
+  doc: PersistedShoppingListDoc;
+  /** Current optimistic-concurrency version of the stored row (0 when none). */
+  version: number;
+}
+
 export async function loadSyncedShoppingList(
   db: Db,
   familyId: string,
   weekId: string,
-): Promise<PersistedShoppingListDoc> {
+): Promise<SyncedShoppingList> {
   const mealPlans = new MealPlanRepository(db);
   const recipes = new RecipeRepository(db);
   const shoppingLists = new ShoppingListRepository(db);
   const ingredientCategories = new IngredientCategoryRepository(db);
 
-  const plan = await mealPlans.findByWeek(familyId, weekId);
+  const found = await mealPlans.findByWeek(familyId, weekId);
+  const plan = found?.doc;
   let aggregate: ReturnType<typeof buildAggregatedShoppingItems> = [];
   if (plan) {
     const distinctIds = [...new Set(plan.assignments.map((a) => a.recipeId))];
@@ -42,12 +49,16 @@ export async function loadSyncedShoppingList(
     const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
     const merged = syncShoppingListDoc(row?.doc, aggregate, overrides, weekId);
     if (row) {
+      // Sync-on-read must not bump the version (see updateDoc): it is not a
+      // client edit, and bumping would 409 every concurrent client's writes.
       await shoppingLists.updateDoc(trx, row.id, merged);
-    } else if (merged.items.length > 0) {
+      return { doc: merged, version: row.version };
+    }
+    if (merged.items.length > 0) {
       // Don't create rows for casually browsed empty weeks.
       await shoppingLists.insert(trx, familyId, merged);
     }
-    return merged;
+    return { doc: merged, version: 0 };
   });
 }
 
@@ -60,7 +71,7 @@ export async function getSyncedShoppingList(
   db: Db,
   familyId: string,
   weekId: string,
-): Promise<PersistedShoppingListDoc> {
+): Promise<SyncedShoppingList> {
   try {
     return await loadSyncedShoppingList(db, familyId, weekId);
   } catch (err) {

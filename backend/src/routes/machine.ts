@@ -58,14 +58,14 @@ export function machineRoutes(db: Db): Router {
     if (!weekId) return;
 
     const plan = await mealPlans.findByWeek(familyId, weekId);
-    const assignments = plan?.assignments ?? [];
+    const assignments = plan?.doc.assignments ?? [];
     const distinctIds = [...new Set(assignments.map((a) => a.recipeId))];
     const found = await recipes.findByIds(familyId, distinctIds);
     const byId = new Map(found.map((r) => [r.id, r.doc]));
 
     res.json({
       weekIdentifier: weekId,
-      defaultPersons: plan?.defaultPersons ?? null,
+      defaultPersons: plan?.doc.defaultPersons ?? null,
       assignments: assignments.map((a) => ({
         day: a.day,
         persons: a.persons ?? null,
@@ -85,7 +85,8 @@ export function machineRoutes(db: Db): Router {
     const { familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeekOr400(req.params.week, res);
     if (!weekId) return;
-    res.json(await getSyncedShoppingList(db, familyId, weekId));
+    const { doc } = await getSyncedShoppingList(db, familyId, weekId);
+    res.json(doc);
   });
 
   // Batch-add manual items to a week's list — the first write-scoped endpoint
@@ -130,12 +131,12 @@ export function machineRoutes(db: Db): Router {
     const { familyId } = await requireUserAndFamily(users, req);
     const id = requireUuidParam(req.params.id, res);
     if (!id) return;
-    const doc = await recipes.findById(familyId, id);
-    if (!doc) {
+    const found = await recipes.findById(familyId, id);
+    if (!found) {
       res.status(404).json({ error: "Recipe not found" });
       return;
     }
-    res.json({ id, doc });
+    res.json({ id, doc: found.doc });
   });
 
   // Credential self-check: echoes the key's owner and metadata so a caller can

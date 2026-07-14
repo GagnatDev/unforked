@@ -20,6 +20,12 @@ const mealPlanDocSchema = z.object({
   assignments: z.array(dayAssignmentSchema).default([]),
 });
 
+// PUT accepts an optional `baseVersion` for optimistic concurrency
+// (offline-first A5); a stale version is rejected with 409 + the current plan.
+const mealPlanPutSchema = mealPlanDocSchema.extend({
+  baseVersion: z.number().int().nonnegative().optional(),
+});
+
 function resolveWeek(weekParam: unknown): string {
   return typeof weekParam === "string" ? weekParam : currentWeekIdentifier();
 }
@@ -33,20 +39,28 @@ export function mealPlanRoutes(db: Db): Router {
   router.get("/meal-plans/current", async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeek(req.query.week);
-    const doc = await mealPlans.findByWeek(familyId, weekId);
-    res.json(doc ?? { weekIdentifier: weekId, assignments: [] });
+    const found = await mealPlans.findByWeek(familyId, weekId);
+    if (!found) {
+      res.json({ weekIdentifier: weekId, assignments: [], version: 0 });
+      return;
+    }
+    res.json({ ...found.doc, version: found.version });
   });
 
-  router.put("/meal-plans/current", validateBody(mealPlanDocSchema), async (req, res) => {
+  router.put("/meal-plans/current", validateBody(mealPlanPutSchema), async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeek(req.query.week);
-    const body = req.body as z.infer<typeof mealPlanDocSchema>;
-    if (body.weekIdentifier !== weekId) {
+    const { baseVersion, ...doc } = req.body as z.infer<typeof mealPlanPutSchema>;
+    if (doc.weekIdentifier !== weekId) {
       res.status(400).json({ error: "weekIdentifier must match query week or current" });
       return;
     }
-    await mealPlans.upsert(familyId, body);
-    res.json(body);
+    const outcome = await mealPlans.upsert(familyId, doc, baseVersion);
+    if (outcome.status === "conflict") {
+      res.status(409).json({ error: "conflict", ...outcome.doc, version: outcome.version });
+      return;
+    }
+    res.json({ ...doc, version: outcome.version });
   });
 
   return router;

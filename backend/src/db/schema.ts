@@ -16,6 +16,8 @@ export interface RecipesTable {
   updated_at: UpdatableTimestamp;
   doc: JsonColumn<RecipeDoc>;
   family_id: string;
+  // Optimistic-concurrency counter; defaulted on insert, bumped on update.
+  version: Generated<number>;
 }
 
 export interface MealPlansTable {
@@ -24,6 +26,7 @@ export interface MealPlansTable {
   updated_at: UpdatableTimestamp;
   doc: JsonColumn<MealPlanDoc>;
   family_id: string;
+  version: Generated<number>;
 }
 
 export interface ShoppingListsTable {
@@ -32,6 +35,7 @@ export interface ShoppingListsTable {
   updated_at: UpdatableTimestamp;
   doc: JsonColumn<PersistedShoppingListDoc>;
   family_id: string;
+  version: Generated<number>;
 }
 
 /** Per-family ingredient -> store-category overrides (normalized names). */
