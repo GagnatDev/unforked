@@ -10,8 +10,7 @@ import { RecipeSourceAttribution } from '@/components/RecipeSourceAttribution'
 import { AutoGrowTextarea } from '@/components/AutoGrowTextarea'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { api } from '@/api'
-import { putLocalRecipe } from '@/local/db'
+import { createRecipe, updateRecipe } from '@/local/mutations'
 import { IngredientListEditor } from './recipe-form/IngredientListEditor'
 import { StepListEditor } from './recipe-form/StepListEditor'
 import { useRecipeFormState } from './recipe-form/useRecipeFormState'
@@ -48,15 +47,14 @@ export default function RecipeForm() {
     setSaving(true)
     setError(null)
     try {
-      // Mirror the server's response into the local store so the recipe
-      // list and Today view reflect the save without refetching.
+      // Apply to the local store and queue the server write (offline-first):
+      // the recipe list and Today view reflect the save immediately, and the
+      // outbox drains it to the server when the network allows.
       if (id) {
-        const res = await api.recipes.update(id, docToSave)
-        await putLocalRecipe(res)
+        await updateRecipe(id, docToSave)
       } else {
-        const res = await api.recipes.create(docToSave)
-        await putLocalRecipe(res)
-        navigate(`/recipes/${res.id}/edit`, { replace: true })
+        const created = await createRecipe(docToSave)
+        navigate(`/recipes/${created.id}/edit`, { replace: true })
       }
     } catch (e) {
       setError((e as Error).message)

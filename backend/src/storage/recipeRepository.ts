@@ -58,7 +58,22 @@ export class RecipeRepository {
     return rows.map((r) => ({ id: r.id, doc: r.doc }));
   }
 
-  async insert(familyId: string, doc: RecipeDoc): Promise<string> {
+  /**
+   * Insert a recipe. When `id` is supplied (a client-minted UUID for
+   * offline-first creates), it is used as the primary key and the insert is
+   * idempotent: replaying the same create — e.g. after an offline outbox
+   * survives a reload — conflicts on the id and does nothing, so the original
+   * row wins. Without an `id` the database mints one as before.
+   */
+  async insert(familyId: string, doc: RecipeDoc, id?: string): Promise<string> {
+    if (id) {
+      await this.db
+        .insertInto("recipes")
+        .values({ id, family_id: familyId, doc: JSON.stringify(doc) })
+        .onConflict((oc) => oc.column("id").doNothing())
+        .executeTakeFirstOrThrow();
+      return id;
+    }
     const row = await this.db
       .insertInto("recipes")
       .values({ family_id: familyId, doc: JSON.stringify(doc) })

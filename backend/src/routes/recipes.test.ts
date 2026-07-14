@@ -71,6 +71,48 @@ describe("recipe CRUD", () => {
   });
 });
 
+describe("client-provided recipe id (offline-first create)", () => {
+  const clientId = "11111111-1111-4111-8111-111111111111";
+
+  it("creates a recipe with a client-minted id", async () => {
+    const res = await withAuth(request(app).post("/api/recipes"), token).send(
+      sampleRecipe({ id: clientId } as Partial<RecipeDoc>),
+    );
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBe(clientId);
+    // The id is not persisted into the stored doc.
+    expect(res.body.doc.id).toBeUndefined();
+
+    const get = await withAuth(request(app).get(`/api/recipes/${clientId}`), token);
+    expect(get.status).toBe(200);
+    expect(get.body.doc.name).toBe("Pancakes");
+  });
+
+  it("is idempotent: replaying the same create keeps the original row", async () => {
+    const first = await withAuth(request(app).post("/api/recipes"), token).send(
+      sampleRecipe({ id: clientId, name: "Original" } as Partial<RecipeDoc>),
+    );
+    expect(first.status).toBe(201);
+
+    // A replayed create (same id, different doc) must not overwrite.
+    const replay = await withAuth(request(app).post("/api/recipes"), token).send(
+      sampleRecipe({ id: clientId, name: "Replayed" } as Partial<RecipeDoc>),
+    );
+    expect(replay.status).toBe(201);
+    expect(replay.body.id).toBe(clientId);
+
+    const get = await withAuth(request(app).get(`/api/recipes/${clientId}`), token);
+    expect(get.body.doc.name).toBe("Original");
+  });
+
+  it("400s a malformed client id", async () => {
+    const res = await withAuth(request(app).post("/api/recipes"), token).send(
+      sampleRecipe({ id: "not-a-uuid" } as Partial<RecipeDoc>),
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("recipe listing & filters", () => {
   beforeEach(async () => {
     await createRecipe(sampleRecipe({ name: "Apple Pie", tags: ["dessert"] }));
