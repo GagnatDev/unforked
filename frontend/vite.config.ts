@@ -15,11 +15,16 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       injectRegister: 'auto',
+      // All PWA discovery assets live under /static/ so the auth-proxy sidecar
+      // can expose them with a single `PUBLIC_PATHS=/static/*` prefix (the OS
+      // fetches the manifest + icons without a session cookie when installing to
+      // the Home Screen; see docs/auth-sidecar-migration.md).
       includeAssets: [
-        'favicon.ico',
-        'pwa-icon.svg',
-        'apple-touch-icon-180x180.png',
+        'static/favicon.ico',
+        'static/pwa-icon.svg',
+        'static/apple-touch-icon-180x180.png',
       ],
+      manifestFilename: 'static/manifest.webmanifest',
       manifest: {
         name: 'Meal Planning',
         short_name: 'Meals',
@@ -33,22 +38,22 @@ export default defineConfig({
         lang: 'en',
         icons: [
           {
-            src: 'pwa-64x64.png',
+            src: '/static/pwa-64x64.png',
             sizes: '64x64',
             type: 'image/png',
           },
           {
-            src: 'pwa-192x192.png',
+            src: '/static/pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: 'pwa-512x512.png',
+            src: '/static/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
           },
           {
-            src: 'maskable-icon-512x512.png',
+            src: '/static/maskable-icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
