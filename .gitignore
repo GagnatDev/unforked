@@ -18,6 +18,9 @@ yarn-error.log*
 dist/
 .vite/
 *.tsbuildinfo
+# tsc output of the Vite config (source of truth is vite.config.ts)
+frontend/vite.config.js
+frontend/vite.config.d.ts
 *.local
 .env
 .env.local
