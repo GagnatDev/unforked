@@ -56,18 +56,10 @@ export default defineConfig({
             workbox: {
                 globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico}'],
                 runtimeCaching: [
-                    {
-                        urlPattern: /^https?:\/\/[^/]+\/api\/recipes(\/[^/]+)?(\?.*)?$/,
-                        handler: 'StaleWhileRevalidate',
-                        options: {
-                            cacheName: 'api-recipes',
-                            expiration: {
-                                maxEntries: 200,
-                                maxAgeSeconds: 60 * 60 * 24 * 7,
-                            },
-                            cacheableResponse: { statuses: [0, 200] },
-                        },
-                    },
+                    // Recipe-tag autocomplete is not backed by the local store, so a
+                    // stale-while-revalidate cache is a safe, useful offline nicety. This
+                    // must be registered before the /api/recipes rule below, whose pattern
+                    // also matches /api/recipes/tags (first matching route wins).
                     {
                         urlPattern: /^https?:\/\/[^/]+\/api\/recipes\/tags/,
                         handler: 'StaleWhileRevalidate',
@@ -80,29 +72,28 @@ export default defineConfig({
                             cacheableResponse: { statuses: [0, 200] },
                         },
                     },
+                    // Domain data (recipes, meal plans, shopping lists) is read from the
+                    // IndexedDB local store — the offline-first source of truth — and the
+                    // network is only ever pulled in the background to refresh that store
+                    // (see src/local/sync.ts). A stale-while-revalidate SW cache in front
+                    // of these GETs served a one-generation-stale response that the pull
+                    // then persisted as truth: after saving a meal-plan change, the first
+                    // revisit re-rendered the *previous* recipe (the pull got the cached
+                    // pre-save body while revalidation refreshed the cache in the
+                    // background), and only the next revisit showed the change. Go straight
+                    // to the network so the local store is never fed a stale body; genuine
+                    // offline reads are already served from IndexedDB.
+                    {
+                        urlPattern: /^https?:\/\/[^/]+\/api\/recipes(\/[^/]+)?(\?.*)?$/,
+                        handler: 'NetworkOnly',
+                    },
                     {
                         urlPattern: /^https?:\/\/[^/]+\/api\/meal-plans/,
-                        handler: 'StaleWhileRevalidate',
-                        options: {
-                            cacheName: 'api-meal-plans',
-                            expiration: {
-                                maxEntries: 20,
-                                maxAgeSeconds: 60 * 60 * 24 * 7,
-                            },
-                            cacheableResponse: { statuses: [0, 200] },
-                        },
+                        handler: 'NetworkOnly',
                     },
                     {
                         urlPattern: /^https?:\/\/[^/]+\/api\/shopping-lists/,
-                        handler: 'StaleWhileRevalidate',
-                        options: {
-                            cacheName: 'api-shopping-lists',
-                            expiration: {
-                                maxEntries: 10,
-                                maxAgeSeconds: 60 * 60 * 24 * 7,
-                            },
-                            cacheableResponse: { statuses: [0, 200] },
-                        },
+                        handler: 'NetworkOnly',
                     },
                     {
                         urlPattern: /^https?:\/\/[^/]+\/api\/(auth|users|family)/,
