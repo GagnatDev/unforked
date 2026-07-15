@@ -32,7 +32,8 @@
     "logOut": "Logg ut",
     "sessionExpired": "Økten din er utløpt. Last inn siden på nytt for å logge inn igjen.",
     "reload": "Last inn på nytt",
-    "reloading": "Logger deg inn igjen…"
+    "reloading": "Logger deg inn igjen…",
+    "willSync": "Synkroniseres når du logger inn igjen"
   },
   "recipes": {
     "title": "Oppskrifter",

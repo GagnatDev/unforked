@@ -32,7 +32,8 @@
     "logOut": "Log out",
     "sessionExpired": "Your session has expired. Reload to log in again.",
     "reload": "Reload",
-    "reloading": "Logging you back in…"
+    "reloading": "Logging you back in…",
+    "willSync": "Will sync when you sign back in"
   },
   "recipes": {
     "title": "Recipes",

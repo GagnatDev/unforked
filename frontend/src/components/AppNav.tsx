@@ -3,6 +3,7 @@ import { ChevronDownIcon } from 'lucide-react'
 import { Link, NavLink, useMatch } from 'react-router-dom'
 import { UserMenu } from '@/components/UserMenu'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
+import { PendingSyncIndicator } from '@/components/PendingSyncIndicator'
 import { buttonVariants } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -68,6 +69,7 @@ export function AppNav({ onLogout }: AppNavProps) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        <PendingSyncIndicator />
         <OfflineIndicator />
         <UserMenu onLogout={onLogout} />
       </div>
