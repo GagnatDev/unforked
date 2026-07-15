@@ -43,6 +43,12 @@ migration does not repeat them:
 - **Redact identity from your own logs.** `pino-http` logs full headers by default; both
   homectl-auth loggers now redact `authorization` / `cookie` / `set-cookie`. Do the same in the
   migrating app. → [Operational notes](#operational-notes)
+- **PWA icons and the web app manifest must be served *unauthenticated*.** When a phone installs
+  the app to the Home Screen, the OS fetches the manifest and icons in a background context that
+  carries **no** `hs_session` cookie. Behind the sidecar those requests 401, so the installed app
+  shows a blank/letter icon — the icon never resolves, no matter how many times you re-add it or
+  which icon you ship. Allowlist the exact discovery-asset paths in the sidecar (`PUBLIC_PATHS`)
+  and everything else stays authenticated. → [PWA pitfalls #4](#pwa--service-worker-pitfalls)
 
 ---
 
@@ -415,6 +421,34 @@ the auth host and fails. Users must remove the installed app and re-add it. Note
 Safari's "Clear History and Website Data" does **not** clear a Home Screen web app's storage —
 the installed app keeps its own container. Delete the app icon from the Home Screen, open the
 site in Safari, log in, then "Add to Home Screen" again.
+
+4. **The web app manifest and Home Screen icons must be reachable without a session.** The
+   sidecar authenticates every path except its own (`/healthz`, `/readyz`, callback, logout), so
+   an unauthenticated asset fetch gets a `302` (HTML navigation) or `401` (everything else). When
+   iOS/Android install a PWA, the icon and manifest are fetched by an OS background process that
+   does **not** share the browser's cookie jar, so those fetches are anonymous → `401` → the
+   installed app falls back to a solid tile with the app's first letter. This is independent of
+   which icon you ship: **no icon ever resolves** while the assets sit behind the auth gate, and
+   clearing cache / reinstalling does not help because the fetch is still cookie-less.
+
+   Fix: allowlist the exact discovery-asset paths in the sidecar so they proxy to the app
+   anonymously (identity headers still stripped, nothing injected), leaving every other path
+   authenticated. Unforked uses the homectl-auth-proxy `PUBLIC_PATHS` env (comma-separated exact
+   GET/HEAD paths), set on the sidecar container in `k8s/deployment.yml`:
+
+   ```yaml
+   - name: PUBLIC_PATHS
+     value: /manifest.webmanifest,/apple-touch-icon-180x180.png,/apple-touch-icon.png,/apple-touch-icon-precomposed.png,/pwa-icon.svg,/favicon.ico,/pwa-64x64.png,/pwa-192x192.png,/pwa-512x512.png,/maskable-icon-512x512.png
+   ```
+
+   The list must cover the manifest, the `apple-touch-icon` referenced from `index.html` (plus the
+   `/apple-touch-icon*.png` root paths iOS probes when the link fails), and every icon named in
+   the manifest. These are static branding files with no user data, so serving them anonymously is
+   safe. Requires a homectl-auth-proxy build that supports `PUBLIC_PATHS` — it matches these exact
+   paths **before** the auth middleware, strips any inbound `X-Homectl-*` / `Authorization`, and
+   injects no identity, so a public path cannot be used to smuggle a forged identity upstream.
+   After deploying, users must still delete and re-add the Home Screen app once for the OS to
+   re-fetch the (now reachable) icon.
 
 ---
 
