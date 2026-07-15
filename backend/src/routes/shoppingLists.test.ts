@@ -42,7 +42,7 @@ describe("GET /api/shopping-lists", () => {
   it("returns an empty list when there is no meal plan", async () => {
     const res = await getList();
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ weekIdentifier: week, items: [] });
+    expect(res.body).toEqual({ weekIdentifier: week, items: [], version: 0 });
   });
 
   it("aggregates ingredients across the week's recipes", async () => {
@@ -234,6 +234,46 @@ describe("PATCH /api/shopping-lists/items/:id", () => {
       token,
     ).send({ checked: true });
     expect(res.status).toBe(404);
+  });
+
+  it("bumps the list version on a matching patch and 409s a stale baseVersion", async () => {
+    const milk = await itemFromPlan();
+    // The list built by the first GET starts at version 0.
+    const first = await withAuth(
+      request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`),
+      token,
+    ).send({ checked: true, baseVersion: 0 });
+    expect(first.status).toBe(200);
+    expect(first.body.version).toBe(1);
+
+    // A second writer whose baseVersion is still 0 is rejected with the current list.
+    const stale = await withAuth(
+      request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`),
+      token,
+    ).send({ checked: false, baseVersion: 0 });
+    expect(stale.status).toBe(409);
+    expect(stale.body).toMatchObject({ error: "conflict", version: 1 });
+    expect(stale.body.items.find((i: { id: string }) => i.id === milk.id).checked).toBe(true);
+
+    // Retried with the fresh version, it applies.
+    const retried = await withAuth(
+      request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`),
+      token,
+    ).send({ checked: false, baseVersion: 1 });
+    expect(retried.status).toBe(200);
+    expect(retried.body.version).toBe(2);
+  });
+
+  it("does not bump the version on sync-on-read GETs", async () => {
+    const milk = await itemFromPlan();
+    await withAuth(request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`), token)
+      .send({ checked: true, baseVersion: 0 })
+      .expect(200);
+    // Two reads in a row must leave the version untouched (version 1 from the
+    // single patch above), so a client's baseVersion stays valid across reads.
+    await getList();
+    const res = await getList();
+    expect(res.body.version).toBe(1);
   });
 
   it("400s on an empty body", async () => {

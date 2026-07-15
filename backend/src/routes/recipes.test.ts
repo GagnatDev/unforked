@@ -23,7 +23,9 @@ function sampleRecipe(overrides: Partial<RecipeDoc> = {}): Partial<RecipeDoc> {
   };
 }
 
-async function createRecipe(doc: Partial<RecipeDoc>): Promise<{ id: string; doc: RecipeDoc }> {
+async function createRecipe(
+  doc: Partial<RecipeDoc>,
+): Promise<{ id: string; doc: RecipeDoc; version: number }> {
   const res = await withAuth(request(app).post("/api/recipes"), token).send(doc);
   return res.body;
 }
@@ -110,6 +112,54 @@ describe("client-provided recipe id (offline-first create)", () => {
       sampleRecipe({ id: "not-a-uuid" } as Partial<RecipeDoc>),
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe("optimistic concurrency (baseVersion / 409)", () => {
+  it("exposes a version on create, get and list", async () => {
+    const created = await createRecipe(sampleRecipe());
+    expect(created.version).toBe(0);
+    const get = await withAuth(request(app).get(`/api/recipes/${created.id}`), token);
+    expect(get.body.version).toBe(0);
+    const list = await withAuth(request(app).get("/api/recipes"), token);
+    expect(list.body[0].version).toBe(0);
+  });
+
+  it("bumps the version on a matching update", async () => {
+    const created = await createRecipe(sampleRecipe());
+    const res = await withAuth(request(app).put(`/api/recipes/${created.id}`), token).send(
+      sampleRecipe({ name: "Waffles", baseVersion: 0 } as Partial<RecipeDoc>),
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.version).toBe(1);
+  });
+
+  it("rejects a stale update with 409 and the current server doc", async () => {
+    const created = await createRecipe(sampleRecipe());
+    // First writer advances the version to 1.
+    await withAuth(request(app).put(`/api/recipes/${created.id}`), token)
+      .send(sampleRecipe({ name: "Waffles", baseVersion: 0 } as Partial<RecipeDoc>))
+      .expect(200);
+
+    // Second writer still thinks the base is 0 → conflict.
+    const stale = await withAuth(request(app).put(`/api/recipes/${created.id}`), token).send(
+      sampleRecipe({ name: "Crepes", baseVersion: 0 } as Partial<RecipeDoc>),
+    );
+    expect(stale.status).toBe(409);
+    expect(stale.body).toMatchObject({ error: "conflict", id: created.id, version: 1 });
+    expect(stale.body.doc.name).toBe("Waffles");
+  });
+
+  it("still updates unconditionally when no baseVersion is sent (legacy client)", async () => {
+    const created = await createRecipe(sampleRecipe());
+    await withAuth(request(app).put(`/api/recipes/${created.id}`), token)
+      .send(sampleRecipe({ name: "Waffles", baseVersion: 0 } as Partial<RecipeDoc>))
+      .expect(200);
+    const res = await withAuth(request(app).put(`/api/recipes/${created.id}`), token).send(
+      sampleRecipe({ name: "Pancakes" }),
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.version).toBe(2);
   });
 });
 

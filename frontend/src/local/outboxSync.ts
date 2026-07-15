@@ -6,10 +6,18 @@ import {
   type MealPlanOpPayload,
   type OutboxOp,
   putOutboxOp,
+  type RecipeUpdatePayload,
   type ShoppingItemCreatePayload,
   type ShoppingItemUpdatePayload,
 } from './db'
 import { mergeMealPlan } from './mealPlanMerge'
+import { mergeRecipe } from './recipeMerge'
+
+/**
+ * How many times a single op re-fetches the current version and retries after
+ * a `409` before it is left blocked for the next drain (offline-first A5).
+ */
+const MAX_CONFLICT_RETRIES = 3
 
 /**
  * Outbox sync engine — the push half of the offline-first sync (spec A6).
@@ -61,26 +69,22 @@ function classifyFailure(status: number, body: string): SendResult {
 
 // --- recipe ops ---
 
-function recipeUrl(op: OutboxOp): string {
-  return op.type === 'create' ? `${base}/api/recipes` : `${base}/api/recipes/${op.key}`
-}
-
-function recipeInit(op: OutboxOp): RequestInit {
-  if (op.type === 'delete') return { method: 'DELETE', headers: headers(op) }
-  if (op.type === 'create') {
-    return {
-      method: 'POST',
-      headers: headers(op),
-      body: JSON.stringify({ id: op.key, ...(op.payload as RecipeDoc) }),
-    }
-  }
-  return { method: 'PUT', headers: headers(op), body: JSON.stringify(op.payload) }
-}
-
 async function sendRecipeOp(op: OutboxOp): Promise<SendResult> {
+  if (op.type === 'update') return sendRecipeUpdate(op)
+
+  const url = op.type === 'create' ? `${base}/api/recipes` : `${base}/api/recipes/${op.key}`
+  const init: RequestInit =
+    op.type === 'create'
+      ? {
+          method: 'POST',
+          headers: headers(op),
+          body: JSON.stringify({ id: op.key, ...(op.payload as RecipeDoc) }),
+        }
+      : { method: 'DELETE', headers: headers(op) }
+
   let res: Response
   try {
-    res = await fetch(recipeUrl(op), recipeInit(op))
+    res = await fetch(url, init)
   } catch {
     return { ok: false, retry: 'queue', message: 'network unreachable' }
   }
@@ -88,6 +92,44 @@ async function sendRecipeOp(op: OutboxOp): Promise<SendResult> {
   // Deleting something the server no longer has is a no-op success (idempotent).
   if (op.type === 'delete' && res.status === 404) return { ok: true }
   return classifyFailure(res.status, await res.text().catch(() => ''))
+}
+
+/**
+ * PUT a recipe edit under optimistic concurrency. Sends our `baseVersion`; on a
+ * `409` the server returns its current doc + version, we field-merge our changes
+ * onto it (`mergeRecipe`) and retry with the fresh version. A `404` means the
+ * recipe is gone server-side, so the update is a no-op success.
+ */
+async function sendRecipeUpdate(op: OutboxOp): Promise<SendResult> {
+  const { baseDoc, nextDoc } = op.payload as RecipeUpdatePayload
+  const url = `${base}/api/recipes/${op.key}`
+  let doc = nextDoc
+  let baseVersion = op.baseVersion
+
+  for (let attempt = 0; attempt <= MAX_CONFLICT_RETRIES; attempt++) {
+    const body = baseVersion === undefined ? doc : { ...doc, baseVersion }
+    let res: Response
+    try {
+      res = await fetch(url, { method: 'PUT', headers: headers(op), body: JSON.stringify(body) })
+    } catch {
+      return { ok: false, retry: 'queue', message: 'network unreachable' }
+    }
+    if (res.ok) return { ok: true }
+    if (res.status === 404) return { ok: true }
+    if (res.status === 409) {
+      const conflict = (await res.json().catch(() => null)) as
+        | { doc?: RecipeDoc; version?: number }
+        | null
+      if (!conflict?.doc || conflict.version === undefined) break
+      // Re-merge our original edit onto the server's current doc, not the
+      // previously-merged one, so our intent stays relative to `baseDoc`.
+      doc = mergeRecipe(baseDoc, nextDoc, conflict.doc)
+      baseVersion = conflict.version
+      continue
+    }
+    return classifyFailure(res.status, await res.text().catch(() => ''))
+  }
+  return { ok: false, retry: 'key', message: 'conflict' }
 }
 
 // --- meal-plan ops (whole-doc PUT with a day-level merge onto the server doc) ---
@@ -99,44 +141,59 @@ const EMPTY_PLAN = (weekId: string): MealPlanDoc => ({
 })
 
 /**
- * Push one meal-plan edit. Re-reads the server's current plan, re-applies only
- * our changed days onto it (so a co-editor's other-day edits survive), then
- * PUTs the merged doc. There is no `409` precondition yet (phase 4); merging
- * before every PUT is what prevents different-day clobbering under LWW. The
- * reconciled state reaches the local store on the next background pull.
+ * Push one meal-plan edit under optimistic concurrency. Re-reads the server's
+ * current plan (and its version), re-applies only our changed days onto it
+ * (so a co-editor's other-day edits survive), then PUTs the merged doc with the
+ * server's version as `baseVersion`. On a `409` (someone wrote between our GET
+ * and PUT) we simply re-run the GET+merge against the now-current doc and retry;
+ * `mergeMealPlan` is idempotent, so this converges. The reconciled state reaches
+ * the local store on the next background pull.
  */
 async function sendMealPlanOp(op: OutboxOp): Promise<SendResult> {
   const { baseDoc, nextDoc } = op.payload as MealPlanOpPayload
   const weekId = op.key
   const url = `${base}/api/meal-plans/current${weekQuery(weekId)}`
 
-  let getRes: Response
-  try {
-    getRes = await fetch(url, { headers: headers(op) })
-  } catch {
-    return { ok: false, retry: 'queue', message: 'network unreachable' }
-  }
-  if (!getRes.ok) return classifyFailure(getRes.status, await getRes.text().catch(() => ''))
-  const server = ((await getRes.json().catch(() => null)) as MealPlanDoc | null) ?? EMPTY_PLAN(weekId)
+  for (let attempt = 0; attempt <= MAX_CONFLICT_RETRIES; attempt++) {
+    let getRes: Response
+    try {
+      getRes = await fetch(url, { headers: headers(op) })
+    } catch {
+      return { ok: false, retry: 'queue', message: 'network unreachable' }
+    }
+    if (!getRes.ok) return classifyFailure(getRes.status, await getRes.text().catch(() => ''))
+    const server: MealPlanDoc & { version?: number } =
+      ((await getRes.json().catch(() => null)) as (MealPlanDoc & { version?: number }) | null) ??
+      EMPTY_PLAN(weekId)
 
-  const merged = mergeMealPlan(baseDoc, nextDoc, server, weekId)
+    const merged = mergeMealPlan(baseDoc, nextDoc, server, weekId)
+    const body =
+      server.version === undefined ? merged : { ...merged, baseVersion: server.version }
 
-  let putRes: Response
-  try {
-    putRes = await fetch(url, {
-      method: 'PUT',
-      headers: headers(op),
-      body: JSON.stringify(merged),
-    })
-  } catch {
-    return { ok: false, retry: 'queue', message: 'network unreachable' }
+    let putRes: Response
+    try {
+      putRes = await fetch(url, { method: 'PUT', headers: headers(op), body: JSON.stringify(body) })
+    } catch {
+      return { ok: false, retry: 'queue', message: 'network unreachable' }
+    }
+    if (putRes.ok) return { ok: true }
+    if (putRes.status === 409) continue
+    return classifyFailure(putRes.status, await putRes.text().catch(() => ''))
   }
-  if (putRes.ok) return { ok: true }
-  return classifyFailure(putRes.status, await putRes.text().catch(() => ''))
+  return { ok: false, retry: 'key', message: 'conflict' }
 }
 
 // --- shopping-item ops (per-item create/update/delete) ---
 
+/**
+ * Best-known list version per week, learned across a drain from PATCH results
+ * and `409` bodies. Lets a batch of stale-based PATCHes converge on the current
+ * version without a 409 on every op. Stale entries only ever cost one extra
+ * `409` recovery, so it never needs clearing.
+ */
+const shoppingVersions = new Map<string, number>()
+
+/** Create / delete: idempotent by item id, so no version precondition applies. */
 function shoppingItemInit(op: OutboxOp): { url: string; init: RequestInit } {
   if (op.type === 'create') {
     const { weekId, item } = op.payload as ShoppingItemCreatePayload
@@ -156,13 +213,6 @@ function shoppingItemInit(op: OutboxOp): { url: string; init: RequestInit } {
       },
     }
   }
-  if (op.type === 'update') {
-    const { weekId, patch } = op.payload as ShoppingItemUpdatePayload
-    return {
-      url: `${base}/api/shopping-lists/items/${op.key}${weekQuery(weekId)}`,
-      init: { method: 'PATCH', headers: headers(op), body: JSON.stringify(patch) },
-    }
-  }
   const { weekId } = op.payload as { weekId: string }
   return {
     url: `${base}/api/shopping-lists/items/${op.key}${weekQuery(weekId)}`,
@@ -171,6 +221,8 @@ function shoppingItemInit(op: OutboxOp): { url: string; init: RequestInit } {
 }
 
 async function sendShoppingItemOp(op: OutboxOp): Promise<SendResult> {
+  if (op.type === 'update') return sendShoppingItemPatch(op)
+
   const { url, init } = shoppingItemInit(op)
   let res: Response
   try {
@@ -179,11 +231,48 @@ async function sendShoppingItemOp(op: OutboxOp): Promise<SendResult> {
     return { ok: false, retry: 'queue', message: 'network unreachable' }
   }
   if (res.ok) return { ok: true }
-  // A 404 on update/delete means the item is already gone server-side (a
-  // recipe-derived item left the plan, or it was removed elsewhere) — the
-  // client's intent is satisfied, so treat it as an idempotent success.
-  if ((op.type === 'delete' || op.type === 'update') && res.status === 404) return { ok: true }
+  // A 404 on delete means the item is already gone server-side — the client's
+  // intent is satisfied, so treat it as an idempotent success.
+  if (op.type === 'delete' && res.status === 404) return { ok: true }
   return classifyFailure(res.status, await res.text().catch(() => ''))
+}
+
+/**
+ * PATCH one shopping-list item under optimistic concurrency (offline-first A5).
+ * Sends the list's `baseVersion`; on a `409` (a concurrent item edit bumped the
+ * list) the server returns its current version, and we re-send the same
+ * single-field patch against it — item-targeted, so a co-editor's other-item
+ * change is never clobbered. A `404` means the item is gone (idempotent success).
+ */
+async function sendShoppingItemPatch(op: OutboxOp): Promise<SendResult> {
+  const { weekId, patch } = op.payload as ShoppingItemUpdatePayload
+  const url = `${base}/api/shopping-lists/items/${op.key}${weekQuery(weekId)}`
+  let baseVersion = shoppingVersions.get(weekId) ?? op.baseVersion
+
+  for (let attempt = 0; attempt <= MAX_CONFLICT_RETRIES; attempt++) {
+    const body = baseVersion === undefined ? patch : { ...patch, baseVersion }
+    let res: Response
+    try {
+      res = await fetch(url, { method: 'PATCH', headers: headers(op), body: JSON.stringify(body) })
+    } catch {
+      return { ok: false, retry: 'queue', message: 'network unreachable' }
+    }
+    if (res.ok) {
+      // The server bumps the list version by exactly one on a matching PATCH.
+      if (baseVersion !== undefined) shoppingVersions.set(weekId, baseVersion + 1)
+      return { ok: true }
+    }
+    if (res.status === 404) return { ok: true }
+    if (res.status === 409) {
+      const conflict = (await res.json().catch(() => null)) as { version?: number } | null
+      if (conflict?.version === undefined) break
+      baseVersion = conflict.version
+      shoppingVersions.set(weekId, baseVersion)
+      continue
+    }
+    return classifyFailure(res.status, await res.text().catch(() => ''))
+  }
+  return { ok: false, retry: 'key', message: 'conflict' }
 }
 
 async function sendOp(op: OutboxOp): Promise<SendResult> {
@@ -340,5 +429,6 @@ export function __resetOutboxSyncForTests(): void {
   draining = false
   rerunRequested = false
   started = false
+  shoppingVersions.clear()
   resetBackoff()
 }

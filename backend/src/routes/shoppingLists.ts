@@ -23,10 +23,15 @@ const patchItemSchema = z
     name: z.string().trim().min(1, "name must not be empty").optional(),
     quantity: z.string().optional(),
     unit: z.string().optional(),
+    // Optimistic-concurrency precondition (offline-first A5). Excluded from the
+    // "at least one field" check below so it never counts as an edit on its own.
+    baseVersion: z.number().int().nonnegative().optional(),
   })
-  .refine((body) => Object.values(body).some((value) => value !== undefined), {
-    message: "at least one field is required",
-  });
+  .refine(
+    ({ baseVersion: _baseVersion, ...edits }) =>
+      Object.values(edits).some((value) => value !== undefined),
+    { message: "at least one field is required" },
+  );
 
 const addItemSchema = z.object({
   // Optional client-minted UUID (offline-first: the client mints the item id so
@@ -56,7 +61,8 @@ export function shoppingListRoutes(db: Db): Router {
   router.get("/shopping-lists", async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeek(req.query.week);
-    res.json(await getSyncedShoppingList(db, familyId, weekId));
+    const { doc, version } = await getSyncedShoppingList(db, familyId, weekId);
+    res.json({ ...doc, version });
   });
 
   router.patch("/shopping-lists/items/:id", validateBody(patchItemSchema), async (req, res) => {
@@ -64,7 +70,7 @@ export function shoppingListRoutes(db: Db): Router {
     const weekId = resolveWeek(req.query.week);
     const itemId = requireUuidParam(req.params.id, res);
     if (!itemId) return;
-    const body = req.body as z.infer<typeof patchItemSchema>;
+    const { baseVersion, ...body } = req.body as z.infer<typeof patchItemSchema>;
     // name/quantity/unit describe the item itself; recipe-derived items rebuild
     // those from the plan on the next sync, so only manual entries may edit them.
     const editsContent =
@@ -74,6 +80,11 @@ export function shoppingListRoutes(db: Db): Router {
       const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
       const item = row?.doc.items.find((i) => i.id === itemId);
       if (!row || !item) return { status: "notFound" as const };
+      // Optimistic concurrency: a stale baseVersion loses to whatever the row
+      // is now. The sync engine re-applies its single-field patch and retries.
+      if (baseVersion !== undefined && row.version !== baseVersion) {
+        return { status: "conflict" as const, doc: row.doc, version: row.version };
+      }
       if (editsContent && !item.manual) return { status: "notManual" as const };
       // Apply name/quantity/unit before category so the remembered override
       // below is keyed to the item's new name.
@@ -91,8 +102,9 @@ export function shoppingListRoutes(db: Db): Router {
           trx,
         );
       }
-      await shoppingLists.updateDoc(trx, row.id, row.doc);
-      return { status: "ok" as const, item };
+      // A genuine edit bumps the version so concurrent stale writers 409.
+      await shoppingLists.updateDoc(trx, row.id, row.doc, { bumpVersion: true });
+      return { status: "ok" as const, item, version: row.version + 1 };
     });
 
     if (outcome.status === "notFound") {
@@ -103,7 +115,11 @@ export function shoppingListRoutes(db: Db): Router {
       res.status(400).json({ error: "Only manually added items can be edited" });
       return;
     }
-    res.json(outcome.item);
+    if (outcome.status === "conflict") {
+      res.status(409).json({ error: "conflict", version: outcome.version, ...outcome.doc });
+      return;
+    }
+    res.json({ ...outcome.item, version: outcome.version });
   });
 
   router.post("/shopping-lists/items", validateBody(addItemSchema), async (req, res) => {

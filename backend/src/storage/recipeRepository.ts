@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 import type { Db } from "../db/kysely.js";
-import type { RecipeDoc, RecipeResponse } from "../domain/types.js";
+import type { ConcurrentWriteResult, RecipeDoc, RecipeResponse } from "../domain/types.js";
 
 export interface FindAllOptions {
   nameQuery?: string;
@@ -21,7 +21,7 @@ export class RecipeRepository {
   async findAll(familyId: string, options: FindAllOptions = {}): Promise<RecipeResponse[]> {
     let query = this.db
       .selectFrom("recipes")
-      .select(["id", "doc"])
+      .select(["id", "doc", "version"])
       .where("family_id", "=", familyId);
 
     if (options.nameQuery?.trim()) {
@@ -34,28 +34,31 @@ export class RecipeRepository {
     }
 
     const rows = await query.orderBy(sql`doc->>'name'`).execute();
-    return rows.map((r) => ({ id: r.id, doc: r.doc }));
+    return rows.map((r) => ({ id: r.id, doc: r.doc, version: r.version }));
   }
 
-  async findById(familyId: string, id: string): Promise<RecipeDoc | undefined> {
+  async findById(
+    familyId: string,
+    id: string,
+  ): Promise<{ doc: RecipeDoc; version: number } | undefined> {
     const row = await this.db
       .selectFrom("recipes")
-      .select("doc")
+      .select(["doc", "version"])
       .where("id", "=", id)
       .where("family_id", "=", familyId)
       .executeTakeFirst();
-    return row?.doc;
+    return row ? { doc: row.doc, version: row.version } : undefined;
   }
 
   async findByIds(familyId: string, ids: string[]): Promise<RecipeResponse[]> {
     if (ids.length === 0) return [];
     const rows = await this.db
       .selectFrom("recipes")
-      .select(["id", "doc"])
+      .select(["id", "doc", "version"])
       .where("family_id", "=", familyId)
       .where("id", "in", ids)
       .execute();
-    return rows.map((r) => ({ id: r.id, doc: r.doc }));
+    return rows.map((r) => ({ id: r.id, doc: r.doc, version: r.version }));
   }
 
   /**
@@ -65,31 +68,59 @@ export class RecipeRepository {
    * survives a reload — conflicts on the id and does nothing, so the original
    * row wins. Without an `id` the database mints one as before.
    */
-  async insert(familyId: string, doc: RecipeDoc, id?: string): Promise<string> {
+  async insert(
+    familyId: string,
+    doc: RecipeDoc,
+    id?: string,
+  ): Promise<{ id: string; version: number }> {
     if (id) {
-      await this.db
+      const inserted = await this.db
         .insertInto("recipes")
         .values({ id, family_id: familyId, doc: JSON.stringify(doc) })
         .onConflict((oc) => oc.column("id").doNothing())
-        .executeTakeFirstOrThrow();
-      return id;
+        .returning(["id", "version"])
+        .executeTakeFirst();
+      if (inserted) return { id: inserted.id, version: inserted.version };
+      // Idempotent replay: the row already existed, so return its current
+      // version (the original doc wins — see the doc comment above).
+      const existing = await this.findById(familyId, id);
+      return { id, version: existing?.version ?? 0 };
     }
     const row = await this.db
       .insertInto("recipes")
       .values({ family_id: familyId, doc: JSON.stringify(doc) })
-      .returning("id")
+      .returning(["id", "version"])
       .executeTakeFirstOrThrow();
-    return row.id;
+    return { id: row.id, version: row.version };
   }
 
-  async update(familyId: string, id: string, doc: RecipeDoc): Promise<boolean> {
-    const result = await this.db
+  /**
+   * Optimistic-concurrency update. Without a `baseVersion` the write is
+   * unconditional (preserving legacy single-client behaviour); with one, the
+   * update only lands when the stored version matches, bumping it on success.
+   * A mismatch returns the current server doc + version so the caller can 409.
+   */
+  async update(
+    familyId: string,
+    id: string,
+    doc: RecipeDoc,
+    baseVersion?: number,
+  ): Promise<ConcurrentWriteResult<RecipeDoc>> {
+    let update = this.db
       .updateTable("recipes")
-      .set({ doc: JSON.stringify(doc), updated_at: new Date() })
+      .set({ doc: JSON.stringify(doc), updated_at: new Date(), version: sql`version + 1` })
       .where("id", "=", id)
-      .where("family_id", "=", familyId)
-      .executeTakeFirstOrThrow();
-    return result.numUpdatedRows > 0n;
+      .where("family_id", "=", familyId);
+    if (baseVersion !== undefined) {
+      update = update.where("version", "=", baseVersion);
+    }
+    const updated = await update.returning("version").executeTakeFirst();
+    if (updated) return { status: "updated", version: updated.version };
+
+    // Nothing updated: distinguish a missing row from a version mismatch.
+    const current = await this.findById(familyId, id);
+    if (!current) return { status: "notFound" };
+    return { status: "conflict", doc: current.doc, version: current.version };
   }
 
   async delete(familyId: string, id: string): Promise<boolean> {

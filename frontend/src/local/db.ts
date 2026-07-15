@@ -2,6 +2,7 @@ import type {
   MealPlanDoc,
   PersistedShoppingListDoc,
   Recipe,
+  RecipeDoc,
   ShoppingCategory,
   ShoppingListEntry,
 } from '@/types'
@@ -39,6 +40,17 @@ export interface ShoppingItemPatch {
   name?: string
   quantity?: string
   unit?: string
+}
+
+/**
+ * Recipe update op payload. `baseDoc` is the recipe our edit started from and
+ * `nextDoc` is the recipe after it; on a `409` the sync engine field-merges our
+ * changes onto the server's current doc (see `recipeMerge.ts`). Recipe *creates*
+ * carry the bare `RecipeDoc` instead. The op `key` is the recipe id.
+ */
+export interface RecipeUpdatePayload {
+  baseDoc: RecipeDoc
+  nextDoc: RecipeDoc
 }
 
 /**
@@ -82,7 +94,11 @@ export interface OutboxOp {
    * Omitted for recipe deletes.
    */
   payload?: unknown
-  /** Reserved for phase-4 optimistic concurrency; unused while recipes are LWW. */
+  /**
+   * Optimistic-concurrency base version (offline-first A5): the version the
+   * edit started from, sent as the write precondition. On a `409` the sync
+   * engine re-reads the current version, merges, and retries.
+   */
   baseVersion?: number
   createdAt: number
   attempts: number

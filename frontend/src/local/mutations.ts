@@ -5,6 +5,8 @@ import {
   appendOutboxOp,
   deleteLocalRecipe,
   getLocalMealPlan,
+  getLocalRecipe,
+  getLocalShoppingList,
   mutateLocalShoppingList,
   type OutboxOp,
   type OutboxOpType,
@@ -27,13 +29,19 @@ function uuid(): string {
   return crypto.randomUUID()
 }
 
-function recipeOp(type: OutboxOpType, key: string, payload?: RecipeDoc): OutboxOp {
+function recipeOp(
+  type: OutboxOpType,
+  key: string,
+  payload?: unknown,
+  baseVersion?: number,
+): OutboxOp {
   return {
     opId: uuid(),
     entity: 'recipe',
     type,
     key,
     payload,
+    baseVersion,
     createdAt: Date.now(),
     attempts: 0,
   }
@@ -48,11 +56,17 @@ export async function createRecipe(doc: RecipeDoc): Promise<Recipe> {
   return recipe
 }
 
-/** Apply a recipe edit locally and queue the server update. */
+/**
+ * Apply a recipe edit locally and queue the server update. We snapshot the doc
+ * and version we started from so the sync engine can field-merge on a `409`
+ * (offline-first A5) and send `baseVersion` as the write precondition.
+ */
 export async function updateRecipe(id: string, doc: RecipeDoc): Promise<Recipe> {
-  const recipe: Recipe = { id, doc }
+  const existing = await getLocalRecipe(id)
+  const baseDoc = existing?.doc ?? doc
+  const recipe: Recipe = { id, doc, version: existing?.version }
   await putLocalRecipe(recipe)
-  await appendOutboxOp(recipeOp('update', id, doc))
+  await appendOutboxOp(recipeOp('update', id, { baseDoc, nextDoc: doc }, existing?.version))
   kickOutboxSync()
   return recipe
 }
@@ -96,6 +110,7 @@ function shoppingItemOp(
   type: OutboxOpType,
   itemId: string,
   payload: unknown,
+  baseVersion?: number,
 ): OutboxOp {
   return {
     opId: uuid(),
@@ -103,6 +118,7 @@ function shoppingItemOp(
     type,
     key: itemId,
     payload,
+    baseVersion,
     createdAt: Date.now(),
     attempts: 0,
   }
@@ -138,10 +154,13 @@ export async function patchShoppingItem(
   itemId: string,
   patch: ShoppingItemPatch,
 ): Promise<void> {
+  // The list's current version is the PATCH precondition (offline-first A5);
+  // a stale one yields a 409 that the sync engine recovers from.
+  const baseVersion = (await getLocalShoppingList(weekId))?.version
   await mutateLocalShoppingList(weekId, (doc) =>
     doc ? { ...doc, items: doc.items.map((i) => (i.id === itemId ? { ...i, ...patch } : i)) } : doc,
   )
-  await appendOutboxOp(shoppingItemOp('update', itemId, { weekId, patch }))
+  await appendOutboxOp(shoppingItemOp('update', itemId, { weekId, patch }, baseVersion))
   kickOutboxSync()
 }
 

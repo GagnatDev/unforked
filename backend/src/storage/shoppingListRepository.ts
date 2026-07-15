@@ -5,6 +5,7 @@ import type { PersistedShoppingListDoc } from "../domain/types.js";
 export interface ShoppingListRow {
   id: string;
   doc: PersistedShoppingListDoc;
+  version: number;
 }
 
 /**
@@ -36,7 +37,7 @@ export class ShoppingListRepository {
   ): Promise<ShoppingListRow | undefined> {
     return executor
       .selectFrom("shopping_lists")
-      .select(["id", "doc"])
+      .select(["id", "doc", "version"])
       .where("family_id", "=", familyId)
       .where(sql<boolean>`doc->>'weekIdentifier' = ${weekIdentifier}`)
       .forUpdate()
@@ -50,10 +51,25 @@ export class ShoppingListRepository {
       .execute();
   }
 
-  async updateDoc(executor: Db, id: string, doc: PersistedShoppingListDoc): Promise<void> {
+  /**
+   * Write back a list doc. `bumpVersion` is set only by genuine item mutations
+   * (offline-first A5) so a stale client PATCH is caught by the version
+   * precondition; sync-on-read rewrites must NOT bump it, or every read would
+   * invalidate every client's baseVersion.
+   */
+  async updateDoc(
+    executor: Db,
+    id: string,
+    doc: PersistedShoppingListDoc,
+    options: { bumpVersion?: boolean } = {},
+  ): Promise<void> {
     await executor
       .updateTable("shopping_lists")
-      .set({ doc: JSON.stringify(doc), updated_at: new Date() })
+      .set({
+        doc: JSON.stringify(doc),
+        updated_at: new Date(),
+        ...(options.bumpVersion ? { version: sql`version + 1` } : {}),
+      })
       .where("id", "=", id)
       .execute();
   }

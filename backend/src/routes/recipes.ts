@@ -33,6 +33,13 @@ const recipeCreateSchema = recipeDocSchema.extend({
   id: z.string().uuid().optional(),
 });
 
+// Update accepts an optional `baseVersion` for optimistic concurrency
+// (offline-first A5). When present, a stale version is rejected with 409 and
+// the current server doc; when absent the update is unconditional (legacy).
+const recipeUpdateSchema = recipeDocSchema.extend({
+  baseVersion: z.number().int().nonnegative().optional(),
+});
+
 const importSchema = z.object({ url: z.string() });
 
 /** Authenticated recipe routes; mounted under /api (after requireAuth). */
@@ -65,12 +72,12 @@ export function recipeRoutes(db: Db): Router {
     const { familyId } = await requireUserAndFamily(users, req);
     const id = requireUuidParam(req.params.id, res);
     if (!id) return;
-    const doc = await recipes.findById(familyId, id);
-    if (!doc) {
+    const found = await recipes.findById(familyId, id);
+    if (!found) {
       res.status(404).json({ error: "Recipe not found" });
       return;
     }
-    res.json({ id, doc });
+    res.json({ id, doc: found.doc, version: found.version });
   });
 
   router.post("/recipes/import", validateBody(importSchema), async (req, res) => {
@@ -86,20 +93,27 @@ export function recipeRoutes(db: Db): Router {
   router.post("/recipes", validateBody(recipeCreateSchema), async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
     const { id: clientId, ...doc } = req.body as z.infer<typeof recipeCreateSchema>;
-    const id = await recipes.insert(familyId, doc, clientId);
-    res.status(201).json({ id, doc });
+    const created = await recipes.insert(familyId, doc, clientId);
+    res.status(201).json({ id: created.id, doc, version: created.version });
   });
 
-  router.put("/recipes/:id", validateBody(recipeDocSchema), async (req, res) => {
+  router.put("/recipes/:id", validateBody(recipeUpdateSchema), async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
     const id = requireUuidParam(req.params.id, res);
     if (!id) return;
-    const doc = req.body as z.infer<typeof recipeDocSchema>;
-    if (!(await recipes.update(familyId, id, doc))) {
+    const { baseVersion, ...doc } = req.body as z.infer<typeof recipeUpdateSchema>;
+    const outcome = await recipes.update(familyId, id, doc, baseVersion);
+    if (outcome.status === "notFound") {
       res.status(404).json({ error: "Recipe not found" });
       return;
     }
-    res.json({ id, doc });
+    if (outcome.status === "conflict") {
+      // Stale write: hand back the current server doc so the sync engine can
+      // field-merge and retry (offline-first A5) instead of clobbering.
+      res.status(409).json({ error: "conflict", id, doc: outcome.doc, version: outcome.version });
+      return;
+    }
+    res.json({ id, doc, version: outcome.version });
   });
 
   router.delete("/recipes/:id", async (req, res) => {

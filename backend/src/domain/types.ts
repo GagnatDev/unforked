@@ -22,7 +22,19 @@ export interface RecipeDoc {
 export interface RecipeResponse {
   id: string;
   doc: RecipeDoc;
+  /** Optimistic-concurrency version (offline-first A5). Absent on legacy shapes. */
+  version?: number;
 }
+
+/**
+ * Result of an optimistic-concurrency write. `updated` carries the new version;
+ * `conflict` carries the server's current doc + version so the client can merge
+ * and retry; `notFound` means the target row does not exist for this family.
+ */
+export type ConcurrentWriteResult<TDoc> =
+  | { status: "updated"; version: number }
+  | { status: "conflict"; doc: TDoc; version: number }
+  | { status: "notFound" };
 
 export interface ImportRecipeResponse {
   doc: RecipeDoc;

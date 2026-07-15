@@ -18,6 +18,8 @@ export interface RecipeDoc {
 export interface Recipe {
   id: string
   doc: RecipeDoc
+  /** Optimistic-concurrency version from the server (offline-first A5). */
+  version?: number
 }
 
 export interface DayAssignment {
@@ -69,6 +71,8 @@ export interface ShoppingListEntry extends ShoppingListItem {
 export interface PersistedShoppingListDoc {
   weekIdentifier: string
   items: ShoppingListEntry[]
+  /** Optimistic-concurrency version of the list row (offline-first A5). */
+  version?: number
 }
 
 /** A machine-API key as listed by GET /api/api-keys (never the secret itself). */
