@@ -431,24 +431,27 @@ site in Safari, log in, then "Add to Home Screen" again.
    which icon you ship: **no icon ever resolves** while the assets sit behind the auth gate, and
    clearing cache / reinstalling does not help because the fetch is still cookie-less.
 
-   Fix: allowlist the exact discovery-asset paths in the sidecar so they proxy to the app
-   anonymously (identity headers still stripped, nothing injected), leaving every other path
-   authenticated. Unforked uses the homectl-auth-proxy `PUBLIC_PATHS` env (comma-separated exact
-   GET/HEAD paths), set on the sidecar container in `k8s/deployment.yml`:
+   Fix: keep all discovery assets under one directory and allowlist that subtree in the sidecar so
+   it proxies to the app anonymously (identity headers still stripped, nothing injected), leaving
+   every other path authenticated. Unforked emits the manifest, icons, favicon and svg under
+   `/static/` (`frontend/vite.config.ts`: `manifestFilename: 'static/manifest.webmanifest'`,
+   icon `src` under `/static/`, and the `index.html` `apple-touch-icon` / `icon` links point
+   there), then serves that subtree with the homectl-auth-proxy `PUBLIC_PATHS` env, set on the
+   sidecar container in `k8s/deployment.yml`:
 
    ```yaml
    - name: PUBLIC_PATHS
-     value: /manifest.webmanifest,/apple-touch-icon-180x180.png,/apple-touch-icon.png,/apple-touch-icon-precomposed.png,/pwa-icon.svg,/favicon.ico,/pwa-64x64.png,/pwa-192x192.png,/pwa-512x512.png,/maskable-icon-512x512.png
+     value: /static/*
    ```
 
-   The list must cover the manifest, the `apple-touch-icon` referenced from `index.html` (plus the
-   `/apple-touch-icon*.png` root paths iOS probes when the link fails), and every icon named in
-   the manifest. These are static branding files with no user data, so serving them anonymously is
-   safe. Requires a homectl-auth-proxy build that supports `PUBLIC_PATHS` — it matches these exact
-   paths **before** the auth middleware, strips any inbound `X-Homectl-*` / `Authorization`, and
-   injects no identity, so a public path cannot be used to smuggle a forged identity upstream.
-   After deploying, users must still delete and re-add the Home Screen app once for the OS to
-   re-fetch the (now reachable) icon.
+   `PUBLIC_PATHS` is a comma-separated list of exact paths or `/*` subtree prefixes (GET/HEAD
+   only). `/static/*` matches everything under `/static/` (but not `/staticfoo`). Everything in
+   there is a static branding file with no user data, so serving it anonymously is safe. Requires a
+   homectl-auth-proxy build that supports `PUBLIC_PATHS` — it matches **before** the auth
+   middleware, strips any inbound `X-Homectl-*` / `Authorization`, and injects no identity, so a
+   public path cannot be used to smuggle a forged identity upstream. After deploying, users must
+   still delete and re-add the Home Screen app once for the OS to re-fetch the (now reachable)
+   icon.
 
 ---
 

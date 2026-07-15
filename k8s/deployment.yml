@@ -110,12 +110,13 @@ spec:
             # app manifest and the icons in a background context that carries no
             # hs_session cookie; behind the auth gate those requests 401, so the
             # installed app falls back to a blank/letter icon (this is why the
-            # iOS icon never resolved, old or new). List the exact static paths
-            # the sidecar serves anonymously — GET/HEAD only, identity headers
-            # still stripped, everything else stays authenticated. Requires a
-            # homectl-auth-proxy build with PUBLIC_PATHS support.
+            # iOS icon never resolved, old or new). The frontend emits every such
+            # asset (manifest + icons + favicon) under /static/, so the sidecar
+            # serves that whole subtree anonymously — GET/HEAD only, identity
+            # headers still stripped, everything else stays authenticated.
+            # Requires a homectl-auth-proxy build with PUBLIC_PATHS support.
             - name: PUBLIC_PATHS
-              value: /manifest.webmanifest,/apple-touch-icon-180x180.png,/apple-touch-icon.png,/apple-touch-icon-precomposed.png,/pwa-icon.svg,/favicon.ico,/pwa-64x64.png,/pwa-192x192.png,/pwa-512x512.png,/maskable-icon-512x512.png
+              value: /static/*
             - name: NODE_ENV
               value: production
           # Do not point readiness at /readyz — it only checks JWKS and becomes
