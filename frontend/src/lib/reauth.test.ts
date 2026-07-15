@@ -8,6 +8,7 @@ const countOutboxOps = vi.fn(async () => 0)
 vi.mock('./session', () => ({ reloadForLogin: () => reloadForLogin() }))
 vi.mock('@/local/db', () => ({ countOutboxOps: () => countOutboxOps() }))
 
+import { __resetCrossTabForTests, startLeaderElection } from '@/local/crossTab'
 import {
   __resetReauthForTests,
   clearDeferredReauth,
@@ -15,6 +16,7 @@ import {
   onReauthStateChange,
   requestReauth,
   setSessionEstablished,
+  startReauthCrossTab,
 } from './reauth'
 
 function setOnline(online: boolean): void {
@@ -32,6 +34,7 @@ function fireVisibilityChange(state: DocumentVisibilityState): void {
 
 beforeEach(() => {
   __resetReauthForTests()
+  __resetCrossTabForTests()
   reloadForLogin.mockClear().mockReturnValue(true)
   countOutboxOps.mockClear().mockResolvedValue(0)
   setOnline(true)
@@ -40,6 +43,8 @@ beforeEach(() => {
 
 afterEach(() => {
   __resetReauthForTests()
+  __resetCrossTabForTests()
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
 })
 
 describe('requestReauth — classification', () => {
@@ -156,5 +161,82 @@ describe('deferred re-auth — state notifications', () => {
     unsubscribe()
     clearDeferredReauth()
     expect(handler).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('multi-tab coordination (phase 6)', () => {
+  const CHANNEL_NAME = 'unforked-cross-tab'
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  /** Emulate Web Locks that never grant, so this tab stays a follower. */
+  function stubUngrantedLocks(): void {
+    const locks = { request: () => new Promise<void>(() => {}) }
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: locks })
+  }
+
+  it('a follower hands re-auth to the leader without navigating itself', async () => {
+    stubUngrantedLocks()
+    startLeaderElection() // this tab gives up leadership; the lock never grants
+    setSessionEstablished(true)
+    countOutboxOps.mockResolvedValue(0)
+
+    const leaderTab = new BroadcastChannel(CHANNEL_NAME)
+    const seen: unknown[] = []
+    leaderTab.onmessage = (event: MessageEvent) => seen.push(event.data)
+
+    expect(await requestReauth()).toBe('deferred')
+    await flush()
+    leaderTab.close()
+
+    // A follower must never call reloadForLogin — the leader owns navigation.
+    expect(reloadForLogin).not.toHaveBeenCalled()
+    expect(seen).toContainEqual({ kind: 'reauth-request' })
+  })
+
+  it('the leader drives the navigation when a follower requests re-auth', async () => {
+    startReauthCrossTab() // this tab (sole leader by default) listens
+    setSessionEstablished(true)
+    countOutboxOps.mockResolvedValue(0)
+
+    const otherTab = new BroadcastChannel(CHANNEL_NAME)
+    otherTab.postMessage({ kind: 'reauth-request' })
+    await flush()
+    await flush()
+    otherTab.close()
+
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
+  })
+
+  it('mirrors another tab’s pending indicator', async () => {
+    startReauthCrossTab()
+    const handler = vi.fn()
+    const unsubscribe = onReauthStateChange(handler)
+    expect(isReauthDeferred()).toBe(false)
+
+    const otherTab = new BroadcastChannel(CHANNEL_NAME)
+    otherTab.postMessage({ kind: 'reauth-state', pending: true })
+    await flush()
+    expect(isReauthDeferred()).toBe(true)
+    expect(handler).toHaveBeenCalled()
+
+    otherTab.postMessage({ kind: 'reauth-state', pending: false })
+    await flush()
+    expect(isReauthDeferred()).toBe(false)
+
+    otherTab.close()
+    unsubscribe()
+  })
+
+  it('broadcasts a healthy session so peers drop the indicator', async () => {
+    const otherTab = new BroadcastChannel(CHANNEL_NAME)
+    const seen: unknown[] = []
+    otherTab.onmessage = (event: MessageEvent) => seen.push(event.data)
+
+    // A freshly reloaded tab confirms auth and clears — even with nothing local.
+    clearDeferredReauth()
+    await flush()
+    otherTab.close()
+
+    expect(seen).toContainEqual({ kind: 'reauth-state', pending: false })
   })
 })

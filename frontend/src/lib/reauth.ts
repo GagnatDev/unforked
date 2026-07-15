@@ -1,4 +1,5 @@
 import { countOutboxOps } from '@/local/db'
+import { type CrossTabMessage, isLeader, postCrossTab, subscribeCrossTab } from '@/local/crossTab'
 import { reloadForLogin } from './session'
 
 /**
@@ -45,12 +46,16 @@ export type ReauthDisposition = 'offline' | 'reloading' | 'deferred' | 'lost'
  * immediately; once true we are mid-session and unsynced work must be honoured.
  */
 let sessionEstablished = false
-/** Whether a re-auth navigation is deferred behind unsynced work. */
+/** Whether a re-auth navigation is deferred behind unsynced work (this tab). */
 let deferred = false
+/** Whether another tab reported a pending re-auth (mirror its indicator). */
+let remoteDeferred = false
 /** Whether the tab has gone hidden since re-auth was deferred (the break). */
 let sawHidden = false
 /** Whether the natural-break visibility listener is registered. */
 let listening = false
+/** Unsubscribe for the cross-tab message listener, once started. */
+let crossTabUnsubscribe: (() => void) | null = null
 
 function isOffline(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false
@@ -65,17 +70,28 @@ export function setSessionEstablished(value: boolean): void {
   sessionEstablished = value
 }
 
-/** Whether a re-auth navigation is currently deferred behind queued work. */
+/**
+ * Whether the quiet "will sync" indicator should show: either this tab deferred
+ * re-auth behind its own queued work, or another tab told us re-auth is pending
+ * (phase 6 — every open tab shows the same state).
+ */
 export function isReauthDeferred(): boolean {
-  return deferred
+  return deferred || remoteDeferred
 }
 
-function emitState(): void {
+/** Fire the in-tab state event so the UI reflects the current pending flag. */
+function dispatchReauthState(): void {
   try {
     window.dispatchEvent(new Event(REAUTH_STATE_EVENT))
   } catch {
     // No window (SSR/test) — nothing to notify.
   }
+}
+
+/** Update the UI and tell other tabs whether this tab's re-auth is pending. */
+function emitState(pending: boolean): void {
+  dispatchReauthState()
+  postCrossTab({ kind: 'reauth-state', pending })
 }
 
 /** Subscribe to deferred-reauth state changes. Returns an unsubscribe function. */
@@ -92,6 +108,17 @@ export function onReauthStateChange(handler: () => void): () => void {
  */
 export async function requestReauth(): Promise<ReauthDisposition> {
   if (isOffline()) return 'offline'
+
+  // Only the leader tab performs the re-auth navigation, so multiple open tabs
+  // never race on reloadForLogin (phase 6). A follower hands the decision to the
+  // leader and keeps its identity: the leader's reload refreshes the shared
+  // session cookie for every tab, and the quiet indicator (mirrored across tabs)
+  // covers the wait.
+  if (!isLeader()) {
+    postCrossTab({ kind: 'reauth-request' })
+    return 'deferred'
+  }
+
   // A deferral is already pending; the natural-break listener owns the reload.
   if (deferred) return 'deferred'
 
@@ -118,7 +145,7 @@ function deferReauth(): void {
   // app was backgrounded), the very next return to visible is the break.
   sawHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
   armNaturalBreak()
-  emitState()
+  emitState(true)
 }
 
 function armNaturalBreak(): void {
@@ -142,21 +169,60 @@ function onVisibilityChange(): void {
  * Clear a pending deferral — e.g. the session recovered on its own, or the
  * identity was dropped for another reason. Safe to call when nothing is
  * deferred.
+ *
+ * Always announces the healthy session to other tabs, even when this tab held no
+ * local flag: a tab that reloaded to re-auth comes back clean, yet its peers
+ * still need to drop the indicator (phase 6).
  */
 export function clearDeferredReauth(): void {
-  if (!deferred) return
+  const wasPending = deferred || remoteDeferred
   deferred = false
+  remoteDeferred = false
   sawHidden = false
-  emitState()
+  if (wasPending) dispatchReauthState()
+  postCrossTab({ kind: 'reauth-state', pending: false })
 }
 
-/** Test hook: reset all module-level state (and detach the listener). */
+/**
+ * Handle a message from another tab (phase 6). The leader drives the actual
+ * re-auth navigation on a follower's request; every tab mirrors the pending
+ * indicator so they stay consistent.
+ */
+function onCrossTabMessage(message: CrossTabMessage): void {
+  if (message.kind === 'reauth-request') {
+    if (isLeader()) void requestReauth()
+    return
+  }
+  if (message.kind === 'reauth-state') {
+    remoteDeferred = message.pending
+    if (!message.pending) {
+      // The session is healthy again elsewhere — drop any local deferral too.
+      deferred = false
+      sawHidden = false
+    }
+    dispatchReauthState()
+  }
+}
+
+/**
+ * Start listening for cross-tab re-auth coordination (phase 6). Idempotent;
+ * call once at app startup.
+ */
+export function startReauthCrossTab(): void {
+  if (crossTabUnsubscribe) return
+  crossTabUnsubscribe = subscribeCrossTab(onCrossTabMessage)
+}
+
+/** Test hook: reset all module-level state (and detach the listeners). */
 export function __resetReauthForTests(): void {
   sessionEstablished = false
   deferred = false
+  remoteDeferred = false
   sawHidden = false
   if (listening && typeof document !== 'undefined') {
     document.removeEventListener('visibilitychange', onVisibilityChange)
   }
   listening = false
+  crossTabUnsubscribe?.()
+  crossTabUnsubscribe = null
 }

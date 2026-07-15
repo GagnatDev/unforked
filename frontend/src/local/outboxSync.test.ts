@@ -10,8 +10,9 @@ import {
   listOutboxOps,
   type OutboxOp,
 } from './db'
+import { __resetCrossTabForTests, startLeaderElection } from './crossTab'
 import { createRecipe, deleteRecipe, saveMealPlan, updateRecipe } from './mutations'
-import { __resetOutboxSyncForTests, drainOutbox } from './outboxSync'
+import { __resetOutboxSyncForTests, drainOutbox, kickOutboxSync } from './outboxSync'
 
 type FetchMock = ReturnType<typeof vi.fn>
 let fetchMock: FetchMock
@@ -56,6 +57,7 @@ function recipeDoc(overrides: Record<string, unknown> = {}) {
 beforeEach(async () => {
   await __resetLocalDbForTests()
   __resetOutboxSyncForTests()
+  __resetCrossTabForTests()
   globalThis.indexedDB = new IDBFactory()
   fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
@@ -63,6 +65,8 @@ beforeEach(async () => {
 
 afterEach(() => {
   __resetOutboxSyncForTests()
+  __resetCrossTabForTests()
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
   vi.unstubAllGlobals()
 })
 
@@ -397,6 +401,48 @@ describe('drainOutbox — optimistic concurrency (409 resolution)', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ checked: true, baseVersion: 3 })
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ checked: true, baseVersion: 7 })
     expect(await listOutboxOps()).toHaveLength(0)
+  })
+})
+
+describe('kickOutboxSync — leader gating (phase 6)', () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  /** Emulate Web Locks that never grant, so this tab stays a follower. */
+  function stubUngrantedLocks(): void {
+    const locks = { request: () => new Promise<void>(() => {}) }
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: locks })
+  }
+
+  it('drains directly when this tab is the leader', async () => {
+    fetchMock.mockResolvedValue(res(200, '{}'))
+    await appendOutboxOp(op({ opId: 'a', type: 'create', key: 'r1' }))
+
+    // No election started → sole-leader default.
+    kickOutboxSync()
+    await flush()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+
+  it('asks the leader to drain instead of draining itself when a follower', async () => {
+    stubUngrantedLocks()
+    startLeaderElection() // hands off leadership; the lock is never granted here
+
+    const leaderTab = new BroadcastChannel('unforked-cross-tab')
+    const seen: unknown[] = []
+    leaderTab.onmessage = (event: MessageEvent) => seen.push(event.data)
+
+    fetchMock.mockResolvedValue(res(200, '{}'))
+    await appendOutboxOp(op({ opId: 'a', type: 'create', key: 'r1' }))
+    kickOutboxSync()
+    await flush()
+    leaderTab.close()
+
+    // A follower must not touch the network; it broadcasts a kick to the leader.
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(seen).toContainEqual({ kind: 'outbox-kick' })
+    expect(await listOutboxOps()).toHaveLength(1)
   })
 })
 
