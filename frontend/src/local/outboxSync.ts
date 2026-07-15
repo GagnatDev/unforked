@@ -10,6 +10,7 @@ import {
   type ShoppingItemCreatePayload,
   type ShoppingItemUpdatePayload,
 } from './db'
+import { isLeader, onBecomeLeader, postCrossTab, startLeaderElection, subscribeCrossTab } from './crossTab'
 import { mergeMealPlan } from './mealPlanMerge'
 import { mergeRecipe } from './recipeMerge'
 
@@ -389,9 +390,14 @@ export async function drainOutbox(): Promise<void> {
   }
 }
 
-/** Fire-and-forget drain, e.g. right after appending a mutation. */
+/**
+ * Fire-and-forget drain, e.g. right after appending a mutation. Only the leader
+ * tab drains, so multiple open tabs never double-flush the shared outbox (phase
+ * 6); a follower asks the leader to drain instead.
+ */
 export function kickOutboxSync(): void {
-  void drainOutbox()
+  if (isLeader()) void drainOutbox()
+  else postCrossTab({ kind: 'outbox-kick' })
 }
 
 // --- lifecycle / triggers ---
@@ -401,27 +407,45 @@ let started = false
 /**
  * Register drain triggers and flush anything that survived a reload. Idempotent
  * so it is safe to call once at app startup.
+ *
+ * Only the elected leader tab drains (phase 6): the reconnect/focus triggers and
+ * cross-tab kicks are all gated on leadership so multiple open tabs never
+ * double-flush the shared outbox, and a tab that becomes the leader (now, or
+ * later when the prior leader's tab closes) flushes whatever is queued.
  */
 export function startOutboxSync(): void {
   if (started || typeof window === 'undefined') return
   started = true
 
+  // Elect the single tab that drives draining and re-auth.
+  startLeaderElection()
+
+  const isOnline = () => typeof navigator === 'undefined' || navigator.onLine !== false
+  const drainIfLeaderOnline = () => {
+    if (isLeader() && isOnline()) void drainOutbox()
+  }
+
   const onOnline = () => {
     resetBackoff()
-    void drainOutbox()
-  }
-  const onFocus = () => {
-    if (typeof navigator === 'undefined' || navigator.onLine !== false) void drainOutbox()
+    if (isLeader()) void drainOutbox()
   }
 
   window.addEventListener('online', onOnline)
-  window.addEventListener('focus', onFocus)
+  window.addEventListener('focus', drainIfLeaderOnline)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') onFocus()
+    if (document.visibilityState === 'visible') drainIfLeaderOnline()
   })
 
-  // Drain ops persisted from a previous session (offline edit → reload).
-  void drainOutbox()
+  // A write in a follower tab asks the leader to drain the shared outbox.
+  subscribeCrossTab((message) => {
+    if (message.kind === 'outbox-kick' && isLeader()) void drainOutbox()
+  })
+
+  // Flush ops persisted from a previous session (offline edit → reload) and any
+  // work queued by followers, as soon as this tab holds leadership.
+  onBecomeLeader(() => {
+    if (isOnline()) void drainOutbox()
+  })
 }
 
 /** Test hook: clear the module-level drain/backoff state between cases. */

@@ -7,6 +7,8 @@ import type {
   ShoppingListEntry,
 } from '@/types'
 
+import { postCrossTab, subscribeCrossTab } from './crossTab'
+
 /**
  * Persistent local store (IndexedDB) for domain data — the read source of
  * truth for the UI (offline-first spec A1). The network populates it in the
@@ -180,7 +182,7 @@ async function writeTx(
   notifyLocalWrite(stores)
 }
 
-// --- change notifications (single-tab pub/sub; cross-tab arrives in phase 6) ---
+// --- change notifications (in-tab pub/sub + cross-tab mirror via BroadcastChannel) ---
 
 type Listener = { stores: ReadonlySet<LocalStoreName>; callback: () => void }
 const listeners = new Set<Listener>()
@@ -188,6 +190,8 @@ const listeners = new Set<Listener>()
 /**
  * Subscribes to local writes touching any of `stores`. The callback fires
  * after the write transaction has committed, so re-reads observe the new data.
+ * With `startCrossTabSync` active it also fires for writes committed in *other*
+ * tabs, so `useLocal` subscribers stay consistent across tabs (phase 6).
  */
 export function subscribeLocal(
   stores: readonly LocalStoreName[],
@@ -200,10 +204,33 @@ export function subscribeLocal(
   }
 }
 
-function notifyLocalWrite(stores: readonly LocalStoreName[]): void {
+/** Fire in-tab subscribers whose stores intersect `stores`. */
+function notifyLocalListeners(stores: readonly LocalStoreName[]): void {
   for (const listener of listeners) {
     if (stores.some((s) => listener.stores.has(s))) listener.callback()
   }
+}
+
+function notifyLocalWrite(stores: readonly LocalStoreName[]): void {
+  notifyLocalListeners(stores)
+  // Mirror the write to other tabs so their useLocal subscribers re-render too
+  // (offline-first spec A2, phase 6). Remote messages only re-fire listeners;
+  // they are never re-broadcast, so there is no echo loop.
+  postCrossTab({ kind: 'local-write', stores: [...stores] })
+}
+
+let crossTabUnsubscribe: (() => void) | null = null
+
+/**
+ * Bridge writes committed in other tabs into this tab's change notifications, so
+ * a local write elsewhere re-renders this tab's `useLocal` subscribers (offline
+ * -first spec A2, phase 6). Idempotent; call once at app startup.
+ */
+export function startCrossTabSync(): void {
+  if (crossTabUnsubscribe) return
+  crossTabUnsubscribe = subscribeCrossTab((message) => {
+    if (message.kind === 'local-write') notifyLocalListeners(message.stores)
+  })
 }
 
 // --- recipes ---
@@ -381,4 +408,6 @@ export async function __resetLocalDbForTests(): Promise<void> {
     dbPromise = null
   }
   listeners.clear()
+  crossTabUnsubscribe?.()
+  crossTabUnsubscribe = null
 }
