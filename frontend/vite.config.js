@@ -13,10 +13,9 @@ export default defineConfig({
         VitePWA({
             registerType: 'prompt',
             injectRegister: 'auto',
-            // All PWA discovery assets live under /static/ so the auth-proxy sidecar
-            // can expose them with a single `PUBLIC_PATHS=/static/*` prefix (the OS
-            // fetches the manifest + icons without a session cookie when installing to
-            // the Home Screen; see docs/auth-sidecar-migration.md).
+            // All PWA discovery assets live under /static/, which the auth-proxy
+            // sidecar serves without a session cookie — the OS fetches the manifest
+            // and icons anonymously when installing to the Home Screen.
             includeAssets: [
                 'static/favicon.ico',
                 'static/pwa-icon.svg',
