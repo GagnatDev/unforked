@@ -405,8 +405,6 @@ describe('drainOutbox — optimistic concurrency (409 resolution)', () => {
 })
 
 describe('kickOutboxSync — leader gating (phase 6)', () => {
-  const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
-
   /** Emulate Web Locks that never grant, so this tab stays a follower. */
   function stubUngrantedLocks(): void {
     const locks = { request: () => new Promise<void>(() => {}) }
@@ -417,12 +415,15 @@ describe('kickOutboxSync — leader gating (phase 6)', () => {
     fetchMock.mockResolvedValue(res(200, '{}'))
     await appendOutboxOp(op({ opId: 'a', type: 'create', key: 'r1' }))
 
-    // No election started → sole-leader default.
+    // No election started → sole-leader default. The drain is fire-and-forget,
+    // so poll until its async chain (store read → fetch → store delete) settles
+    // rather than guessing at a fixed number of microtask/timer ticks.
     kickOutboxSync()
-    await flush()
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(await listOutboxOps()).toHaveLength(0)
+    await vi.waitFor(async () => {
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(await listOutboxOps()).toHaveLength(0)
+    })
   })
 
   it('asks the leader to drain instead of draining itself when a follower', async () => {
@@ -436,12 +437,15 @@ describe('kickOutboxSync — leader gating (phase 6)', () => {
     fetchMock.mockResolvedValue(res(200, '{}'))
     await appendOutboxOp(op({ opId: 'a', type: 'create', key: 'r1' }))
     kickOutboxSync()
-    await flush()
+
+    // A follower broadcasts a kick to the leader; cross-tab delivery is async, so
+    // wait for it to arrive instead of relying on a single event-loop turn.
+    await vi.waitFor(() => expect(seen).toContainEqual({ kind: 'outbox-kick' }))
     leaderTab.close()
 
-    // A follower must not touch the network; it broadcasts a kick to the leader.
+    // A follower must not touch the network — the broadcast, not a local drain,
+    // is what does the work.
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(seen).toContainEqual({ kind: 'outbox-kick' })
     expect(await listOutboxOps()).toHaveLength(1)
   })
 })
