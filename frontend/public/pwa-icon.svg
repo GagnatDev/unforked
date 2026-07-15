@@ -1,10 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="96" fill="#18181b"/>
-  <circle cx="256" cy="240" r="120" fill="none" stroke="#e4e4e7" stroke-width="16"/>
-  <line x1="136" y1="240" x2="376" y2="240" stroke="#e4e4e7" stroke-width="16" stroke-linecap="round"/>
-  <line x1="256" y1="360" x2="256" y2="400" stroke="#e4e4e7" stroke-width="16" stroke-linecap="round"/>
-  <line x1="216" y1="400" x2="296" y2="400" stroke="#e4e4e7" stroke-width="16" stroke-linecap="round"/>
-  <line x1="180" y1="160" x2="180" y2="120" stroke="#e4e4e7" stroke-width="12" stroke-linecap="round"/>
-  <line x1="256" y1="140" x2="256" y2="100" stroke="#e4e4e7" stroke-width="12" stroke-linecap="round"/>
-  <line x1="332" y1="160" x2="332" y2="120" stroke="#e4e4e7" stroke-width="12" stroke-linecap="round"/>
+  <g fill="none" stroke="#e4e4e7" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Week planner -->
+    <rect x="186" y="189" width="230" height="195" rx="18" stroke-width="16"/>
+    <line x1="186" y1="236" x2="416" y2="236" stroke-width="14"/>
+    <line x1="244" y1="236" x2="244" y2="384" stroke-width="12"/>
+    <line x1="301" y1="236" x2="301" y2="384" stroke-width="12"/>
+    <line x1="359" y1="236" x2="359" y2="384" stroke-width="12"/>
+    <line x1="186" y1="310" x2="416" y2="310" stroke-width="12"/>
+    <!-- Binding rings sit on the top edge -->
+    <rect x="217" y="167" width="18" height="44" rx="9" fill="#18181b" stroke-width="12"/>
+    <rect x="292" y="167" width="18" height="44" rx="9" fill="#18181b" stroke-width="12"/>
+    <rect x="367" y="167" width="18" height="44" rx="9" fill="#18181b" stroke-width="12"/>
+    <!-- Fork -->
+    <path d="M105 134 L105 208 C105 236 130 240 130 262 L130 384" stroke-width="16"/>
+    <path d="M155 134 L155 208 C155 236 130 240 130 262" stroke-width="16"/>
+    <path d="M130 134 L130 262" stroke-width="16"/>
+  </g>
 </svg>
