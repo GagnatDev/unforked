@@ -8,12 +8,14 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { markAuthenticated, navigateForLogin, onSessionLost } from '@/lib/session'
 import {
-  markAuthenticated,
-  navigateForLogin,
-  onSessionLost,
-  reloadForLogin,
-} from '@/lib/session'
+  clearDeferredReauth,
+  isReauthDeferred,
+  onReauthStateChange,
+  requestReauth,
+  setSessionEstablished,
+} from '@/lib/reauth'
 
 export type UserInfo = { id: string; email: string; role: string; familyId: string }
 
@@ -26,6 +28,12 @@ type AuthContextValue = {
    * about to reload on its own.
    */
   reloading: boolean
+  /**
+   * The session was lost while unsynced work is queued, so the re-auth reload
+   * is deferred to a natural break (offline-first A7). The UI shows a quiet
+   * "will sync when you sign back in" indicator rather than reloading mid-edit.
+   */
+  reauthPending: boolean
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -44,28 +52,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [reloading, setReloading] = useState(false)
+  const [reauthPending, setReauthPending] = useState(isReauthDeferred)
 
   const loadUser = useCallback(async (): Promise<void> => {
     try {
       const res = await fetch(`${base}/api/auth/me`)
       if (res.ok) {
         // A confirmed identity means the session is healthy again: clear the
-        // re-auth loop counters so a later expiry gets a fresh set of attempts.
+        // re-auth loop counters and any deferred re-auth so a later expiry
+        // starts fresh, and mark the session established so a future 401 while
+        // editing is deferred rather than reloading mid-edit (offline-first A7).
         markAuthenticated()
+        clearDeferredReauth()
         setReloading(false)
+        setSessionEstablished(true)
         setUser((await res.json()) as UserInfo)
         return
       }
-      // A silent re-auth navigation was triggered: keep the identity as-is and
-      // flag the reload so the UI shows a spinner instead of flashing the
-      // manual session-expired screen for the moment before the page reloads.
-      if (res.status === 401 && reloadForLogin()) {
-        setReloading(true)
+      if (res.status === 401) {
+        // Let the classifier decide: reload now (silent re-auth in flight),
+        // defer behind queued work, or — offline — do nothing. Keep the current
+        // identity except when the session is truly lost.
+        const disposition = await requestReauth()
+        if (disposition === 'reloading') {
+          // Show a spinner instead of flashing the manual screen for the moment
+          // before the page reloads itself.
+          setReloading(true)
+          return
+        }
+        if (disposition === 'deferred' || disposition === 'offline') return
+        setUser(null)
         return
       }
       setUser(null)
     } catch {
-      setUser(null)
+      // A thrown fetch is a network error (offline / sidecar unreachable), never
+      // a session loss — do not blank the identity or navigate. Keeping the last
+      // identity is what lets offline reads keep working (offline-first A7).
     }
   }, [])
 
@@ -80,8 +103,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () =>
       onSessionLost(() => {
         setReloading(false)
+        setSessionEstablished(false)
+        clearDeferredReauth()
         setUser(null)
       }),
+    []
+  )
+
+  // Reflect the deferred-reauth flag (set by the classifier when a 401 lands
+  // with unsynced work queued) so the UI can show the quiet "will sync" state.
+  useEffect(
+    () => onReauthStateChange(() => setReauthPending(isReauthDeferred())),
     []
   )
 
@@ -120,12 +152,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore — navigating away is the important part.
     }
+    setSessionEstablished(false)
     await navigateForLogin()
   }, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, reloading, logout, refreshUser }),
-    [user, loading, reloading, logout, refreshUser]
+    () => ({ user, loading, reloading, reauthPending, logout, refreshUser }),
+    [user, loading, reloading, reauthPending, logout, refreshUser]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

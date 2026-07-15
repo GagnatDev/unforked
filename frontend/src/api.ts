@@ -1,4 +1,4 @@
-import { reloadForLogin } from '@/lib/session'
+import { requestReauth } from '@/lib/reauth'
 import type {
   ApiKey,
   MealPlanDoc,
@@ -27,8 +27,11 @@ function normalizeRecipeDoc(doc: Partial<RecipeDoc>): RecipeDoc {
 
 /**
  * Same-origin JSON request. Auth is invisible to the SPA — the auth-proxy
- * sidecar authenticates from its session cookie. A 401 means no session: bounce
- * to a full page load so the sidecar can run its login redirect.
+ * sidecar authenticates from its session cookie. A 401 means no session, but we
+ * do not bounce to login directly: `requestReauth` classifies it so the reload
+ * fires only when genuinely online, and is deferred when unsynced work is
+ * queued rather than yanking the user mid-edit (offline-first spec A7). A
+ * network error (offline) throws below without ever reaching that path.
  */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
@@ -37,7 +40,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
   const res = await fetch(`${base}${path}`, { ...options, headers })
   if (!res.ok) {
-    if (res.status === 401) reloadForLogin()
+    if (res.status === 401) void requestReauth()
     const text = await res.text()
     throw new Error(text || `HTTP ${res.status}`)
   }
