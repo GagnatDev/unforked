@@ -1,5 +1,13 @@
 # Agent instructions (this repository)
 
+## Package manager
+
+This repo uses **pnpm** exclusively (a pnpm workspace with `frontend` and `backend`; `pnpm-lock.yaml` is committed). Always use pnpm — never `npm` or `yarn`. Running `npm install`/`yarn install` writes a foreign lockfile and a non-pnpm `node_modules`, which must not be committed.
+
+- Install: `pnpm install` (use `pnpm install --frozen-lockfile` in CI / to respect the committed lockfile).
+- Run a workspace script: `pnpm --filter <package> run <script>`, or `pnpm -r run <script>` across all packages.
+- Frontend unit tests: `pnpm --filter meal-planning-frontend run test:unit` (or `pnpm run test:unit` from `frontend/`).
+
 ## Playwright
 
 For `*.spec.ts`, `playwright.config.*`, or `frontend/e2e/`, read [`.agents/skills/playwright-best-practices/SKILL.md`](.agents/skills/playwright-best-practices/SKILL.md) first and follow it.
