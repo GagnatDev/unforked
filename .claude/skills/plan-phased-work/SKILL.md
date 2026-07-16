@@ -72,6 +72,23 @@ Each phase goes to one agent at a time. The agent should:
 6. **Hand off** — post a **status comment on the phase sub-issue**: what shipped, what was
    deferred, new modules/APIs/migrations, known gaps, and anything the next agent must
    know. This comment is the contract the next agent reads in step 1.
+7. **Improve the workflow** — if the phase surfaced friction in this process or a way to
+   make it work better (see below), note it.
+
+## Improving this skill
+
+This workflow is expected to get better with use. When an agent hits friction in the
+process itself — the spec/sub-issue split was wrong, dependencies were mis-stated, a phase
+wasn't actually independently mergeable, the handoff missed something, a verify/branch step
+didn't fit `AGENTS.md` — it should **propose the fix rather than just work around it**:
+
+- Flag it in the phase's handoff status comment under a short "Workflow notes" heading, so
+  it's visible to the planner and the next agent, and
+- If confident and the change is small, **edit this `SKILL.md` directly** in the phase PR;
+  otherwise describe the suggested change so the user can fold it in.
+
+Keep edits concise and in the same style. The goal is a self-improving loop: each run
+leaves the skill a little sharper for the next task.
 
 ## Producing the plan
 
