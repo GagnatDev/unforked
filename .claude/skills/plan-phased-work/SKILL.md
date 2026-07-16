@@ -73,22 +73,23 @@ Each phase goes to one agent at a time. The agent should:
    deferred, new modules/APIs/migrations, known gaps, and anything the next agent must
    know. This comment is the contract the next agent reads in step 1.
 7. **Improve the workflow** — if the phase surfaced friction in this process or a way to
-   make it work better (see below), note it.
+   make it work better, propose it for the user to fold in (see below); don't self-edit.
 
 ## Improving this skill
 
 This workflow is expected to get better with use. When an agent hits friction in the
 process itself — the spec/sub-issue split was wrong, dependencies were mis-stated, a phase
 wasn't actually independently mergeable, the handoff missed something, a verify/branch step
-didn't fit `AGENTS.md` — it should **propose the fix rather than just work around it**:
+didn't fit `AGENTS.md` — it should **propose the fix, never edit this skill itself**:
 
 - Flag it in the phase's handoff status comment under a short "Workflow notes" heading, so
   it's visible to the planner and the next agent, and
-- If confident and the change is small, **edit this `SKILL.md` directly** in the phase PR;
-  otherwise describe the suggested change so the user can fold it in.
+- Describe the concrete suggested change (what to change and why) so the user can decide
+  and fold it in. Do **not** modify `SKILL.md` as part of a phase PR — workflow changes go
+  through the user separately, keeping implementation PRs focused.
 
-Keep edits concise and in the same style. The goal is a self-improving loop: each run
-leaves the skill a little sharper for the next task.
+The goal is a self-improving loop: each run leaves clear suggestions that make the skill a
+little sharper for the next task.
 
 ## Producing the plan
 
