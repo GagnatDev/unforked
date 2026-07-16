@@ -166,7 +166,20 @@ describe('deferred re-auth — state notifications', () => {
 
 describe('multi-tab coordination (phase 6)', () => {
   const CHANNEL_NAME = 'unforked-cross-tab'
-  const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  /**
+   * Yield to the event loop until `predicate` holds. Cross-tab delivery goes
+   * through a `BroadcastChannel`, which hands messages off asynchronously with no
+   * guarantee they land within a single macrotask — polling for the expected
+   * effect is deterministic where a fixed `setTimeout(0)` races the assertion.
+   */
+  async function waitFor(predicate: () => boolean): Promise<void> {
+    for (let i = 0; i < 50; i++) {
+      if (predicate()) return
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    expect(predicate(), 'waitFor: condition not met in time').toBe(true)
+  }
 
   /** Emulate Web Locks that never grant, so this tab stays a follower. */
   function stubUngrantedLocks(): void {
@@ -185,7 +198,7 @@ describe('multi-tab coordination (phase 6)', () => {
     leaderTab.onmessage = (event: MessageEvent) => seen.push(event.data)
 
     expect(await requestReauth()).toBe('deferred')
-    await flush()
+    await waitFor(() => seen.length > 0)
     leaderTab.close()
 
     // A follower must never call reloadForLogin — the leader owns navigation.
@@ -200,8 +213,7 @@ describe('multi-tab coordination (phase 6)', () => {
 
     const otherTab = new BroadcastChannel(CHANNEL_NAME)
     otherTab.postMessage({ kind: 'reauth-request' })
-    await flush()
-    await flush()
+    await waitFor(() => reloadForLogin.mock.calls.length > 0)
     otherTab.close()
 
     expect(reloadForLogin).toHaveBeenCalledTimes(1)
@@ -215,12 +227,12 @@ describe('multi-tab coordination (phase 6)', () => {
 
     const otherTab = new BroadcastChannel(CHANNEL_NAME)
     otherTab.postMessage({ kind: 'reauth-state', pending: true })
-    await flush()
+    await waitFor(() => isReauthDeferred())
     expect(isReauthDeferred()).toBe(true)
     expect(handler).toHaveBeenCalled()
 
     otherTab.postMessage({ kind: 'reauth-state', pending: false })
-    await flush()
+    await waitFor(() => !isReauthDeferred())
     expect(isReauthDeferred()).toBe(false)
 
     otherTab.close()
@@ -234,7 +246,7 @@ describe('multi-tab coordination (phase 6)', () => {
 
     // A freshly reloaded tab confirms auth and clears — even with nothing local.
     clearDeferredReauth()
-    await flush()
+    await waitFor(() => seen.length > 0)
     otherTab.close()
 
     expect(seen).toContainEqual({ kind: 'reauth-state', pending: false })

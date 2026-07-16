@@ -14,6 +14,20 @@ import type { Recipe } from '@/types'
 const CHANNEL_NAME = 'unforked-cross-tab'
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+/**
+ * Yield to the event loop until `predicate` holds. Cross-tab delivery goes
+ * through a `BroadcastChannel`, which hands messages off asynchronously with no
+ * guarantee they land within a single macrotask — polling for the expected
+ * effect is deterministic where a fixed `setTimeout(0)` races the assertion.
+ */
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let i = 0; i < 50; i++) {
+    if (predicate()) return
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+  expect(predicate(), 'waitFor: condition not met in time').toBe(true)
+}
+
 function recipe(id: string, name: string): Recipe {
   return {
     id,
@@ -50,7 +64,7 @@ describe('cross-tab reactive reads (phase 6)', () => {
     // Simulate a recipe write committed in another tab.
     const otherTab = new BroadcastChannel(CHANNEL_NAME)
     otherTab.postMessage({ kind: 'local-write', stores: ['recipes'] })
-    await flush()
+    await waitFor(() => callback.mock.calls.length > 0)
     otherTab.close()
 
     expect(callback).toHaveBeenCalledTimes(1)
@@ -77,7 +91,7 @@ describe('cross-tab reactive reads (phase 6)', () => {
     otherTab.onmessage = (event: MessageEvent) => seen.push(event.data)
 
     await putLocalRecipe(recipe('r1', 'Soup'))
-    await flush()
+    await waitFor(() => seen.length > 0)
     otherTab.close()
 
     expect(seen).toContainEqual({ kind: 'local-write', stores: ['recipes'] })
