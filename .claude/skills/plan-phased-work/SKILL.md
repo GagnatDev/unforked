@@ -12,6 +12,19 @@ recording dependencies so an agent can reason about what may run in parallel.
 Exemplar to imitate: [`GagnatDev/unforked#84`](https://github.com/GagnatDev/unforked/issues/84)
 and its sub-issues #85–#90.
 
+## Planning principles
+
+- **Planning is planning only — never implement while planning.** Producing a plan means
+  writing the spec and sub-issues; it does **not** include code changes, edits, migrations,
+  or any implementation work. Investigation is read-only (reading files, `file:line`
+  grounding). Implementation happens later, one phase at a time, by the agent that picks up
+  a sub-issue.
+- **Plan so that risk decreases.** Slice the work to make each step as low-risk as
+  possible: prefer incremental upgrades and small, self-contained changes over big-bang
+  ones; sequence phases so a failure is isolated and easy to bisect; and **prioritize good
+  test coverage** — each phase should land with (or add) the tests that prove it, and its
+  "Done when" should include "no regression to X".
+
 ## Two-tier structure
 
 - **One spec issue** — the single source of truth for the design. All the detail lives
@@ -25,11 +38,11 @@ and its sub-issues #85–#90.
 2. **Where we are today** — grounded in a real read of the code; cite `file:line`.
 3. **Constraints** the design must respect.
 4. **Design** — numbered, referenceable sections (e.g. `A1`, `A2`, …) so sub-issues can
-   cite them precisely. Include a summary table when entities/cases differ.
+  cite them precisely. Include a summary table when entities/cases differ.
 5. **Resolved decisions** — every open question settled, with the choice, the rejected
-   alternative, and which phase it drives. Plan is not ready to phase until these are closed.
+  alternative, and which phase it drives. Plan is not ready to phase until these are closed.
 6. **Suggested phasing** — the ordered phase list; note which phases stand alone and
-   deliver felt value early.
+  deliver felt value early.
 7. **Agent implementation workflow** — the per-phase procedure (below).
 8. End with a note on what the design was *grounded in* (files read).
 
@@ -61,19 +74,22 @@ Keep each thin and self-contained. Include:
 Each phase goes to one agent at a time. The agent should:
 
 1. **Read first** — the spec issue, the phase sub-issue, and the **latest status comment
-   on each dependency's sub-issue** to learn the current state of the code.
+  on each dependency's sub-issue** to learn the current state of the code.
 2. **Branch from up-to-date `main`** (`git fetch origin main`; follow `AGENTS.md`).
 3. **Implement** against the referenced design sections.
 4. **Verify** — run the repo's build/test/typecheck (per `AGENTS.md`) before committing.
-   The change must merge to `main` without breaking existing functionality; if it can't
-   be fully done that way, ship the largest self-consistent slice and note what deferred.
-5. **Open a PR into `main`** referencing the spec and the phase (`Closes #<phase>`),
-   reviewable and mergeable on its own.
-6. **Hand off** — post a **status comment on the phase sub-issue**: what shipped, what was
-   deferred, new modules/APIs/migrations, known gaps, and anything the next agent must
-   know. This comment is the contract the next agent reads in step 1.
+  The change must merge to `main` without breaking existing functionality; if it can't
+  be fully done that way, ship the largest self-consistent slice and note what deferred.
+5. **Always open a PR into `main` when the sub-issue's implementation is done** —
+  reviewable and mergeable on its own. The PR body must include a sentence stating which
+  issue it closes (`Closes #<phase>`), referencing the spec as well. Opening the PR is not
+  optional and does not wait for the human to ask.
+6. **Hand off — always, without being prompted.** Post a **status comment on the phase
+  sub-issue** as soon as the work is done; never wait for the human to request it. Cover:
+  what shipped, what was deferred, new modules/APIs/migrations, known gaps, and anything
+  the next agent must know. This comment is the contract the next agent reads in step 1.
 7. **Improve the workflow** — if the phase surfaced friction in this process or a way to
-   make it work better, propose it for the user to fold in (see below); don't self-edit.
+  make it work better, propose it for the user to fold in (see below); don't self-edit.
 
 ## Improving this skill
 
@@ -94,10 +110,10 @@ little sharper for the next task.
 ## Producing the plan
 
 1. **Investigate** the codebase first — the spec's "where we are today" and constraints
-   must be grounded in real files, not assumptions.
+  must be grounded in real files, not assumptions.
 2. **Resolve open decisions** with the user before phasing.
 3. **Draft the spec**, then split into phases: smallest-first, independently mergeable,
-   value early.
+  value early.
 4. **Create the spec issue**, then each sub-issue, then link them as GitHub sub-issues
-   (`sub_issue_write`, method `add`, using the child issue's **id**, not its number).
+  (`sub_issue_write`, method `add`, using the child issue's **id**, not its number).
 5. Confirm the phase list, dependencies, and resolved decisions with the user.
