@@ -62,6 +62,15 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico}'],
         runtimeCaching: [
+          // The realtime SSE stream (/api/events) must never be served from a
+          // cache: a cached response would freeze the event feed and a caching
+          // strategy could buffer the long-lived body. NetworkOnly passes the
+          // request straight through; registered first so no later (or future,
+          // broader) /api rule can ever shadow it — first matching route wins.
+          {
+            urlPattern: /^https?:\/\/[^/]+\/api\/events/,
+            handler: 'NetworkOnly',
+          },
           // Recipe-tag autocomplete is not backed by the local store, so a
           // stale-while-revalidate cache is a safe, useful offline nicety. This
           // must be registered before the /api/recipes rule below, whose pattern

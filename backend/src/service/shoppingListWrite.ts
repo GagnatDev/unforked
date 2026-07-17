@@ -2,6 +2,7 @@ import type { Db } from "../db/kysely.js";
 import type { ShoppingCategory, ShoppingListEntry } from "../domain/types.js";
 import { IngredientCategoryRepository } from "../storage/ingredientCategoryRepository.js";
 import { ShoppingListRepository } from "../storage/shoppingListRepository.js";
+import { publishShoppingListEvent, type ChangeActor } from "./changeEvents.js";
 import { createManualEntry } from "./shoppingListSync.js";
 
 export interface ManualItemInput {
@@ -28,12 +29,18 @@ function isUniqueViolation(err: unknown): boolean {
  * the existing item is returned unchanged rather than appended again, so
  * replaying an offline outbox create (e.g. after a reload mid-flush) is
  * idempotent.
+ *
+ * Emits one `shopping-list.changed` event after the commit when anything was
+ * actually appended (a pure idempotent replay stays silent). Emission lives
+ * here — the layer shared by the human POST and the machine batch-add — with
+ * the actor passed in, so the two surfaces can't drift (design #104 D1).
  */
 export async function addManualItems(
   db: Db,
   familyId: string,
   weekId: string,
   inputs: ManualItemInput[],
+  actor: ChangeActor,
 ): Promise<ShoppingListEntry[]> {
   const shoppingLists = new ShoppingListRepository(db);
   const ingredientCategories = new IngredientCategoryRepository(db);
@@ -65,13 +72,25 @@ export async function addManualItems(
           await shoppingLists.insert(trx, familyId, { weekIdentifier: weekId, items: appended });
         }
       }
-      return created;
+      // Appends don't bump the version (adds are idempotent on the client id,
+      // not baseVersion-guarded), so the post-write version is the row's
+      // current one — 0 for a freshly inserted row (column default).
+      return { created, appendedCount: appended.length, version: row?.version ?? 0 };
     });
 
-  try {
-    return await insertItems();
-  } catch (err) {
+  const outcome = await insertItems().catch((err) => {
     if (!isUniqueViolation(err)) throw err;
     return insertItems();
+  });
+
+  if (outcome.appendedCount > 0) {
+    publishShoppingListEvent({
+      type: "shopping-list.changed",
+      familyId,
+      week: weekId,
+      version: outcome.version,
+      actor,
+    });
   }
+  return outcome.created;
 }

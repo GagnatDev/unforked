@@ -7,6 +7,7 @@ import { httpLogger } from "./logger.js";
 import { errorHandler } from "./middleware/error.js";
 import { requireAuth } from "./middleware/auth.js";
 import { apiKeyRoutes } from "./routes/apiKeys.js";
+import { eventRoutes, type EventStreamOptions } from "./routes/events.js";
 import { healthRouter } from "./routes/health.js";
 import { userRoutes } from "./routes/users.js";
 import { familyRoutes } from "./routes/family.js";
@@ -18,6 +19,8 @@ export interface AppDeps {
   db: Db;
   /** Directory of the built SPA to serve. Defaults to `<cwd>/web`; skipped if absent. */
   webRoot?: string;
+  /** SSE stream tuning (heartbeat interval, per-user cap). Tests shrink these. */
+  events?: EventStreamOptions;
 }
 
 function setStaticCacheHeaders(res: Response, filePath: string): void {
@@ -56,6 +59,7 @@ export function buildApp(deps: AppDeps): Express {
   api.use(recipeRoutes(deps.db));
   api.use(mealPlanRoutes(deps.db));
   api.use(shoppingListRoutes(deps.db));
+  api.use(eventRoutes(deps.db, deps.events));
   app.use("/api", api);
 
   // Serve the built SPA (single-container topology). express.static handles real

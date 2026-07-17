@@ -104,7 +104,14 @@ export function machineRoutes(db: Db): Router {
       const weekId = resolveWeekOr400(String(req.params.week), res);
       if (!weekId) return;
       const { items } = req.body as z.infer<typeof addItemsSchema>;
-      const created = await addManualItems(db, familyId, weekId, items);
+      // Machine adds are a first-class change source: addManualItems emits the
+      // same shopping-list.changed event as human adds, attributed to the key.
+      const key = currentApiKey(req);
+      const created = await addManualItems(db, familyId, weekId, items, {
+        kind: "machine",
+        id: key.id,
+        label: key.name,
+      });
       res.status(201).json({ weekIdentifier: weekId, items: created });
     },
   );
