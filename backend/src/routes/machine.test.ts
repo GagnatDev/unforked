@@ -2,6 +2,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildMachineApp } from "../machineApp.js";
 import { currentWeekIdentifier, nextWeekIdentifier } from "../domain/weekIdentifier.js";
+import { subscribeFamily, type ShoppingListEvent } from "../service/changeEvents.js";
 import { buildTestApp, setupAdmin, withAuth, type TestIdentity } from "../test/app.js";
 import { testDb, useCleanDb } from "../test/db.js";
 
@@ -186,6 +187,31 @@ describe("POST /machine/v1/shopping-lists/:week/items", () => {
     const res = await machinePost("/machine/v1/shopping-lists/current/items", items);
     expect(res.status).toBe(403);
     expect(res.body).toEqual({ error: "This API key does not have the 'write' scope" });
+  });
+
+  it("emits one family-scoped change event attributed to the machine actor (design #104 D1)", async () => {
+    const me = await withAuth(request(humanApp).get("/api/auth/me"), token);
+    const events: ShoppingListEvent[] = [];
+    const stop = subscribeFamily(me.body.familyId as string, (evt) => events.push(evt));
+    try {
+      const writeKey = await createWriteKey();
+      await machinePost(
+        "/machine/v1/shopping-lists/current/items",
+        { items: [{ name: "melk" }, { name: "batterier" }] },
+        writeKey,
+      ).expect(201);
+
+      // One event per mutation request, not per item.
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        type: "shopping-list.changed",
+        week: currentWeekIdentifier(),
+        actor: { kind: "machine", label: "Aivo rw" },
+      });
+      expect(events[0].actor.id).toBeTypeOf("string");
+    } finally {
+      stop();
+    }
   });
 
   it("adds items to the current week and the family sees them in the UI", async () => {

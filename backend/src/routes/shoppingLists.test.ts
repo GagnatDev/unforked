@@ -1,6 +1,7 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { RecipeDoc, ShoppingListEntry } from "../domain/types.js";
+import { subscribeFamily, type ShoppingListEvent } from "../service/changeEvents.js";
 import { buildTestApp, setupAdmin, withAuth, type TestIdentity } from "../test/app.js";
 import { useCleanDb } from "../test/db.js";
 
@@ -473,5 +474,134 @@ describe("DELETE /api/shopping-lists/items/:id", () => {
       token,
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe("change-event emission (design #104 D1)", () => {
+  // Subscribing straight to the in-process bus observes emission per mutation
+  // path without a live SSE stream; the stream itself is covered in
+  // events.test.ts. Publishing happens before the response is sent, so an
+  // awaited request has already delivered its event here.
+  async function captureEvents(): Promise<{ events: ShoppingListEvent[]; stop: () => void }> {
+    const me = await withAuth(request(app).get("/api/auth/me"), token);
+    const events: ShoppingListEvent[] = [];
+    const stop = subscribeFamily(me.body.familyId as string, (evt) => events.push(evt));
+    return { events, stop };
+  }
+
+  async function planItem(name = "milk"): Promise<ShoppingListEntry> {
+    const id = await createRecipe({
+      name: "R",
+      ingredients: [{ name, quantity: "1", unit: "l" }],
+      servings: 4,
+    });
+    await setPlan([{ day: "monday", recipeId: id, recipeName: "R" }]);
+    return findItem(await getList(), name);
+  }
+
+  it("PATCH emits exactly one event carrying the bumped version and the user actor", async () => {
+    const milk = await planItem();
+    const { events, stop } = await captureEvents();
+    try {
+      await withAuth(request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`), token)
+        .send({ checked: true })
+        .expect(200);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        type: "shopping-list.changed",
+        week,
+        version: 1,
+        actor: { kind: "user", label: token.email },
+      });
+      expect(events[0].actor.id).toBeTypeOf("string");
+    } finally {
+      stop();
+    }
+  });
+
+  it("rejected PATCHes (404, 409, 400) emit nothing", async () => {
+    const milk = await planItem();
+    const { events, stop } = await captureEvents();
+    try {
+      await withAuth(
+        request(app).patch(
+          `/api/shopping-lists/items/00000000-0000-4000-8000-000000000000?week=${week}`,
+        ),
+        token,
+      )
+        .send({ checked: true })
+        .expect(404);
+      await withAuth(request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`), token)
+        .send({ checked: true, baseVersion: 99 })
+        .expect(409);
+      await withAuth(request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`), token)
+        .send({ name: "not manual" })
+        .expect(400);
+      expect(events).toEqual([]);
+    } finally {
+      stop();
+    }
+  });
+
+  it("POST emits one event; an idempotent replay of the same client id stays silent", async () => {
+    const clientId = "33333333-3333-4333-8333-333333333333";
+    const { events, stop } = await captureEvents();
+    try {
+      await withAuth(request(app).post(`/api/shopping-lists/items?week=${week}`), token)
+        .send({ id: clientId, name: "Kaffe" })
+        .expect(201);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        type: "shopping-list.changed",
+        week,
+        actor: { kind: "user", label: token.email },
+      });
+
+      // Replaying the outbox create appends nothing, so no second event.
+      await withAuth(request(app).post(`/api/shopping-lists/items?week=${week}`), token)
+        .send({ id: clientId, name: "Kaffe" })
+        .expect(201);
+      expect(events).toHaveLength(1);
+    } finally {
+      stop();
+    }
+  });
+
+  it("DELETE emits for a manual item and stays silent on a rejected delete", async () => {
+    const bread = await planItem("bread");
+    const created = await withAuth(
+      request(app).post(`/api/shopping-lists/items?week=${week}`),
+      token,
+    ).send({ name: "Kaffe" });
+
+    const { events, stop } = await captureEvents();
+    try {
+      await withAuth(
+        request(app).delete(`/api/shopping-lists/items/${created.body.id}?week=${week}`),
+        token,
+      ).expect(204);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ type: "shopping-list.changed", week });
+
+      await withAuth(
+        request(app).delete(`/api/shopping-lists/items/${bread.id}?week=${week}`),
+        token,
+      ).expect(400);
+      expect(events).toHaveLength(1);
+    } finally {
+      stop();
+    }
+  });
+
+  it("sync-on-read GETs never emit (no event storms on reads)", async () => {
+    await planItem();
+    const { events, stop } = await captureEvents();
+    try {
+      await getList();
+      await getList();
+      expect(events).toEqual([]);
+    } finally {
+      stop();
+    }
   });
 });

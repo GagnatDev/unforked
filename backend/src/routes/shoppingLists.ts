@@ -6,6 +6,7 @@ import {
   normalizeIngredientName,
 } from "../domain/ingredientCategories.js";
 import { currentWeekIdentifier } from "../domain/weekIdentifier.js";
+import { publishShoppingListEvent, type ChangeActor } from "../service/changeEvents.js";
 import { getSyncedShoppingList } from "../service/shoppingListRead.js";
 import { addManualItems } from "../service/shoppingListWrite.js";
 import { requireUuidParam, validateBody } from "../middleware/validate.js";
@@ -55,6 +56,10 @@ export function shoppingListRoutes(db: Db): Router {
     return typeof weekParam === "string" ? weekParam : currentWeekIdentifier();
   }
 
+  function userActor(user: { id: string; email: string }): ChangeActor {
+    return { kind: "user", id: user.id, label: user.email };
+  }
+
   // Sync-on-read (self-heal after plan edits while keeping check-offs, category
   // choices and manual items) lives in service/shoppingListRead.ts, shared with
   // the machine API so Aivo sees exactly what the family sees here.
@@ -66,7 +71,7 @@ export function shoppingListRoutes(db: Db): Router {
   });
 
   router.patch("/shopping-lists/items/:id", validateBody(patchItemSchema), async (req, res) => {
-    const { familyId } = await requireUserAndFamily(users, req);
+    const { user, familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeek(req.query.week);
     const itemId = requireUuidParam(req.params.id, res);
     if (!itemId) return;
@@ -119,19 +124,28 @@ export function shoppingListRoutes(db: Db): Router {
       res.status(409).json({ error: "conflict", version: outcome.version, ...outcome.doc });
       return;
     }
+    // After the commit, never blocking the response (design #104 D1).
+    publishShoppingListEvent({
+      type: "shopping-list.changed",
+      familyId,
+      week: weekId,
+      version: outcome.version,
+      actor: userActor(user),
+    });
     res.json({ ...outcome.item, version: outcome.version });
   });
 
   router.post("/shopping-lists/items", validateBody(addItemSchema), async (req, res) => {
-    const { familyId } = await requireUserAndFamily(users, req);
+    const { user, familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeek(req.query.week);
     const body = req.body as z.infer<typeof addItemSchema>;
-    const [created] = await addManualItems(db, familyId, weekId, [body]);
+    // Event emission happens inside addManualItems (shared with the machine API).
+    const [created] = await addManualItems(db, familyId, weekId, [body], userActor(user));
     res.status(201).json(created);
   });
 
   router.delete("/shopping-lists/items/:id", async (req, res) => {
-    const { familyId } = await requireUserAndFamily(users, req);
+    const { user, familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeek(req.query.week);
     const itemId = requireUuidParam(req.params.id, res);
     if (!itemId) return;
@@ -139,22 +153,30 @@ export function shoppingListRoutes(db: Db): Router {
     const outcome = await db.transaction().execute(async (trx) => {
       const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
       const item = row?.doc.items.find((i) => i.id === itemId);
-      if (!row || !item) return "notFound" as const;
+      if (!row || !item) return { status: "notFound" as const };
       // Recipe-derived items would just reappear on the next sync.
-      if (!item.manual) return "notManual" as const;
+      if (!item.manual) return { status: "notManual" as const };
       row.doc.items = row.doc.items.filter((i) => i.id !== itemId);
       await shoppingLists.updateDoc(trx, row.id, row.doc);
-      return "deleted" as const;
+      // Deletes don't bump the version, so post-write it is the current one.
+      return { status: "deleted" as const, version: row.version };
     });
 
-    if (outcome === "notFound") {
+    if (outcome.status === "notFound") {
       res.status(404).json({ error: "Shopping-list item not found" });
       return;
     }
-    if (outcome === "notManual") {
+    if (outcome.status === "notManual") {
       res.status(400).json({ error: "Only manually added items can be deleted" });
       return;
     }
+    publishShoppingListEvent({
+      type: "shopping-list.changed",
+      familyId,
+      week: weekId,
+      version: outcome.version,
+      actor: userActor(user),
+    });
     res.status(204).end();
   });
 
