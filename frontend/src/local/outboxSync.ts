@@ -9,6 +9,7 @@ import {
   type RecipeUpdatePayload,
   type ShoppingItemCreatePayload,
   type ShoppingItemUpdatePayload,
+  type ShoppingStatusPayload,
 } from './db'
 import { isLeader, onBecomeLeader, postCrossTab, startLeaderElection, subscribeCrossTab } from './crossTab'
 import { noteShoppingFlush } from './liveEvents'
@@ -285,6 +286,57 @@ async function sendShoppingItemPatch(op: OutboxOp): Promise<SendResult> {
   return { ok: false, retry: 'key', message: 'conflict' }
 }
 
+// --- shopping-list status ops (approve / reopen, design #104 D4) ---
+
+/**
+ * POST an approve/reopen under optimistic concurrency. On a `409` the server
+ * returns its current doc + version; if its status already matches our intent
+ * (someone approved before us, or already reopened) the op is satisfied — a
+ * concurrent approval loses cleanly and the next pull shows the real approver.
+ * Otherwise we retry against the fresh version (e.g. items changed since we
+ * queued the approval). A `404` means the week has no list row server-side;
+ * there is nothing to mark, so the intent is treated as spent (idempotent
+ * success, mirroring item PATCH/DELETE 404 handling).
+ */
+async function sendShoppingStatusOp(op: OutboxOp): Promise<SendResult> {
+  const { weekId, status } = op.payload as ShoppingStatusPayload
+  const url = `${base}/api/shopping-lists/status${weekQuery(weekId)}`
+  let baseVersion = shoppingVersions.get(weekId) ?? op.baseVersion
+
+  for (let attempt = 0; attempt <= MAX_CONFLICT_RETRIES; attempt++) {
+    const body = baseVersion === undefined ? { status } : { status, baseVersion }
+    let res: Response
+    try {
+      res = await fetch(url, { method: 'POST', headers: headers(op), body: JSON.stringify(body) })
+    } catch {
+      return { ok: false, retry: 'queue', message: 'network unreachable' }
+    }
+    if (res.ok) {
+      // A genuine transition bumps the version; the response carries it. Feed
+      // the version map and the live-events echo gate (phase-2 handoff on #106).
+      const server = (await res.json().catch(() => null)) as { version?: number } | null
+      if (server?.version !== undefined) shoppingVersions.set(weekId, server.version)
+      noteShoppingFlush(weekId, server?.version)
+      return { ok: true }
+    }
+    if (res.status === 404) return { ok: true }
+    if (res.status === 409) {
+      const conflict = (await res.json().catch(() => null)) as
+        | { version?: number; status?: 'open' | 'approved' }
+        | null
+      if (conflict?.version === undefined) break
+      shoppingVersions.set(weekId, conflict.version)
+      // The server is already in our target state: intent satisfied. No write
+      // of ours happened, so nothing is noted for the echo gate.
+      if ((conflict.status ?? 'open') === status) return { ok: true }
+      baseVersion = conflict.version
+      continue
+    }
+    return classifyFailure(res.status, await res.text().catch(() => ''))
+  }
+  return { ok: false, retry: 'key', message: 'conflict' }
+}
+
 async function sendOp(op: OutboxOp): Promise<SendResult> {
   switch (op.entity) {
     case 'recipe':
@@ -293,6 +345,8 @@ async function sendOp(op: OutboxOp): Promise<SendResult> {
       return sendMealPlanOp(op)
     case 'shoppingItem':
       return sendShoppingItemOp(op)
+    case 'shoppingStatus':
+      return sendShoppingStatusOp(op)
     default:
       return { ok: false, retry: 'park', message: `unsupported entity: ${op.entity as string}` }
   }

@@ -160,6 +160,61 @@ test('recipe items offer no edit control', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Edit Milk' })).toHaveCount(0)
 })
 
+test('approving shows the persistent banner and reopening clears it (design #104 D4)', async ({
+  page,
+}) => {
+  const { requests } = await mockShoppingList(page, '2026-W13', WEEK_ITEMS)
+
+  await page.goto('/shopping-list')
+  await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
+
+  // Approve: the optimistic banner names the signed-in shopper immediately.
+  // Several global indicators also carry role="status", so scope by content.
+  await page.getByRole('button', { name: "I'm going shopping" }).click()
+  const banner = page.getByRole('status').filter({ hasText: 'is shopping' })
+  await expect(banner).toBeVisible()
+  await expect(banner).toContainText('dev@local.test is shopping')
+  await expect(page.getByRole('button', { name: "I'm going shopping" })).toHaveCount(0)
+  // The status write drains through the outbox in the background.
+  await expect
+    .poll(() =>
+      requests.filter((r) => r.url.includes('/status')).map((r) => (r.body as { status: string }).status),
+    )
+    .toEqual(['approved'])
+
+  // Items stay fully usable while the list is approved.
+  const milkCheckbox = page.getByRole('checkbox', { name: 'Mark Milk as in cart' })
+  await milkCheckbox.click()
+  await expect(milkCheckbox).toBeChecked()
+
+  // Done: the banner goes, the action returns, and the reopen syncs.
+  await page.getByRole('button', { name: 'Done' }).click()
+  await expect(banner).toHaveCount(0)
+  await expect(page.getByRole('button', { name: "I'm going shopping" })).toBeVisible()
+  await expect
+    .poll(() =>
+      requests.filter((r) => r.url.includes('/status')).map((r) => (r.body as { status: string }).status),
+    )
+    .toEqual(['approved', 'open'])
+})
+
+test('a list already approved by someone else shows their banner on load', async ({ page }) => {
+  await mockShoppingList(page, '2026-W13', WEEK_ITEMS, {
+    status: 'approved',
+    approvedBy: '99999999-9999-4999-8999-999999999999',
+    approvedByEmail: 'partner@example.com',
+    approvedAt: new Date().toISOString(),
+  })
+
+  await page.goto('/shopping-list')
+
+  const banner = page.getByRole('status').filter({ hasText: 'is shopping' })
+  await expect(banner).toBeVisible()
+  await expect(banner).toContainText('partner@example.com is shopping')
+  await expect(page.getByRole('button', { name: "I'm going shopping" })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
+})
+
 test('changing category moves the item to the other section', async ({ page }) => {
   const { requests } = await mockShoppingList(page, '2026-W13', WEEK_ITEMS)
 

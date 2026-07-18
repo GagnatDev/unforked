@@ -5,6 +5,7 @@ import type {
   ShoppingItemCreatePayload,
   ShoppingItemDeletePayload,
   ShoppingItemUpdatePayload,
+  ShoppingStatusPayload,
 } from './db'
 
 /**
@@ -31,9 +32,24 @@ export function applyShoppingOps(
     : null
 
   for (const op of ops) {
-    if (op.entity !== 'shoppingItem') continue
+    if (op.entity !== 'shoppingItem' && op.entity !== 'shoppingStatus') continue
     const forWeek = (op.payload as { weekId?: string } | undefined)?.weekId
     if (forWeek !== weekId) continue
+
+    if (op.entity === 'shoppingStatus') {
+      if (!doc) continue
+      // Re-apply our pending approve/reopen intent on top of the server's doc
+      // (design #104 D4), exactly like item ops: an offline approval must not
+      // be blinked away by a background pull before the op drains.
+      const { status, approvedBy, approvedByEmail, approvedAt } = op.payload as ShoppingStatusPayload
+      if (status === 'approved') {
+        doc = { ...doc, status, approvedBy, approvedByEmail, approvedAt }
+      } else {
+        const { status: _s, approvedBy: _b, approvedByEmail: _e, approvedAt: _a, ...open } = doc
+        doc = open
+      }
+      continue
+    }
 
     if (op.type === 'create') {
       const { item } = op.payload as ShoppingItemCreatePayload

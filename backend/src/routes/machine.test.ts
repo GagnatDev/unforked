@@ -178,6 +178,25 @@ describe("GET /machine/v1/shopping-lists/:week", () => {
     const res = await machineGet("/machine/v1/shopping-lists/next");
     expect(res.body).toEqual({ weekIdentifier: nextWeekIdentifier(), items: [] });
   });
+
+  it("exposes the approved / shopping-now status fields (design #104 D4)", async () => {
+    const week = currentWeekIdentifier();
+    await withAuth(request(humanApp).post(`/api/shopping-lists/items?week=${week}`), token)
+      .send({ name: "Melk" })
+      .expect(201);
+    await withAuth(request(humanApp).post(`/api/shopping-lists/status?week=${week}`), token)
+      .send({ status: "approved", baseVersion: 0 })
+      .expect(200);
+
+    const res = await machineGet("/machine/v1/shopping-lists/current");
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: "approved",
+      approvedByEmail: token.email,
+    });
+    expect(res.body.approvedBy).toBeTypeOf("string");
+    expect(new Date(res.body.approvedAt).getTime()).not.toBeNaN();
+  });
 });
 
 describe("POST /machine/v1/shopping-lists/:week/items", () => {

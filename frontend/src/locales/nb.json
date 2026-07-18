@@ -144,6 +144,9 @@
       "other": "Annet"
     },
     "progress": "{{checked}}/{{total}}",
+    "goShopping": "Jeg går og handler",
+    "approvedBanner": "🛒 {{email}} handler — startet {{time}}",
+    "done": "Ferdig",
     "addItem": "Legg til vare",
     "addItemPlaceholder": "F.eks. tannkrem",
     "changeCategoryAria": "Endre kategori for {{name}}",

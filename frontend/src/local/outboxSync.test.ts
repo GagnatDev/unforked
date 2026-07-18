@@ -340,6 +340,89 @@ describe('drainOutbox — shopping items', () => {
   })
 })
 
+describe('drainOutbox — shopping-list status (approve / reopen, design #104 D4)', () => {
+  function statusOp(overrides: Partial<OutboxOp> = {}): OutboxOp {
+    return op({
+      entity: 'shoppingStatus',
+      type: 'update',
+      key: 'w',
+      payload: {
+        weekId: 'w',
+        status: 'approved',
+        approvedBy: 'user-1',
+        approvedByEmail: 'ann@example.com',
+        approvedAt: '2026-07-06T17:12:00.000Z',
+      },
+      baseVersion: 2,
+      ...overrides,
+    })
+  }
+
+  it('POSTs the status with baseVersion and notes the returned version for the echo gate', async () => {
+    fetchMock.mockResolvedValue(res(200, '{"weekIdentifier":"w","items":[],"status":"approved","version":3}'))
+    await appendOutboxOp(statusOp())
+
+    await drainOutbox()
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/shopping-lists/status?week=w')
+    expect(init.method).toBe('POST')
+    // Only the intent travels; the server mints its own approver metadata.
+    expect(JSON.parse(init.body)).toEqual({ status: 'approved', baseVersion: 2 })
+    expect(await listOutboxOps()).toHaveLength(0)
+    expect(noteShoppingFlushMock).toHaveBeenCalledWith('w', 3)
+  })
+
+  it('resolves a 409 whose current status already matches the intent (lost approval race)', async () => {
+    fetchMock.mockResolvedValue(
+      res(409, '{"error":"conflict","version":5,"weekIdentifier":"w","items":[],"status":"approved"}'),
+    )
+    await appendOutboxOp(statusOp())
+
+    await drainOutbox()
+
+    // Someone else is shopping: our intent is spent, the op drains, and no
+    // flush is noted (no write of ours happened).
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(await listOutboxOps()).toHaveLength(0)
+    expect(noteShoppingFlushMock).not.toHaveBeenCalled()
+  })
+
+  it('retries a stale-version 409 against the fresh version', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res(409, '{"error":"conflict","version":7,"weekIdentifier":"w","items":[]}'))
+      .mockResolvedValueOnce(res(200, '{"weekIdentifier":"w","items":[],"status":"approved","version":8}'))
+    await appendOutboxOp(statusOp())
+
+    await drainOutbox()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ status: 'approved', baseVersion: 7 })
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+
+  it('treats a 404 (no list row server-side) as spent intent', async () => {
+    fetchMock.mockResolvedValue(res(404, '{"error":"Shopping list not found"}'))
+    await appendOutboxOp(statusOp())
+
+    await drainOutbox()
+
+    expect(await listOutboxOps()).toHaveLength(0)
+    expect(noteShoppingFlushMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the op queued when the network is unreachable', async () => {
+    fetchMock.mockRejectedValue(new TypeError('offline'))
+    await appendOutboxOp(statusOp())
+
+    await drainOutbox()
+
+    const ops = await listOutboxOps()
+    expect(ops).toHaveLength(1)
+    expect(ops[0].attempts).toBe(1)
+  })
+})
+
 describe('drainOutbox — optimistic concurrency (409 resolution)', () => {
   it('field-merges a recipe on 409 and retries with the fresh version', async () => {
     const base = recipeDoc({ name: 'Old', servings: 4 })

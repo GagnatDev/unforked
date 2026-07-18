@@ -68,11 +68,25 @@ export interface ShoppingListEntry extends ShoppingListItem {
   manual: boolean
 }
 
+/** Trip state of a weekly list. Absent on the doc means "open" (back-compat). */
+export type ShoppingListStatus = 'open' | 'approved'
+
 export interface PersistedShoppingListDoc {
   weekIdentifier: string
   items: ShoppingListEntry[]
   /** Optimistic-concurrency version of the list row (offline-first A5). */
   version?: number
+  /**
+   * Approved / "shopping now" state (design #104 D4): set together on
+   * approval, cleared together on reopen. All optional so legacy docs stay valid.
+   */
+  status?: ShoppingListStatus
+  /** User id of the member who approved the list. */
+  approvedBy?: string
+  /** Approver's email, denormalized for display. */
+  approvedByEmail?: string
+  /** ISO timestamp of the approval. */
+  approvedAt?: string
 }
 
 /** A machine-API key as listed by GET /api/api-keys (never the secret itself). */

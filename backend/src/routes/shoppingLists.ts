@@ -34,6 +34,12 @@ const patchItemSchema = z
     { message: "at least one field is required" },
   );
 
+const statusSchema = z.object({
+  status: z.enum(["approved", "open"]),
+  // Same optimistic-concurrency contract as item writes (design #104 D4).
+  baseVersion: z.number().int().nonnegative().optional(),
+});
+
 const addItemSchema = z.object({
   // Optional client-minted UUID (offline-first: the client mints the item id so
   // an add need not wait for a server round-trip). Replaying the same create is
@@ -142,6 +148,68 @@ export function shoppingListRoutes(db: Db): Router {
     // Event emission happens inside addManualItems (shared with the machine API).
     const [created] = await addManualItems(db, familyId, weekId, [body], userActor(user));
     res.status(201).json(created);
+  });
+
+  // Approved / "shopping now" state (design #104 D4). Approving marks the week
+  // as being shopped and records who + when; reopening ("done" / cancel) is
+  // allowed to any family member. A genuine transition bumps the version so
+  // stale writers 409 with the current doc, exactly like item writes — and
+  // approving an already-approved list 409s too (someone beat you to the trip).
+  router.post("/shopping-lists/status", validateBody(statusSchema), async (req, res) => {
+    const { user, familyId } = await requireUserAndFamily(users, req);
+    const weekId = resolveWeek(req.query.week);
+    const { status, baseVersion } = req.body as z.infer<typeof statusSchema>;
+
+    const outcome = await db.transaction().execute(async (trx) => {
+      const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
+      if (!row) return { status: "notFound" as const };
+      if (baseVersion !== undefined && row.version !== baseVersion) {
+        return { status: "conflict" as const, doc: row.doc, version: row.version };
+      }
+      const current = row.doc.status ?? "open";
+      if (status === "approved") {
+        if (current === "approved") {
+          return { status: "conflict" as const, doc: row.doc, version: row.version };
+        }
+        row.doc.status = "approved";
+        row.doc.approvedBy = user.id;
+        row.doc.approvedByEmail = user.email;
+        row.doc.approvedAt = new Date().toISOString();
+      } else {
+        if (current === "open") {
+          // Reopening an open list is a satisfied intent (e.g. an offline
+          // "done" replayed after someone else already reopened): no write,
+          // no version bump, no event.
+          return { status: "noop" as const, doc: row.doc, version: row.version };
+        }
+        // Absent = open (back-compat), so clear all four fields.
+        delete row.doc.status;
+        delete row.doc.approvedBy;
+        delete row.doc.approvedByEmail;
+        delete row.doc.approvedAt;
+      }
+      await shoppingLists.updateDoc(trx, row.id, row.doc, { bumpVersion: true });
+      return { status: "ok" as const, doc: row.doc, version: row.version + 1 };
+    });
+
+    if (outcome.status === "notFound") {
+      res.status(404).json({ error: "Shopping list not found" });
+      return;
+    }
+    if (outcome.status === "conflict") {
+      res.status(409).json({ error: "conflict", version: outcome.version, ...outcome.doc });
+      return;
+    }
+    if (outcome.status === "ok") {
+      publishShoppingListEvent({
+        type: "shopping-list.status",
+        familyId,
+        week: weekId,
+        version: outcome.version,
+        actor: userActor(user),
+      });
+    }
+    res.json({ ...outcome.doc, version: outcome.version });
   });
 
   router.delete("/shopping-lists/items/:id", async (req, res) => {
