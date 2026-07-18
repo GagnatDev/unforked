@@ -14,6 +14,11 @@ import { __resetCrossTabForTests, startLeaderElection } from './crossTab'
 import { createRecipe, deleteRecipe, saveMealPlan, updateRecipe } from './mutations'
 import { __resetOutboxSyncForTests, drainOutbox, kickOutboxSync } from './outboxSync'
 
+// The drain reports successful shopping flushes to the live-events echo gate
+// (design #104 D3); stubbed here to assert the call sites without a stream.
+const noteShoppingFlushMock = vi.hoisted(() => vi.fn())
+vi.mock('./liveEvents', () => ({ noteShoppingFlush: noteShoppingFlushMock }))
+
 type FetchMock = ReturnType<typeof vi.fn>
 let fetchMock: FetchMock
 
@@ -61,6 +66,7 @@ beforeEach(async () => {
   globalThis.indexedDB = new IDBFactory()
   fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
+  noteShoppingFlushMock.mockClear()
 })
 
 afterEach(() => {
@@ -301,6 +307,36 @@ describe('drainOutbox — shopping items', () => {
     await drainOutbox()
 
     expect(await listOutboxOps()).toHaveLength(0)
+    // No server write happened, so no echo event is coming — nothing to note.
+    expect(noteShoppingFlushMock).not.toHaveBeenCalled()
+  })
+
+  it('notes a flushed create for the live-events echo gate (no version — adds do not bump)', async () => {
+    fetchMock.mockResolvedValue(res(201, '{}'))
+    await appendOutboxOp(
+      op({ entity: 'shoppingItem', type: 'create', key: 'i1', payload: { weekId: 'w', item } }),
+    )
+
+    await drainOutbox()
+
+    expect(noteShoppingFlushMock).toHaveBeenCalledWith('w')
+  })
+
+  it('notes a flushed PATCH with the version it bumped the list to', async () => {
+    fetchMock.mockResolvedValue(res(200, '{}'))
+    await appendOutboxOp(
+      op({
+        entity: 'shoppingItem',
+        type: 'update',
+        key: 'i1',
+        payload: { weekId: 'w', patch: { checked: true } },
+        baseVersion: 3,
+      }),
+    )
+
+    await drainOutbox()
+
+    expect(noteShoppingFlushMock).toHaveBeenCalledWith('w', 4)
   })
 })
 

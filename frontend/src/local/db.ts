@@ -322,6 +322,20 @@ export async function putLocalShoppingList(
 }
 
 /**
+ * Week ids with a locally cached shopping list. The store is shared by every
+ * tab, so this is the cross-tab answer to "which weeks does the app care
+ * about" — used by the live-events reconnect catch-up (design #104 D3).
+ */
+export async function listLocalShoppingListWeeks(): Promise<string[]> {
+  return readTx(['shoppingLists'], async (tx) => {
+    const keys = await promisifyRequest<IDBValidKey[]>(
+      tx.objectStore('shoppingLists').getAllKeys(),
+    )
+    return keys.filter((key): key is string => typeof key === 'string')
+  })
+}
+
+/**
  * Read-modify-write of one week's shopping list in a single transaction, for
  * optimistic item mutations. Returning the input doc unchanged (or `null` for
  * a missing doc) still notifies subscribers; that's harmless.

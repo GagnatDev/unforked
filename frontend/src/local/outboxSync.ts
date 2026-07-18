@@ -11,6 +11,7 @@ import {
   type ShoppingItemUpdatePayload,
 } from './db'
 import { isLeader, onBecomeLeader, postCrossTab, startLeaderElection, subscribeCrossTab } from './crossTab'
+import { noteShoppingFlush } from './liveEvents'
 import { mergeMealPlan } from './mealPlanMerge'
 import { mergeRecipe } from './recipeMerge'
 
@@ -231,9 +232,15 @@ async function sendShoppingItemOp(op: OutboxOp): Promise<SendResult> {
   } catch {
     return { ok: false, retry: 'queue', message: 'network unreachable' }
   }
-  if (res.ok) return { ok: true }
+  if (res.ok) {
+    // The server wrote (and will echo a change event); creates and deletes do
+    // not bump the list version, so only the flush recency is worth noting.
+    noteShoppingFlush((op.payload as { weekId: string }).weekId)
+    return { ok: true }
+  }
   // A 404 on delete means the item is already gone server-side — the client's
-  // intent is satisfied, so treat it as an idempotent success.
+  // intent is satisfied, so treat it as an idempotent success. No server write
+  // happened, so no echo event is expected and nothing is noted.
   if (op.type === 'delete' && res.status === 404) return { ok: true }
   return classifyFailure(res.status, await res.text().catch(() => ''))
 }
@@ -260,7 +267,9 @@ async function sendShoppingItemPatch(op: OutboxOp): Promise<SendResult> {
     }
     if (res.ok) {
       // The server bumps the list version by exactly one on a matching PATCH.
-      if (baseVersion !== undefined) shoppingVersions.set(weekId, baseVersion + 1)
+      const bumped = baseVersion === undefined ? undefined : baseVersion + 1
+      if (bumped !== undefined) shoppingVersions.set(weekId, bumped)
+      noteShoppingFlush(weekId, bumped)
       return { ok: true }
     }
     if (res.status === 404) return { ok: true }
