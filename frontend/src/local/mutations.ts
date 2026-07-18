@@ -172,3 +172,71 @@ export async function deleteShoppingItem(weekId: string, itemId: string): Promis
   await appendOutboxOp(shoppingItemOp('delete', itemId, { weekId }))
   kickOutboxSync()
 }
+
+// --- shopping-list approved / "shopping now" state (design #104 D4) ---
+
+/**
+ * Approve a week's list ("I'm going shopping") optimistically and queue the
+ * status write. The approval metadata is minted here so the local doc (and any
+ * pull-merge replay while the op is queued) shows who is shopping immediately;
+ * the server's authoritative copy replaces it once the op drains and a pull
+ * lands. A concurrent approval by someone else loses cleanly on the server
+ * (409) and the next pull shows the actual approver.
+ */
+export async function approveShoppingList(
+  weekId: string,
+  approver: { id: string; email: string },
+): Promise<void> {
+  const baseVersion = (await getLocalShoppingList(weekId))?.version
+  const approvedAt = new Date().toISOString()
+  await mutateLocalShoppingList(weekId, (doc) =>
+    doc
+      ? {
+          ...doc,
+          status: 'approved',
+          approvedBy: approver.id,
+          approvedByEmail: approver.email,
+          approvedAt,
+        }
+      : doc,
+  )
+  await appendOutboxOp({
+    opId: uuid(),
+    entity: 'shoppingStatus',
+    type: 'update',
+    key: weekId,
+    payload: {
+      weekId,
+      status: 'approved',
+      approvedBy: approver.id,
+      approvedByEmail: approver.email,
+      approvedAt,
+    },
+    baseVersion,
+    createdAt: Date.now(),
+    attempts: 0,
+  })
+  kickOutboxSync()
+}
+
+/** Reopen a week's list ("done shopping" / cancel) — allowed to any member. */
+export async function reopenShoppingList(weekId: string): Promise<void> {
+  const baseVersion = (await getLocalShoppingList(weekId))?.version
+  await mutateLocalShoppingList(weekId, (doc) => {
+    if (!doc) return doc
+    // Absent = open (back-compat): strip all four fields, mirroring the server.
+    const { status: _s, approvedBy: _b, approvedByEmail: _e, approvedAt: _a, ...open } = doc
+    return open
+  })
+  await appendOutboxOp({
+    opId: uuid(),
+    entity: 'shoppingStatus',
+    type: 'update',
+    key: weekId,
+    payload: { weekId, status: 'open' },
+    baseVersion,
+    createdAt: Date.now(),
+    attempts: 0,
+  })
+  kickOutboxSync()
+}

@@ -96,4 +96,60 @@ describe('applyShoppingOps', () => {
     )
     expect(merged?.items.map((i) => i.id)).toEqual(['local-1'])
   })
+
+  it('re-applies an unsynced approval on top of the server doc (design #104 D4)', () => {
+    const merged = applyShoppingOps(
+      doc([entry({})]),
+      [
+        op({
+          entity: 'shoppingStatus',
+          key: week,
+          payload: {
+            weekId: week,
+            status: 'approved',
+            approvedBy: 'user-1',
+            approvedByEmail: 'ann@example.com',
+            approvedAt: '2026-07-06T17:12:00.000Z',
+          },
+        }),
+      ],
+      week,
+    )
+    expect(merged).toMatchObject({
+      status: 'approved',
+      approvedBy: 'user-1',
+      approvedByEmail: 'ann@example.com',
+      approvedAt: '2026-07-06T17:12:00.000Z',
+    })
+    expect(merged?.items.map((i) => i.id)).toEqual(['srv-1'])
+  })
+
+  it('re-applies an unsynced reopen, stripping the approval fields', () => {
+    const approved: PersistedShoppingListDoc = {
+      ...doc([entry({})]),
+      status: 'approved',
+      approvedBy: 'user-2',
+      approvedByEmail: 'partner@example.com',
+      approvedAt: '2026-07-06T17:12:00.000Z',
+    }
+    const merged = applyShoppingOps(
+      approved,
+      [op({ entity: 'shoppingStatus', key: week, payload: { weekId: week, status: 'open' } })],
+      week,
+    )
+    expect(merged?.status).toBeUndefined()
+    expect(merged?.approvedBy).toBeUndefined()
+    expect(merged?.approvedByEmail).toBeUndefined()
+    expect(merged?.approvedAt).toBeUndefined()
+    expect(merged?.items.map((i) => i.id)).toEqual(['srv-1'])
+  })
+
+  it('ignores a status op for a different week', () => {
+    const merged = applyShoppingOps(
+      doc([entry({})]),
+      [op({ entity: 'shoppingStatus', key: 'other', payload: { weekId: 'other', status: 'approved' } })],
+      week,
+    )
+    expect(merged?.status).toBeUndefined()
+  })
 })

@@ -297,6 +297,30 @@ rows for empty weeks). *Mutating* the list from Discord ("cross off milk",
 "add batteries") is a genuine write and stays behind the future `write`
 scope (Phase 3).
 
+**Approved / "shopping now" state.** The weekly doc additionally carries an
+optional trip state (design issue #104 D4) that the machine GET returns
+verbatim alongside `items`:
+
+```json
+{
+  "weekIdentifier": "2026-W29",
+  "items": [ … ],
+  "status": "approved",
+  "approvedBy": "3f2c…-user-uuid",
+  "approvedByEmail": "ann@example.com",
+  "approvedAt": "2026-07-18T16:40:00.000Z"
+}
+```
+
+All four fields are **absent while the list is open** (absent = `open`;
+older docs never carry them) and are set/cleared together when a family
+member taps "I'm going shopping" / "Done" in the UI. For Aivo this means:
+if `status` is `"approved"`, someone (`approvedByEmail`) is at the store
+right now, so items added via the batch-add endpoint may already be behind
+the shopper's back — worth mentioning in the chat reply. The fields are
+read-only for machine callers today; there is no machine endpoint to
+approve or reopen a list.
+
 ### 5.3 Fridge-ingredient suggestions — the new capability
 
 Two viable designs; they are not mutually exclusive.

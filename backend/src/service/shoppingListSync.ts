@@ -68,7 +68,25 @@ export function syncShoppingListDoc(
     };
   });
 
-  return { weekIdentifier, items: [...items, ...manualItems] };
+  return { weekIdentifier, items: [...items, ...manualItems], ...statusFields(previous) };
+}
+
+/**
+ * The approved / "shopping now" fields carried verbatim across a sync (design
+ * #104 D4): regenerating items from the meal plan must never drop or alter the
+ * trip state. Fields are copied only when present so a legacy doc (or an open
+ * list) stays byte-identical to its pre-sync shape.
+ */
+function statusFields(
+  previous: PersistedShoppingListDoc | undefined,
+): Partial<PersistedShoppingListDoc> {
+  if (!previous) return {};
+  const copied: Partial<PersistedShoppingListDoc> = {};
+  if (previous.status !== undefined) copied.status = previous.status;
+  if (previous.approvedBy !== undefined) copied.approvedBy = previous.approvedBy;
+  if (previous.approvedByEmail !== undefined) copied.approvedByEmail = previous.approvedByEmail;
+  if (previous.approvedAt !== undefined) copied.approvedAt = previous.approvedAt;
+  return copied;
 }
 
 /**

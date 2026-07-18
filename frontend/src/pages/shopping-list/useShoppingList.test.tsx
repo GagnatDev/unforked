@@ -18,6 +18,13 @@ vi.mock('@/api', () => ({
   api: { shoppingList: mocks },
 }))
 
+// The hook reads the signed-in user for the optimistic approver metadata.
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: { id: 'user-1', email: 'ann@example.com', role: 'user', familyId: 'fam-1' },
+  }),
+}))
+
 function entry(overrides: Partial<ShoppingListEntry>): ShoppingListEntry {
   return {
     id: 'item-1',
@@ -131,5 +138,62 @@ describe('useShoppingList', () => {
     expect(ops.some((o) => o.entity === 'shoppingItem' && o.type === 'delete' && o.key === 'item-1')).toBe(
       true,
     )
+  })
+
+  it('defaults to an open status when the doc carries none', async () => {
+    const { result } = await renderLoaded()
+    expect(result.current.status).toBe('open')
+    expect(result.current.approvedByEmail).toBeNull()
+  })
+
+  it('approves optimistically with the signed-in user and queues a status op', async () => {
+    mocks.get.mockResolvedValue({ weekIdentifier: week, items: [entry({})], version: 3 })
+    const { result } = await renderLoaded()
+
+    act(() => result.current.approve())
+    await waitFor(() => expect(result.current.status).toBe('approved'))
+    expect(result.current.approvedBy).toBe('user-1')
+    expect(result.current.approvedByEmail).toBe('ann@example.com')
+    expect(new Date(result.current.approvedAt!).getTime()).not.toBeNaN()
+
+    const ops = await listOutboxOps()
+    expect(ops).toHaveLength(1)
+    expect(ops[0]).toMatchObject({
+      entity: 'shoppingStatus',
+      type: 'update',
+      key: week,
+      baseVersion: 3,
+    })
+    expect(ops[0].payload).toMatchObject({
+      weekId: week,
+      status: 'approved',
+      approvedBy: 'user-1',
+      approvedByEmail: 'ann@example.com',
+    })
+  })
+
+  it('reopens optimistically, clearing the approval fields, and queues a status op', async () => {
+    mocks.get.mockResolvedValue({
+      weekIdentifier: week,
+      items: [entry({})],
+      version: 4,
+      status: 'approved',
+      approvedBy: 'user-2',
+      approvedByEmail: 'partner@example.com',
+      approvedAt: '2026-07-06T17:12:00.000Z',
+    })
+    const { result } = await renderLoaded()
+    await waitFor(() => expect(result.current.status).toBe('approved'))
+
+    act(() => result.current.reopen())
+    await waitFor(() => expect(result.current.status).toBe('open'))
+    expect(result.current.approvedBy).toBeNull()
+    expect(result.current.approvedByEmail).toBeNull()
+    expect(result.current.approvedAt).toBeNull()
+
+    const ops = await listOutboxOps()
+    expect(ops).toHaveLength(1)
+    expect(ops[0]).toMatchObject({ entity: 'shoppingStatus', key: week, baseVersion: 4 })
+    expect(ops[0].payload).toEqual({ weekId: week, status: 'open' })
   })
 })

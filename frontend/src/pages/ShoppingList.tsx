@@ -19,6 +19,15 @@ function getInitialWeekId(): string {
   return getNextWeekId()
 }
 
+/** "started {time}" for the approved banner: time today, date + time otherwise. */
+function formatApprovedAt(iso: string, locale: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toDateString() === new Date().toDateString()
+    ? date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })
+}
+
 export default function ShoppingList() {
   const { t, i18n } = useTranslation()
   const [weekId, setWeekId] = useState(getInitialWeekId())
@@ -27,11 +36,16 @@ export default function ShoppingList() {
     loading,
     error,
     adding,
+    status,
+    approvedByEmail,
+    approvedAt,
     toggleChecked,
     changeCategory,
     editItem,
     addItem,
     deleteItem,
+    approve,
+    reopen,
   } = useShoppingList(weekId)
 
   const groups = items ? groupItemsByCategory(items) : []
@@ -61,6 +75,31 @@ export default function ShoppingList() {
           locale={i18n.resolvedLanguage ?? i18n.language}
         />
       </div>
+      {/* Approved / "shopping now" state (design #104 D4): a persistent banner
+          while someone is shopping, with "Done" to reopen; otherwise the
+          "I'm going shopping" action. Both go through the optimistic outbox. */}
+      {status === 'approved' ? (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted p-3"
+        >
+          <span>
+            {t('shoppingList.approvedBanner', {
+              email: approvedByEmail ?? '',
+              time: approvedAt
+                ? formatApprovedAt(approvedAt, i18n.resolvedLanguage ?? i18n.language)
+                : '',
+            })}
+          </span>
+          <Button onClick={reopen} variant="secondary">
+            {t('shoppingList.done')}
+          </Button>
+        </div>
+      ) : items && items.length > 0 ? (
+        <p className="mb-4">
+          <Button onClick={approve}>{t('shoppingList.goShopping')}</Button>
+        </p>
+      ) : null}
       {loading && !items ? (
         <p>{t('shoppingList.loading')}</p>
       ) : error ? (

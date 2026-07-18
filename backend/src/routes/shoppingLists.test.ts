@@ -477,6 +477,154 @@ describe("DELETE /api/shopping-lists/items/:id", () => {
   });
 });
 
+describe("POST /api/shopping-lists/status (design #104 D4)", () => {
+  async function listWithItem(name = "milk"): Promise<ShoppingListEntry> {
+    const id = await createRecipe({
+      name: "R",
+      ingredients: [{ name, quantity: "1", unit: "l" }],
+      servings: 4,
+    });
+    await setPlan([{ day: "monday", recipeId: id, recipeName: "R" }]);
+    return findItem(await getList(), name);
+  }
+
+  async function setStatus(
+    body: { status: string; baseVersion?: number },
+    identity = token,
+  ): Promise<request.Response> {
+    return withAuth(request(app).post(`/api/shopping-lists/status?week=${week}`), identity).send(
+      body,
+    );
+  }
+
+  async function joinPartner(): Promise<TestIdentity> {
+    const partner: TestIdentity = { id: "hs-partner", email: "partner@example.com", role: "user" };
+    await setupAdmin(app, partner);
+    const invite = await withAuth(request(app).post("/api/family/invites"), token).send({
+      email: partner.email,
+    });
+    await withAuth(request(app).post("/api/family/invites/accept"), partner)
+      .send({ token: invite.body.token })
+      .expect(200);
+    return partner;
+  }
+
+  it("approves the week's list, recording who + when and bumping the version", async () => {
+    await listWithItem();
+    const res = await setStatus({ status: "approved", baseVersion: 0 });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      weekIdentifier: week,
+      status: "approved",
+      approvedByEmail: token.email,
+      version: 1,
+    });
+    expect(res.body.approvedBy).toBeTypeOf("string");
+    expect(new Date(res.body.approvedAt).getTime()).not.toBeNaN();
+
+    // Every family member (and the machine API) sees it on the next read.
+    const list = await getList();
+    expect(list.body).toMatchObject({
+      status: "approved",
+      approvedByEmail: token.email,
+      approvedAt: res.body.approvedAt,
+      version: 1,
+    });
+  });
+
+  it("404s when the week has no list", async () => {
+    const res = await setStatus({ status: "approved" });
+    expect(res.status).toBe(404);
+  });
+
+  it("409s a stale baseVersion with the current doc", async () => {
+    const milk = await listWithItem();
+    await withAuth(request(app).patch(`/api/shopping-lists/items/${milk.id}?week=${week}`), token)
+      .send({ checked: true, baseVersion: 0 })
+      .expect(200);
+
+    const res = await setStatus({ status: "approved", baseVersion: 0 });
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: "conflict", version: 1, weekIdentifier: week });
+    // Still open — the stale writer must retry against the current version.
+    expect(res.body.status).toBeUndefined();
+  });
+
+  it("409s approving an already-approved list (concurrent approval loses cleanly)", async () => {
+    await listWithItem();
+    await setStatus({ status: "approved", baseVersion: 0 }).then((r) => expect(r.status).toBe(200));
+
+    const partner = await joinPartner();
+    const res = await setStatus({ status: "approved", baseVersion: 1 }, partner);
+    expect(res.status).toBe(409);
+    // The conflict body carries the winner so the loser can display them.
+    expect(res.body).toMatchObject({
+      error: "conflict",
+      version: 1,
+      status: "approved",
+      approvedByEmail: token.email,
+    });
+
+    expect((await getList()).body.approvedByEmail).toBe(token.email);
+  });
+
+  it("lets any family member reopen, clearing the approval fields", async () => {
+    await listWithItem();
+    await setStatus({ status: "approved", baseVersion: 0 }).then((r) => expect(r.status).toBe(200));
+
+    const partner = await joinPartner();
+    const res = await setStatus({ status: "open", baseVersion: 1 }, partner);
+    expect(res.status).toBe(200);
+    expect(res.body.version).toBe(2);
+    expect(res.body.status).toBeUndefined();
+    expect(res.body.approvedBy).toBeUndefined();
+    expect(res.body.approvedByEmail).toBeUndefined();
+    expect(res.body.approvedAt).toBeUndefined();
+
+    const list = await getList();
+    expect(list.body.status).toBeUndefined();
+    expect(list.body.version).toBe(2);
+  });
+
+  it("treats reopening an already-open list as a no-op (no version bump)", async () => {
+    await listWithItem();
+    const res = await setStatus({ status: "open" });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ weekIdentifier: week, version: 0 });
+    expect((await getList()).body.version).toBe(0);
+  });
+
+  it("400s on an unknown status value", async () => {
+    await listWithItem();
+    const res = await setStatus({ status: "shopping" });
+    expect(res.status).toBe(400);
+  });
+
+  it("preserves the status fields verbatim across sync-on-read plan changes", async () => {
+    const recipeId = await createRecipe({
+      name: "Soup",
+      ingredients: [{ name: "carrot", quantity: "2", unit: "" }],
+      servings: 4,
+    });
+    await setPlan([{ day: "monday", recipeId, recipeName: "Soup" }]);
+    await getList();
+    const approved = await setStatus({ status: "approved", baseVersion: 0 });
+    expect(approved.status).toBe(200);
+
+    // A plan edit regenerates the items on the next GET; the trip state and
+    // version must ride through untouched.
+    await setPlan([]);
+    const res = await getList();
+    expect(res.body.items).toEqual([]);
+    expect(res.body).toMatchObject({
+      status: "approved",
+      approvedByEmail: token.email,
+      approvedAt: approved.body.approvedAt,
+      version: 1,
+    });
+  });
+});
+
 describe("change-event emission (design #104 D1)", () => {
   // Subscribing straight to the in-process bus observes emission per mutation
   // path without a live SSE stream; the stream itself is covered in
@@ -588,6 +736,48 @@ describe("change-event emission (design #104 D1)", () => {
         token,
       ).expect(400);
       expect(events).toHaveLength(1);
+    } finally {
+      stop();
+    }
+  });
+
+  it("approve and reopen emit shopping-list.status with the bumped version", async () => {
+    await planItem();
+    const { events, stop } = await captureEvents();
+    try {
+      await withAuth(request(app).post(`/api/shopping-lists/status?week=${week}`), token)
+        .send({ status: "approved", baseVersion: 0 })
+        .expect(200);
+      await withAuth(request(app).post(`/api/shopping-lists/status?week=${week}`), token)
+        .send({ status: "open", baseVersion: 1 })
+        .expect(200);
+      expect(events).toHaveLength(2);
+      expect(events[0]).toMatchObject({
+        type: "shopping-list.status",
+        week,
+        version: 1,
+        actor: { kind: "user", label: token.email },
+      });
+      expect(events[1]).toMatchObject({ type: "shopping-list.status", week, version: 2 });
+    } finally {
+      stop();
+    }
+  });
+
+  it("rejected and no-op status writes (404, 409, reopen-when-open) emit nothing", async () => {
+    await planItem();
+    const { events, stop } = await captureEvents();
+    try {
+      await withAuth(request(app).post(`/api/shopping-lists/status?week=${otherWeek}`), token)
+        .send({ status: "approved" })
+        .expect(404);
+      await withAuth(request(app).post(`/api/shopping-lists/status?week=${week}`), token)
+        .send({ status: "approved", baseVersion: 99 })
+        .expect(409);
+      await withAuth(request(app).post(`/api/shopping-lists/status?week=${week}`), token)
+        .send({ status: "open" })
+        .expect(200);
+      expect(events).toEqual([]);
     } finally {
       stop();
     }

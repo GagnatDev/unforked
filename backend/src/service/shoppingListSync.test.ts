@@ -153,6 +153,34 @@ describe("syncShoppingListDoc", () => {
     const result = syncShoppingListDoc(previous, [], NO_OVERRIDES, "2026-W28");
     expect(result.items).toEqual([manual]);
   });
+
+  it("preserves the approved status fields verbatim (design #104 D4)", () => {
+    const previous: PersistedShoppingListDoc = {
+      ...doc([entry({ checked: true })]),
+      status: "approved",
+      approvedBy: "user-1",
+      approvedByEmail: "ann@example.com",
+      approvedAt: "2026-07-06T17:12:00.000Z",
+    };
+    // Regenerating items (here: the recipe left the plan) must not touch the trip state.
+    const result = syncShoppingListDoc(previous, [], NO_OVERRIDES, "2026-W28");
+    expect(result).toEqual({
+      weekIdentifier: "2026-W28",
+      items: [],
+      status: "approved",
+      approvedBy: "user-1",
+      approvedByEmail: "ann@example.com",
+      approvedAt: "2026-07-06T17:12:00.000Z",
+    });
+  });
+
+  it("adds no status fields when the previous doc has none (absent = open)", () => {
+    const result = syncShoppingListDoc(doc([entry()]), [aggregateItem()], NO_OVERRIDES, "2026-W28");
+    expect("status" in result).toBe(false);
+    expect("approvedBy" in result).toBe(false);
+    expect("approvedByEmail" in result).toBe(false);
+    expect("approvedAt" in result).toBe(false);
+  });
 });
 
 describe("createManualEntry", () => {

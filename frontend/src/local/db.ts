@@ -32,7 +32,7 @@ type SyncMetaRecord = { key: string; value: unknown }
 // --- durable mutation outbox (offline-first spec A3) ---
 
 /** Domain entities a queued mutation can target. */
-export type OutboxEntity = 'recipe' | 'mealPlan' | 'shoppingItem'
+export type OutboxEntity = 'recipe' | 'mealPlan' | 'shoppingItem' | 'shoppingStatus'
 export type OutboxOpType = 'create' | 'update' | 'delete'
 
 /** Fields a shopping-list item PATCH may carry. */
@@ -79,6 +79,20 @@ export interface ShoppingItemDeletePayload {
 }
 
 /**
+ * Approve / reopen op payload (design #104 D4). The op `key` is the
+ * weekIdentifier (so status ops for one week stay ordered). The approval
+ * metadata is minted locally at mutation time and replayed onto background
+ * pulls until the op drains, exactly like item ops.
+ */
+export interface ShoppingStatusPayload {
+  weekId: string
+  status: 'approved' | 'open'
+  approvedBy?: string
+  approvedByEmail?: string
+  approvedAt?: string
+}
+
+/**
  * One durable, replayable mutation. Applied optimistically to the local store
  * first, then appended here and drained against the server by the sync engine.
  * `opId` is the idempotency key sent as `X-Client-Op-Id`; `seq` is the
@@ -88,12 +102,12 @@ export interface OutboxOp {
   opId: string
   entity: OutboxEntity
   type: OutboxOpType
-  /** Entity identity: recipe id, meal-plan weekIdentifier, or shopping item id. */
+  /** Entity identity: recipe id, weekIdentifier (mealPlan/shoppingStatus), or shopping item id. */
   key: string
   /**
    * Op-specific payload. Recipe ops carry the `RecipeDoc`; meal-plan ops a
-   * `MealPlanOpPayload`; shopping-item ops one of the `ShoppingItem*Payload`s.
-   * Omitted for recipe deletes.
+   * `MealPlanOpPayload`; shopping-item ops one of the `ShoppingItem*Payload`s;
+   * status ops a `ShoppingStatusPayload`. Omitted for recipe deletes.
    */
   payload?: unknown
   /**

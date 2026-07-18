@@ -144,6 +144,9 @@
       "other": "Other"
     },
     "progress": "{{checked}}/{{total}}",
+    "goShopping": "I'm going shopping",
+    "approvedBanner": "🛒 {{email}} is shopping — started {{time}}",
+    "done": "Done",
     "addItem": "Add item",
     "addItemPlaceholder": "e.g. toothpaste",
     "changeCategoryAria": "Change category for {{name}}",

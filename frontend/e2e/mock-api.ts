@@ -41,18 +41,29 @@ export interface MockShoppingListEntry {
   manual: boolean
 }
 
+/** Approved / "shopping now" fields carried on the mocked weekly doc (design #104 D4). */
+export interface MockShoppingListStatus {
+  status?: 'approved'
+  approvedBy?: string
+  approvedByEmail?: string
+  approvedAt?: string
+}
+
 /**
  * Stateful stub for the persisted shopping list: GET returns the current
- * items, PATCH/POST/DELETE on `/items` mutate them like the real API.
- * Registered `/items` routes win over the broader GET route because Playwright
- * matches the most recently registered route first.
+ * items, PATCH/POST/DELETE on `/items` mutate them, and POST on `/status`
+ * approves/reopens — like the real API. Registered `/items` and `/status`
+ * routes win over the broader GET route because Playwright matches the most
+ * recently registered route first.
  */
 export async function mockShoppingList(
   page: Page,
   weekIdentifier: string,
-  initialItems: MockShoppingListEntry[]
+  initialItems: MockShoppingListEntry[],
+  initialStatus: MockShoppingListStatus = {}
 ): Promise<{ requests: { method: string; url: string; body: unknown }[] }> {
   let items = initialItems.map((i) => ({ ...i }))
+  let tripStatus: MockShoppingListStatus = { ...initialStatus }
   const requests: { method: string; url: string; body: unknown }[] = []
   let manualSeq = 0
 
@@ -60,7 +71,28 @@ export async function mockShoppingList(
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ weekIdentifier, items }),
+      body: JSON.stringify({ weekIdentifier, items, ...tripStatus }),
+    })
+  })
+
+  await page.route('**/api/shopping-lists/status**', async (route) => {
+    const request = route.request()
+    const body = request.postDataJSON() as { status: 'approved' | 'open' }
+    requests.push({ method: request.method(), url: request.url(), body })
+
+    tripStatus =
+      body.status === 'approved'
+        ? {
+            status: 'approved',
+            approvedBy: '00000000-0000-4000-8000-000000000001',
+            approvedByEmail: 'dev@local.test',
+            approvedAt: new Date().toISOString(),
+          }
+        : {}
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ weekIdentifier, items, ...tripStatus, version: 1 }),
     })
   })
 
