@@ -8,9 +8,29 @@ This repo uses **pnpm** exclusively (a pnpm workspace with `frontend` and `backe
 - Run a workspace script: `pnpm --filter <package> run <script>`, or `pnpm -r run <script>` across all packages.
 - Frontend unit tests: `pnpm --filter meal-planning-frontend run test:unit` (or `pnpm run test:unit` from `frontend/`).
 
+## Testing
+
+- **Run everything:** `pnpm -r run test` runs both packages' unit suites (backend Vitest + frontend Vitest). Add `pnpm -r run build` and `pnpm --filter @unforked/backend run typecheck` before committing.
+- **Backend tests need a Postgres and can't use Testcontainers in the web/CI sandbox.** Docker Hub and the ECR blob CDNs are blocked by egress policy, so Testcontainers can't pull `postgres:16-alpine`. Use the built-in escape hatch instead — an apt-installed Postgres plus the `TEST_DATABASE_URL` override:
+  ```sh
+  sudo apt-get install -y postgresql          # Postgres 16
+  # create a `test`/`test` superuser and an empty `test` database, then:
+  TEST_DATABASE_URL=postgresql://test:test@localhost:5432/test pnpm -r run test
+  ```
+  For the Playwright backend, pass the same connection string as `E2E_DATABASE_URL` against an empty database.
+
 ## Playwright
 
 For `*.spec.ts`, `playwright.config.*`, or `frontend/e2e/`, read [`.agents/skills/playwright-best-practices/SKILL.md`](.agents/skills/playwright-best-practices/SKILL.md) first and follow it.
+
+**Browser-revision mismatch in the sandbox.** The preinstalled browsers under `/opt/pw-browsers` are revision **1194**, but `@playwright/test ^1.60` expects **1223**, and downloading browsers is discouraged by the egress policy. Symlink the expected revision onto the installed one rather than downloading:
+
+```sh
+cd /opt/pw-browsers
+ln -s chromium-1194 chromium-1223
+ln -s chromium-1194/chrome-linux/headless_shell \
+      chrome-headless-shell-linux64/chrome-headless-shell   # adjust paths to match the installed layout
+```
 
 ## Git
 
