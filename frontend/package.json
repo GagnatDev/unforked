@@ -14,6 +14,7 @@
     "start": "NODE_ENV=production node server.js",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
+    "test": "vitest run",
     "test:unit": "vitest run",
     "generate-pwa-assets": "pwa-assets-generator --preset minimal public/static/pwa-icon.svg"
   },
