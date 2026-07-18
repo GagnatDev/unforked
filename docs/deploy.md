@@ -40,6 +40,9 @@ the database connection comes from `unforked-terraform-secrets`'
 `DATABASE_URL` and authentication moved to the homectl-auth sidecar below;
 leftover keys in an existing Secret are ignored.)
 
+**`unforked-vapid-secrets`** (Terraform-managed in homectl-infra) supplies the
+Web Push VAPID keys — see [Web Push (VAPID) keys](#web-push-vapid-keys) below.
+
 **Migration handoff:** migrations run at pod boot (node-pg-migrate). On the first Node deploy against the existing Flyway-migrated database, the runner detects the schema and baselines migrations `001–003` as already-applied instead of recreating tables; a fresh database migrates normally.
 
 Verify ClusterIssuer before first deploy:
@@ -47,6 +50,39 @@ Verify ClusterIssuer before first deploy:
 ```sh
 kubectl get clusterissuer letsencrypt-prod   # READY=True
 ```
+
+### Web Push (VAPID) keys
+
+Push notifications (design issue #104, D5/D7) need a
+[VAPID](https://datatracker.ietf.org/doc/html/rfc8292) keypair. **Do not
+generate keys by hand** — they are provisioned by homectl-infra's Terraform:
+the `unforked` app is marked `vapid = true` there, which generates a stable
+ECDSA P-256 keypair once and writes it into the Kubernetes Secret
+**`unforked-vapid-secrets`** (namespace `homectl`) with the keys the backend
+reads from env:
+
+| Key | Purpose |
+|-----|---------|
+| `VAPID_PUBLIC_KEY` | URL-safe base64; served to browsers via `GET /api/push/vapid-key` |
+| `VAPID_PRIVATE_KEY` | URL-safe base64; server-only signing key |
+| `VAPID_SUBJECT` | Contact URI (`mailto:`/`https:`) sent to push services |
+
+`k8s/deployment.yml` already references the Secret via `envFrom`
+(`optional: true`, so pods start without it and the backend reports push as
+unavailable — the frontend hides/soft-disables the notifications card). Setup
+is: `terraform apply` in homectl-infra (creates the Secret), then
+`kubectl rollout restart deployment/unforked -n homectl` so pods pick up the
+env vars. Inspect the public key with
+`terraform -chdir=terraform output -json app_vapid_public_keys` (homectl-infra).
+
+> **Do not rotate the keypair casually.** Every existing browser subscription
+> is bound to the public key; rotating invalidates them all and every device
+> must re-enable notifications. The backend self-prunes the dead rows
+> (`push_subscriptions`) as sends start failing with 404/410.
+
+The three env vars must be set together — the backend fails fast at boot on a
+partial set. Local dev needs none of them: without keys the push routes stay
+mounted but report push as unavailable.
 
 ### Registry pull secret (only if `ImagePullBackOff`)
 

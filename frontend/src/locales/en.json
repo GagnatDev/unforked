@@ -161,6 +161,21 @@
     "itemCheckboxAria": "Mark {{name}} as in cart",
     "updateFailed": "Could not save the change. Try again."
   },
+  "notifications": {
+    "title": "Notifications",
+    "cardTitle": "Push notifications",
+    "description": "Get notified about shopping-list changes while someone is out shopping — even when the app is closed.",
+    "enable": "Enable on this device",
+    "disable": "Disable",
+    "test": "Send test notification",
+    "enabled": "Notifications are enabled on this device.",
+    "testSent": "Test notification sent.",
+    "testNone": "Nothing was sent — try disabling and enabling notifications again.",
+    "receivedInPage": "The app is open, so the notification shows here instead of as a system notification:",
+    "iosInstallHint": "To get notifications on iPhone or iPad, first add the app to your Home Screen, then enable them here.",
+    "permissionDenied": "Notifications are blocked for this app in your browser settings.",
+    "unavailable": "Push notifications are not available right now."
+  },
   "family": {
     "title": "Family",
     "defaultMealPlanning": "Meal planning defaults",

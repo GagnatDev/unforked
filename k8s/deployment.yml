@@ -29,6 +29,14 @@ spec:
           envFrom:
             - secretRef:
                 name: unforked-terraform-secrets
+            # Web Push VAPID keys (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY /
+            # VAPID_SUBJECT), Terraform-managed in homectl-infra (`vapid = true`
+            # on this app). Optional so pods still start before the first
+            # terraform apply — the backend just reports push as unavailable.
+            - secretRef:
+                name: unforked-vapid-secrets
+                optional: true
+            # Listed last: hand-managed overrides win on key conflicts.
             - secretRef:
                 name: unforked-secrets
           env:

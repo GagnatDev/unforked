@@ -88,6 +88,21 @@ export interface ApiKeysTable {
   revoked_at: ColumnType<Date | null, never, Date | string>;
 }
 
+/** Web Push subscriptions, one per browser endpoint (design #104 D5). */
+export interface PushSubscriptionsTable {
+  id: Generated<string>;
+  created_at: DefaultTimestamp;
+  user_id: string;
+  family_id: string;
+  endpoint: string;
+  keys_p256dh: string;
+  keys_auth: string;
+  locale: Generated<string>;
+  user_agent: string | null;
+  last_used_at: ColumnType<Date | null, never, Date | string>;
+  failed_at: ColumnType<Date | null, never, Date | string | null>;
+}
+
 /** One-time auth-migration steps; a row per completed step (see 004 migration). */
 export interface AuthMigrationTable {
   id: string;
@@ -104,5 +119,6 @@ export interface Database {
   users: UsersTable;
   families: FamiliesTable;
   family_invitations: FamilyInvitationsTable;
+  push_subscriptions: PushSubscriptionsTable;
   auth_migration: AuthMigrationTable;
 }
