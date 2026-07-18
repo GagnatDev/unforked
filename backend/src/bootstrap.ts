@@ -4,11 +4,13 @@ import { buildApp } from "./app.js";
 import { buildMachineApp } from "./machineApp.js";
 import { createDb } from "./db/kysely.js";
 import { createPool } from "./db/pool.js";
-import { env, homectlImportConfig } from "./config/env.js";
+import { env, homectlImportConfig, vapidConfig } from "./config/env.js";
 import { logger } from "./logger.js";
 import { seedDevPrincipal } from "./seed/devPrincipal.js";
 import { seedTestRecipesIfEmpty } from "./seed/seedData.js";
 import { importUsersToHomectlOnce } from "./service/homectlUserImport.js";
+import { startNotificationPolicy } from "./service/notificationPolicy.js";
+import { createPushSender } from "./service/pushSender.js";
 
 export interface StartedServer {
   server: Server;
@@ -43,6 +45,17 @@ export async function startServer(connectionString?: string): Promise<StartedSer
   }
   if (env.SEED_TEST_DATA) {
     await seedTestRecipesIfEmpty(db);
+  }
+
+  // Notification policy engine (design #104 D6): one per process, fed by the
+  // in-process change-event bus, so it sees the human and machine listeners'
+  // writes alike. Without VAPID keys push is disabled and the engine is moot.
+  const vapid = vapidConfig(env);
+  if (vapid) {
+    startNotificationPolicy({ db, sender: createPushSender(db, vapid) });
+    logger.info("shopping-list notification policy engine started");
+  } else {
+    logger.info("VAPID keys not configured; push notification policy disabled");
   }
 
   const app = buildApp({ db });

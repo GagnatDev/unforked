@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePWA } from '@/hooks/usePWA'
 import { PWAUpdateBanner } from '@/components/PWAUpdateBanner'
 import { PWAInstallBanner } from '@/components/PWAInstallBanner'
+import { PushToaster } from '@/components/PushToaster'
 
 const RecipeList = lazy(() => import('./pages/RecipeList'))
 const RecipeForm = lazy(() => import('./pages/RecipeForm'))
@@ -35,6 +36,8 @@ function AppLayout({
   return (
     <div className="max-w-[900px] mx-auto p-6">
       <AppNav onLogout={handleLogout} />
+      {/* Focused-window pushes surface in-page (design #104 D6/phase 5). */}
+      <PushToaster />
       {canInstall && <PWAInstallBanner onInstall={onInstall} />}
       <Suspense
         fallback={
