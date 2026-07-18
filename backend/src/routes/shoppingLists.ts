@@ -115,7 +115,14 @@ export function shoppingListRoutes(db: Db): Router {
       }
       // A genuine edit bumps the version so concurrent stale writers 409.
       await shoppingLists.updateDoc(trx, row.id, row.doc, { bumpVersion: true });
-      return { status: "ok" as const, item, version: row.version + 1 };
+      return {
+        status: "ok" as const,
+        item,
+        version: row.version + 1,
+        // Trip state at commit time, for the notification policy (D6).
+        listStatus: row.doc.status ?? ("open" as const),
+        approvedBy: row.doc.approvedBy,
+      };
     });
 
     if (outcome.status === "notFound") {
@@ -131,13 +138,16 @@ export function shoppingListRoutes(db: Db): Router {
       return;
     }
     // After the commit, never blocking the response (design #104 D1).
-    publishShoppingListEvent({
-      type: "shopping-list.changed",
-      familyId,
-      week: weekId,
-      version: outcome.version,
-      actor: userActor(user),
-    });
+    publishShoppingListEvent(
+      {
+        type: "shopping-list.changed",
+        familyId,
+        week: weekId,
+        version: outcome.version,
+        actor: userActor(user),
+      },
+      { status: outcome.listStatus, approvedBy: outcome.approvedBy },
+    );
     res.json({ ...outcome.item, version: outcome.version });
   });
 
@@ -167,6 +177,9 @@ export function shoppingListRoutes(db: Db): Router {
         return { status: "conflict" as const, doc: row.doc, version: row.version };
       }
       const current = row.doc.status ?? "open";
+      // The pre-write approver: a reopen notification targets whoever's trip
+      // just ended, which the post-write doc no longer records (D6).
+      const previousApprovedBy = row.doc.approvedBy;
       if (status === "approved") {
         if (current === "approved") {
           return { status: "conflict" as const, doc: row.doc, version: row.version };
@@ -189,7 +202,12 @@ export function shoppingListRoutes(db: Db): Router {
         delete row.doc.approvedAt;
       }
       await shoppingLists.updateDoc(trx, row.id, row.doc, { bumpVersion: true });
-      return { status: "ok" as const, doc: row.doc, version: row.version + 1 };
+      return {
+        status: "ok" as const,
+        doc: row.doc,
+        version: row.version + 1,
+        previousApprovedBy,
+      };
     });
 
     if (outcome.status === "notFound") {
@@ -201,13 +219,18 @@ export function shoppingListRoutes(db: Db): Router {
       return;
     }
     if (outcome.status === "ok") {
-      publishShoppingListEvent({
-        type: "shopping-list.status",
-        familyId,
-        week: weekId,
-        version: outcome.version,
-        actor: userActor(user),
-      });
+      publishShoppingListEvent(
+        {
+          type: "shopping-list.status",
+          familyId,
+          week: weekId,
+          version: outcome.version,
+          actor: userActor(user),
+        },
+        status === "approved"
+          ? { status: "approved", approvedBy: user.id }
+          : { status: "open", previousApprovedBy: outcome.previousApprovedBy },
+      );
     }
     res.json({ ...outcome.doc, version: outcome.version });
   });
@@ -227,7 +250,12 @@ export function shoppingListRoutes(db: Db): Router {
       row.doc.items = row.doc.items.filter((i) => i.id !== itemId);
       await shoppingLists.updateDoc(trx, row.id, row.doc);
       // Deletes don't bump the version, so post-write it is the current one.
-      return { status: "deleted" as const, version: row.version };
+      return {
+        status: "deleted" as const,
+        version: row.version,
+        listStatus: row.doc.status ?? ("open" as const),
+        approvedBy: row.doc.approvedBy,
+      };
     });
 
     if (outcome.status === "notFound") {
@@ -238,13 +266,16 @@ export function shoppingListRoutes(db: Db): Router {
       res.status(400).json({ error: "Only manually added items can be deleted" });
       return;
     }
-    publishShoppingListEvent({
-      type: "shopping-list.changed",
-      familyId,
-      week: weekId,
-      version: outcome.version,
-      actor: userActor(user),
-    });
+    publishShoppingListEvent(
+      {
+        type: "shopping-list.changed",
+        familyId,
+        week: weekId,
+        version: outcome.version,
+        actor: userActor(user),
+      },
+      { status: outcome.listStatus, approvedBy: outcome.approvedBy },
+    );
     res.status(204).end();
   });
 

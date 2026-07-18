@@ -75,7 +75,15 @@ export async function addManualItems(
       // Appends don't bump the version (adds are idempotent on the client id,
       // not baseVersion-guarded), so the post-write version is the row's
       // current one — 0 for a freshly inserted row (column default).
-      return { created, appendedCount: appended.length, version: row?.version ?? 0 };
+      return {
+        created,
+        appendedCount: appended.length,
+        version: row?.version ?? 0,
+        // Trip state at commit time, for the notification policy (D6). A
+        // freshly created row is open by construction.
+        status: row?.doc.status ?? ("open" as const),
+        approvedBy: row?.doc.approvedBy,
+      };
     });
 
   const outcome = await insertItems().catch((err) => {
@@ -84,13 +92,20 @@ export async function addManualItems(
   });
 
   if (outcome.appendedCount > 0) {
-    publishShoppingListEvent({
-      type: "shopping-list.changed",
-      familyId,
-      week: weekId,
-      version: outcome.version,
-      actor,
-    });
+    publishShoppingListEvent(
+      {
+        type: "shopping-list.changed",
+        familyId,
+        week: weekId,
+        version: outcome.version,
+        actor,
+      },
+      {
+        status: outcome.status,
+        approvedBy: outcome.approvedBy,
+        itemsAdded: outcome.appendedCount,
+      },
+    );
   }
   return outcome.created;
 }

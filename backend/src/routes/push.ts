@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Db } from "../db/kysely.js";
 import type { VapidConfig } from "../config/env.js";
 import { validateBody } from "../middleware/validate.js";
+import { resolvePushLocale, TEST_NOTIFICATION_COPY } from "../service/notificationCopy.js";
 import { createPushSender, type PushSender, type PushTransport } from "../service/pushSender.js";
 import {
   PushSubscriptionRepository,
@@ -27,20 +28,6 @@ const subscribeSchema = z.object({
 const unsubscribeSchema = z.object({
   endpoint: z.string().url().max(2048),
 });
-
-// Test-notification copy, pre-localized per subscription (resolved decision 7:
-// the SW shows final strings and composes nothing). Phase 5's real templates
-// live with the policy engine; only the test button sends until then.
-const TEST_COPY: Record<(typeof PUSH_LOCALES)[number], { title: string; body: string }> = {
-  en: {
-    title: "Test notification",
-    body: "Push notifications are working on this device.",
-  },
-  nb: {
-    title: "Testvarsel",
-    body: "Push-varsler fungerer på denne enheten.",
-  },
-};
 
 function toSubscriptionDto(row: PushSubscriptionRow) {
   return {
@@ -119,7 +106,7 @@ export function pushRoutes(db: Db, options: PushRouteOptions = {}): Router {
       return;
     }
     const report = await sender.sendToUser(user.id, (sub) => {
-      const copy = TEST_COPY[sub.locale === "nb" ? "nb" : "en"];
+      const copy = TEST_NOTIFICATION_COPY[resolvePushLocale(sub.locale)];
       return { ...copy, url: "/shopping-list", tag: "test" };
     });
     res.json(report);

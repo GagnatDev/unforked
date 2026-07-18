@@ -174,7 +174,8 @@
     "receivedInPage": "The app is open, so the notification shows here instead of as a system notification:",
     "iosInstallHint": "To get notifications on iPhone or iPad, first add the app to your Home Screen, then enable them here.",
     "permissionDenied": "Notifications are blocked for this app in your browser settings.",
-    "unavailable": "Push notifications are not available right now."
+    "unavailable": "Push notifications are not available right now.",
+    "dismiss": "Dismiss"
   },
   "family": {
     "title": "Family",

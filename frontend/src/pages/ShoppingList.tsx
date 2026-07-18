@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
@@ -15,8 +14,9 @@ import {
 } from './shopping-list/exportShoppingList'
 import { useShoppingList } from './shopping-list/useShoppingList'
 
-function getInitialWeekId(): string {
-  return getNextWeekId()
+/** A weekIdentifier as produced everywhere in the app, e.g. "2026-W03". */
+function isWeekId(value: string | null): value is string {
+  return value !== null && /^\d{4}-W\d{2}$/.test(value)
 }
 
 /** "started {time}" for the approved banner: time today, date + time otherwise. */
@@ -30,7 +30,13 @@ function formatApprovedAt(iso: string, locale: string): string {
 
 export default function ShoppingList() {
   const { t, i18n } = useTranslation()
-  const [weekId, setWeekId] = useState(getInitialWeekId())
+  // The viewed week lives in the URL (?week=) so push-notification deep links
+  // land on the right list (design #104 D5/D6); without a valid param the
+  // page defaults to the upcoming week as before.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const paramWeek = searchParams.get('week')
+  const weekId = isWeekId(paramWeek) ? paramWeek : getNextWeekId()
+  const setWeekId = (week: string) => setSearchParams({ week }, { replace: true })
   const {
     items,
     loading,

@@ -174,7 +174,8 @@
     "receivedInPage": "Appen er åpen, så varselet vises her i stedet for som systemvarsel:",
     "iosInstallHint": "For å få varsler på iPhone eller iPad må du først legge appen til på Hjem-skjermen, og deretter slå dem på her.",
     "permissionDenied": "Varsler er blokkert for denne appen i nettleserinnstillingene.",
-    "unavailable": "Push-varsler er ikke tilgjengelige akkurat nå."
+    "unavailable": "Push-varsler er ikke tilgjengelige akkurat nå.",
+    "dismiss": "Lukk"
   },
   "family": {
     "title": "Familie",
