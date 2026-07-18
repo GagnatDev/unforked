@@ -16,6 +16,7 @@ import {
   requestReauth,
   setSessionEstablished,
 } from '@/lib/reauth'
+import { setLiveEventsUser } from '@/local/liveEvents'
 
 export type UserInfo = { id: string; email: string; role: string; familyId: string }
 
@@ -109,6 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }),
     []
   )
+
+  // Feed the live-events client the authenticated identity (design #104 D3):
+  // the SSE stream exists only while signed in, and its own-write echo gating
+  // needs the user id to recognize this user's changes coming back.
+  useEffect(() => {
+    setLiveEventsUser(user?.id ?? null)
+  }, [user])
 
   // Reflect the deferred-reauth flag (set by the classifier when a 401 lands
   // with unsynced work queued) so the UI can show the quiet "will sync" state.
