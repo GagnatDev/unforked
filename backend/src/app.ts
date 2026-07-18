@@ -2,12 +2,14 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import express, { Router, type Express, type Response } from "express";
 import cors from "cors";
+import { env, vapidConfig } from "./config/env.js";
 import type { Db } from "./db/kysely.js";
 import { httpLogger } from "./logger.js";
 import { errorHandler } from "./middleware/error.js";
 import { requireAuth } from "./middleware/auth.js";
 import { apiKeyRoutes } from "./routes/apiKeys.js";
 import { eventRoutes, type EventStreamOptions } from "./routes/events.js";
+import { pushRoutes, type PushRouteOptions } from "./routes/push.js";
 import { healthRouter } from "./routes/health.js";
 import { userRoutes } from "./routes/users.js";
 import { familyRoutes } from "./routes/family.js";
@@ -21,6 +23,8 @@ export interface AppDeps {
   webRoot?: string;
   /** SSE stream tuning (heartbeat interval, per-user cap). Tests shrink these. */
   events?: EventStreamOptions;
+  /** Web Push wiring (VAPID keys, delivery transport). Defaults to env config. */
+  push?: PushRouteOptions;
 }
 
 function setStaticCacheHeaders(res: Response, filePath: string): void {
@@ -60,6 +64,7 @@ export function buildApp(deps: AppDeps): Express {
   api.use(mealPlanRoutes(deps.db));
   api.use(shoppingListRoutes(deps.db));
   api.use(eventRoutes(deps.db, deps.events));
+  api.use(pushRoutes(deps.db, deps.push ?? { vapid: vapidConfig(env) }));
   app.use("/api", api);
 
   // Serve the built SPA (single-container topology). express.static handles real

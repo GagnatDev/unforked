@@ -161,6 +161,21 @@
     "itemCheckboxAria": "Merk {{name}} som handlet",
     "updateFailed": "Kunne ikke lagre endringen. Prøv igjen."
   },
+  "notifications": {
+    "title": "Varsler",
+    "cardTitle": "Push-varsler",
+    "description": "Få varsler om endringer i handlelisten mens noen er ute og handler – selv når appen er lukket.",
+    "enable": "Slå på på denne enheten",
+    "disable": "Slå av",
+    "test": "Send testvarsel",
+    "enabled": "Varsler er på for denne enheten.",
+    "testSent": "Testvarsel sendt.",
+    "testNone": "Ingenting ble sendt – prøv å slå varsler av og på igjen.",
+    "receivedInPage": "Appen er åpen, så varselet vises her i stedet for som systemvarsel:",
+    "iosInstallHint": "For å få varsler på iPhone eller iPad må du først legge appen til på Hjem-skjermen, og deretter slå dem på her.",
+    "permissionDenied": "Varsler er blokkert for denne appen i nettleserinnstillingene.",
+    "unavailable": "Push-varsler er ikke tilgjengelige akkurat nå."
+  },
   "family": {
     "title": "Familie",
     "defaultMealPlanning": "Standard for måltidsplanlegging",

@@ -24,6 +24,7 @@ describe("migrations", () => {
         "shopping_lists",
         "ingredient_categories",
         "api_keys",
+        "push_subscriptions",
       ]),
     );
   });
@@ -42,6 +43,7 @@ describe("migrations", () => {
       "005_shopping_lists",
       "006_api_keys",
       "007_add_version_columns",
+      "008_push_subscriptions",
     ]);
   });
 });

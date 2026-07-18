@@ -61,6 +61,15 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico}'],
+        // push-sw.js is service-worker code, not a page asset: keep it out of
+        // the precache manifest (the browser fetches it through the SW-script
+        // update machinery; backend/src/app.ts already serves *sw.js no-cache).
+        globIgnores: ['push-sw.js'],
+        // Web Push handlers (design #104 D5, resolved decision 5): a static,
+        // hand-written file pulled into the generated SW — keeps generateSW
+        // (precache/update behavior unchanged) while adding push +
+        // notificationclick. Served from public/, next to the generated sw.js.
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           // The realtime SSE stream (/api/events) must never be served from a
           // cache: a cached response would freeze the event feed and a caching

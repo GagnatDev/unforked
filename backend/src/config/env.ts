@@ -20,6 +20,12 @@ const EnvSchema = z
     AUTH_CLIENT_ID: z.string().min(1).optional(),
     AUTH_CLIENT_SECRET: z.string().min(1).optional(),
     INTERNAL_AUTH_URL: z.string().url().optional(),
+    // Web Push (design #104 D5). Provisioned by homectl-infra (`vapid = true`
+    // on this app) as the `unforked-vapid-secrets` Secret; absent in dev/test,
+    // which simply disables the push endpoints.
+    VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+    VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+    VAPID_SUBJECT: z.string().min(1).optional(),
     DISABLE_AUTH: boolFlag,
     SEED_TEST_DATA: boolFlag,
     CORS_ORIGIN: z.string().optional(),
@@ -34,6 +40,16 @@ const EnvSchema = z
         path: ["AUTH_CLIENT_ID"],
         message:
           "AUTH_CLIENT_ID, AUTH_CLIENT_SECRET and INTERNAL_AUTH_URL must be set together (homectl-auth user import)",
+      });
+    }
+    const vapidVars = [env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY, env.VAPID_SUBJECT];
+    const vapidSet = vapidVars.filter((v) => v !== undefined).length;
+    if (vapidSet > 0 && vapidSet < vapidVars.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["VAPID_PUBLIC_KEY"],
+        message:
+          "VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT must be set together (Web Push)",
       });
     }
   });
@@ -60,6 +76,28 @@ export function homectlImportConfig(source: {
     internalAuthUrl: source.INTERNAL_AUTH_URL.replace(/\/+$/, ""),
     clientId: source.AUTH_CLIENT_ID,
     clientSecret: source.AUTH_CLIENT_SECRET,
+  };
+}
+
+/** VAPID key material for Web Push; null when the app is not push-configured. */
+export interface VapidConfig {
+  publicKey: string;
+  privateKey: string;
+  subject: string;
+}
+
+export function vapidConfig(source: {
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
+}): VapidConfig | null {
+  if (!source.VAPID_PUBLIC_KEY || !source.VAPID_PRIVATE_KEY || !source.VAPID_SUBJECT) {
+    return null;
+  }
+  return {
+    publicKey: source.VAPID_PUBLIC_KEY,
+    privateKey: source.VAPID_PRIVATE_KEY,
+    subject: source.VAPID_SUBJECT,
   };
 }
 

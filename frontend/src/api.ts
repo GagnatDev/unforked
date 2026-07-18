@@ -150,6 +150,29 @@ export const api = {
       }),
     revoke: (id: string) => request<void>(`/api/api-keys/${id}`, { method: 'DELETE' }),
   },
+  push: {
+    // 404 = the server has no VAPID keys (push not provisioned); the settings
+    // card treats that as "unavailable" rather than an error.
+    vapidKey: () => request<{ publicKey: string }>('/api/push/vapid-key'),
+    subscribe: (
+      sub: { endpoint: string; keys: { p256dh: string; auth: string } },
+      locale: 'en' | 'nb'
+    ) =>
+      request<{ id: string; endpoint: string; locale: string }>('/api/push/subscriptions', {
+        method: 'POST',
+        body: JSON.stringify({ ...sub, locale }),
+      }),
+    unsubscribe: (endpoint: string) =>
+      request<void>('/api/push/subscriptions', {
+        method: 'DELETE',
+        body: JSON.stringify({ endpoint }),
+      }),
+    sendTest: () =>
+      request<{ sent: number; pruned: number; failed: number }>(
+        '/api/push/subscriptions/test',
+        { method: 'POST' }
+      ),
+  },
   family: {
     get: () =>
       request<{

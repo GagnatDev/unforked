@@ -6,6 +6,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { startCrossTabSync } from './local/db'
 import { startLiveEvents } from './local/liveEvents'
 import { startOutboxSync } from './local/outboxSync'
+import { startPushMessages } from './lib/pushMessages'
 import { startReauthCrossTab } from './lib/reauth'
 import './i18n'
 import './index.css'
@@ -23,6 +24,11 @@ startOutboxSync()
 // re-pulls changed weeks, so a family member's (or Aivo's) edit reaches every
 // open tab within seconds. Connects once AuthContext supplies an identity.
 startLiveEvents()
+
+// Push messages from the service worker (public/push-sw.js): in-page display
+// of pushes that arrive while a window is focused, and client-side routing of
+// notification-click deep links.
+startPushMessages()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

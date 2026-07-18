@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { NotificationSettings } from '@/components/NotificationSettings'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme, type Theme } from '@/contexts/ThemeContext'
 
@@ -94,6 +95,8 @@ export default function Profile() {
           </div>
         </div>
       </section>
+
+      <NotificationSettings />
 
       <section className="space-y-2">
         <h2 className="text-lg font-medium">{t('profile.manage')}</h2>
