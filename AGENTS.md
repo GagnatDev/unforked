@@ -76,3 +76,11 @@ Bad (too vague or too internal): `wip`, `updates`, `fix stuff`, `refactor UserSe
 Good (functional): `feat(nav): open app on Today and group secondary links in menus`
 
 Good (technical when relevant): `fix(frontend): forward ref from Button for PopoverTrigger anchor`
+
+## Cursor Cloud specific instructions
+
+These are durable, non-obvious caveats for running this repo on a Cursor Cloud VM. The update script (`pnpm install`) refreshes workspace dependencies on startup; everything below is already provisioned in the VM image.
+
+- **Node version.** The repo needs Node **>=24**, but the VM's default-PATH `/exec-daemon/node` is Node 22. Node 24 (via nvm) is symlinked into `/usr/local/cargo/bin` (the first `PATH` entry), so `node`/`pnpm` resolve to 24 in all shells — including the non-interactive shells the tools use. If a fresh clone ever reports Node 22, re-link with `ln -sf "$HOME/.nvm/versions/node/$(. "$HOME/.nvm/nvm.sh"; nvm version default)/bin/node" /usr/local/cargo/bin/node` (repeat for `pnpm`).
+- **Postgres is local (apt), not Docker.** Docker isn't available; an apt-installed PostgreSQL 16 runs on `localhost:5432`. It is **not started automatically** on VM boot — run `sudo pg_ctlcluster 16 main start` if `/health` or tests can't connect. Two superuser roles/databases exist: `meals`/`meals` (db `meals`, for dev) and `test`/`test` (db `test`, for the Vitest `TEST_DATABASE_URL` escape hatch above).
+- **Running the app in dev.** Backend: `DATABASE_URL=postgresql://meals:meals@localhost:5432/meals DISABLE_AUTH=true SEED_TEST_DATA=true pnpm --filter @unforked/backend run dev` (API on :8080, machine API on :8081, runs migrations + seeds ~21 recipes on boot). Frontend: `pnpm --filter meal-planning-frontend run dev` (Vite on :3000, proxies `/api` → :8080). `DISABLE_AUTH=true` is required locally — there is no login page; it resolves every request to a fixed seeded dev admin.
