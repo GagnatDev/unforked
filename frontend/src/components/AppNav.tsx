@@ -1,5 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { ChevronDownIcon } from 'lucide-react'
+import {
+  CalendarCheckIcon,
+  CalendarDaysIcon,
+  ChevronDownIcon,
+  ShoppingCartIcon,
+} from 'lucide-react'
 import { Link, NavLink, useMatch } from 'react-router-dom'
 import { UserMenu } from '@/components/UserMenu'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
@@ -18,6 +23,12 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
     buttonVariants({ variant: 'ghost', size: 'sm' }),
     isActive && 'bg-muted font-medium text-foreground'
+  )
+
+const navIconClass = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    buttonVariants({ variant: 'ghost', size: 'icon' }),
+    isActive && 'bg-muted text-foreground'
   )
 
 type AppNavProps = {
@@ -66,6 +77,37 @@ export function AppNav({ onLogout }: AppNavProps) {
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+      </div>
+
+      {/* Narrow screens: the three main pages get quick-access icon links on the
+          bar itself instead of hiding inside the hamburger menu. Hidden once the
+          full inline nav appears at the `sm` breakpoint. */}
+      <div className="flex items-center gap-1 sm:hidden">
+        <NavLink
+          to="/"
+          end
+          className={navIconClass}
+          aria-label={t('nav.today')}
+          title={t('nav.today')}
+        >
+          <CalendarCheckIcon className="size-5" />
+        </NavLink>
+        <NavLink
+          to="/meal-plan"
+          className={navIconClass}
+          aria-label={t('nav.weeklyMenu')}
+          title={t('nav.weeklyMenu')}
+        >
+          <CalendarDaysIcon className="size-5" />
+        </NavLink>
+        <NavLink
+          to="/shopping-list"
+          className={navIconClass}
+          aria-label={t('nav.shoppingList')}
+          title={t('nav.shoppingList')}
+        >
+          <ShoppingCartIcon className="size-5" />
+        </NavLink>
       </div>
 
       <div className="ml-auto flex items-center gap-2">

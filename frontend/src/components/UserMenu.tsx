@@ -28,9 +28,6 @@ type UserMenuProps = {
 export function UserMenu({ onLogout }: UserMenuProps) {
   const { t } = useTranslation()
 
-  const todayMatch = useMatch({ path: '/', end: true })
-  const mealPlanMatch = useMatch({ path: '/meal-plan', end: false })
-  const shoppingMatch = useMatch({ path: '/shopping-list', end: false })
   const recipesMatch = useMatch({ path: '/recipes', end: false })
 
   const profileMatch = useMatch({ path: '/profile', end: true })
@@ -51,28 +48,9 @@ export function UserMenu({ onLogout }: UserMenuProps) {
         <MenuIcon className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
-        {/* Primary navigation: only shown while the inline nav is collapsed. */}
-        <DropdownMenuGroup className="sm:hidden">
-          <DropdownMenuItem
-            render={<Link to="/" />}
-            className={cn(todayMatch && activeItemClass)}
-          >
-            {t('nav.today')}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            render={<Link to="/meal-plan" />}
-            className={cn(mealPlanMatch && activeItemClass)}
-          >
-            {t('nav.weeklyMenu')}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            render={<Link to="/shopping-list" />}
-            className={cn(shoppingMatch && activeItemClass)}
-          >
-            {t('nav.shoppingList')}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator className="sm:hidden" />
+        {/* Recipes navigation: only shown while the inline nav is collapsed.
+            Today, Weekly menu and Shopping list live as quick-access icons on
+            the nav bar instead, so they are no longer duplicated here. */}
         <DropdownMenuGroup className="sm:hidden">
           <DropdownMenuLabel className={cn(recipesMatch && 'text-foreground')}>
             {t('nav.recipesMenu')}
