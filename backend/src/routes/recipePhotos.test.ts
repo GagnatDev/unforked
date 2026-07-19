@@ -70,6 +70,9 @@ describe("upload URL minting", () => {
     expect(res.body.uploadUrl).toContain(res.body.key);
     expect(res.body.thumbUploadUrl).toContain(res.body.thumbKey);
     expect(res.body.headers["Content-Type"]).toBe("image/webp");
+    // Cache-Control must NOT be signed/returned for the PUT: as a non-safelisted
+    // request header it would trip a CORS preflight the bucket rejects.
+    expect(res.body.headers["Cache-Control"]).toBeUndefined();
     expect(res.body.maxBytes).toBe(MAX_BYTES);
   });
 
