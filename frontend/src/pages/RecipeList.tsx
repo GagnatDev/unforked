@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
+import { recipePhotoUrl } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { listLocalRecipes } from '@/local/db'
@@ -72,7 +73,19 @@ export default function RecipeList() {
               key={r.id}
               className="flex justify-between items-center gap-2 rounded-lg bg-card border border-border px-3 py-3 text-card-foreground"
             >
-              <div>
+              <div className="flex min-w-0 items-center gap-3">
+                {r.doc.photo && (
+                  <Link to={`/recipes/${r.id}/edit`} className="shrink-0" tabIndex={-1} aria-hidden="true">
+                    <img
+                      src={recipePhotoUrl(r.id, 'thumb', r.doc.photo.key)}
+                      crossOrigin="anonymous"
+                      loading="lazy"
+                      alt=""
+                      className="h-12 w-12 rounded-md border border-border object-cover"
+                    />
+                  </Link>
+                )}
+                <div className="min-w-0">
                 <Link to={`/recipes/${r.id}/edit`} className="font-semibold">
                   {r.doc.name}
                 </Link>
@@ -86,6 +99,7 @@ export default function RecipeList() {
                     {r.doc.tags.join(', ')}
                   </span>
                 )}
+                </div>
               </div>
               <Button
                 type="button"

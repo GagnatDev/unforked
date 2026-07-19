@@ -14,6 +14,7 @@ const emptyDoc: RecipeDoc = {
   steps: [],
   servings: 4,
   tags: [],
+  photo: null,
 }
 
 export function useRecipeFormState(id: string | undefined) {

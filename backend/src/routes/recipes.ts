@@ -4,9 +4,11 @@ import type { Db } from "../db/kysely.js";
 import { isValidUuid } from "../domain/fields.js";
 import { importFromUrl } from "../importer/recipeImporter.js";
 import { requireUuidParam, validateBody } from "../middleware/validate.js";
+import type { PhotoStorage } from "../service/photoStorage.js";
 import { RecipeRepository } from "../storage/recipeRepository.js";
 import { UserRepository } from "../storage/userRepository.js";
 import { requireUserAndFamily } from "./context.js";
+import { photoKeys } from "./recipePhotos.js";
 
 const ingredientSchema = z.object({
   name: z.string(),
@@ -42,8 +44,12 @@ const recipeUpdateSchema = recipeDocSchema.extend({
 
 const importSchema = z.object({ url: z.string() });
 
-/** Authenticated recipe routes; mounted under /api (after requireAuth). */
-export function recipeRoutes(db: Db): Router {
+/**
+ * Authenticated recipe routes; mounted under /api (after requireAuth).
+ * `photoStorage` (optional) lets recipe deletion clean up the recipe's photo
+ * objects in the bucket; photo management itself lives in recipePhotos.ts.
+ */
+export function recipeRoutes(db: Db, photoStorage?: PhotoStorage | null): Router {
   const users = new UserRepository(db);
   const recipes = new RecipeRepository(db);
   const router = Router();
@@ -113,17 +119,23 @@ export function recipeRoutes(db: Db): Router {
       res.status(409).json({ error: "conflict", id, doc: outcome.doc, version: outcome.version });
       return;
     }
-    res.json({ id, doc, version: outcome.version });
+    // Echo the doc as persisted: the store re-attaches the recipe's photo,
+    // which clients cannot set through this route.
+    res.json({ id, doc: outcome.doc ?? doc, version: outcome.version });
   });
 
   router.delete("/recipes/:id", async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
     const id = requireUuidParam(req.params.id, res);
     if (!id) return;
-    if (!(await recipes.delete(familyId, id))) {
+    const existing = await recipes.findById(familyId, id);
+    if (!existing || !(await recipes.delete(familyId, id))) {
       res.status(404).json({ error: "Recipe not found" });
       return;
     }
+    // Best-effort: an orphaned object only wastes bucket space.
+    const keys = photoKeys(existing.doc.photo);
+    if (photoStorage && keys.length > 0) await photoStorage.deleteAll(keys);
     res.status(204).end();
   });
 

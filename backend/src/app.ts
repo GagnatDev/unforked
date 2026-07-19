@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import express, { Router, type Express, type Response } from "express";
 import cors from "cors";
-import { env, vapidConfig } from "./config/env.js";
+import { env, s3Config, vapidConfig } from "./config/env.js";
 import type { Db } from "./db/kysely.js";
 import { httpLogger } from "./logger.js";
 import { errorHandler } from "./middleware/error.js";
@@ -14,6 +14,8 @@ import { healthRouter } from "./routes/health.js";
 import { userRoutes } from "./routes/users.js";
 import { familyRoutes } from "./routes/family.js";
 import { recipeRoutes } from "./routes/recipes.js";
+import { recipePhotoRoutes, type PhotoRouteOptions } from "./routes/recipePhotos.js";
+import { createS3PhotoStorage } from "./service/photoStorage.js";
 import { mealPlanRoutes } from "./routes/mealPlans.js";
 import { shoppingListRoutes } from "./routes/shoppingLists.js";
 
@@ -25,6 +27,8 @@ export interface AppDeps {
   events?: EventStreamOptions;
   /** Web Push wiring (VAPID keys, delivery transport). Defaults to env config. */
   push?: PushRouteOptions;
+  /** Recipe photo storage wiring. Defaults to env S3 config; tests pass a fake. */
+  photos?: PhotoRouteOptions;
 }
 
 function setStaticCacheHeaders(res: Response, filePath: string): void {
@@ -57,10 +61,15 @@ export function buildApp(deps: AppDeps): Express {
   // there are no public auth endpoints (login/logout are owned by the sidecar).
   const api = Router();
   api.use(requireAuth(deps.db));
+  const s3 = s3Config(env);
+  const photos: PhotoRouteOptions = deps.photos ?? {
+    storage: s3 ? createS3PhotoStorage(s3) : null,
+  };
   api.use(userRoutes(deps.db));
   api.use(apiKeyRoutes(deps.db));
   api.use(familyRoutes(deps.db));
-  api.use(recipeRoutes(deps.db));
+  api.use(recipeRoutes(deps.db, photos.storage));
+  api.use(recipePhotoRoutes(deps.db, photos));
   api.use(mealPlanRoutes(deps.db));
   api.use(shoppingListRoutes(deps.db));
   api.use(eventRoutes(deps.db, deps.events));

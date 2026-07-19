@@ -1,6 +1,11 @@
 import { sql } from "kysely";
 import type { Db } from "../db/kysely.js";
-import type { ConcurrentWriteResult, RecipeDoc, RecipeResponse } from "../domain/types.js";
+import type {
+  ConcurrentWriteResult,
+  RecipeDoc,
+  RecipePhoto,
+  RecipeResponse,
+} from "../domain/types.js";
 
 export interface FindAllOptions {
   nameQuery?: string;
@@ -99,6 +104,10 @@ export class RecipeRepository {
    * unconditional (preserving legacy single-client behaviour); with one, the
    * update only lands when the stored version matches, bumping it on success.
    * A mismatch returns the current server doc + version so the caller can 409.
+   *
+   * The stored `photo` (managed by the photo endpoints, not recipe writes) is
+   * carried over into the new doc, so full-doc PUTs — including offline-sync
+   * replays that predate the photo — can never detach it.
    */
   async update(
     familyId: string,
@@ -108,19 +117,47 @@ export class RecipeRepository {
   ): Promise<ConcurrentWriteResult<RecipeDoc>> {
     let update = this.db
       .updateTable("recipes")
-      .set({ doc: JSON.stringify(doc), updated_at: new Date(), version: sql`version + 1` })
+      .set({
+        doc: sql<string>`(${JSON.stringify(doc)}::jsonb || jsonb_strip_nulls(jsonb_build_object('photo', doc -> 'photo')))`,
+        updated_at: new Date(),
+        version: sql`version + 1`,
+      })
       .where("id", "=", id)
       .where("family_id", "=", familyId);
     if (baseVersion !== undefined) {
       update = update.where("version", "=", baseVersion);
     }
-    const updated = await update.returning("version").executeTakeFirst();
-    if (updated) return { status: "updated", version: updated.version };
+    const updated = await update.returning(["doc", "version"]).executeTakeFirst();
+    if (updated) return { status: "updated", version: updated.version, doc: updated.doc };
 
     // Nothing updated: distinguish a missing row from a version mismatch.
     const current = await this.findById(familyId, id);
     if (!current) return { status: "notFound" };
     return { status: "conflict", doc: current.doc, version: current.version };
+  }
+
+  /**
+   * Set or clear the recipe's photo without touching the rest of the doc
+   * (single jsonb_set/`-` statement, so it cannot clobber concurrent doc
+   * updates). Returns the resulting doc + version, or undefined when the
+   * recipe does not exist for this family.
+   */
+  async setPhoto(
+    familyId: string,
+    id: string,
+    photo: RecipePhoto | null,
+  ): Promise<{ doc: RecipeDoc; version: number } | undefined> {
+    const docExpr = photo
+      ? sql<string>`jsonb_set(doc, '{photo}', ${JSON.stringify(photo)}::jsonb, true)`
+      : sql<string>`doc - 'photo'`;
+    const row = await this.db
+      .updateTable("recipes")
+      .set({ doc: docExpr, updated_at: new Date(), version: sql`version + 1` })
+      .where("id", "=", id)
+      .where("family_id", "=", familyId)
+      .returning(["doc", "version"])
+      .executeTakeFirst();
+    return row ? { doc: row.doc, version: row.version } : undefined;
   }
 
   async delete(familyId: string, id: string): Promise<boolean> {

@@ -4,6 +4,7 @@ import type {
   MealPlanDoc,
   PersistedShoppingListDoc,
   RecipeDoc,
+  RecipePhoto,
   ShoppingCategory,
   ShoppingListEntry,
 } from '@/types'
@@ -22,7 +23,42 @@ function normalizeRecipeDoc(doc: Partial<RecipeDoc>): RecipeDoc {
     steps: doc.steps ?? [],
     servings: doc.servings ?? 4,
     tags: doc.tags ?? [],
+    photo: doc.photo ?? null,
   }
+}
+
+/** Presigned upload target for one photo variant pair, minted by the backend. */
+export interface PhotoUploadTarget {
+  key: string
+  thumbKey: string
+  uploadUrl: string
+  thumbUploadUrl: string
+  /** Must be sent verbatim on both PUTs — they are part of the signature. */
+  headers: Record<string, string>
+  maxBytes: number
+}
+
+/**
+ * Photo `<img>` URL for a recipe variant. Routed through the backend (which
+ * redirects to a presigned bucket URL); `key` acts as a cache-buster so a
+ * replaced photo shows up immediately.
+ */
+export function recipePhotoUrl(id: string, variant: 'full' | 'thumb', key: string): string {
+  return `${base}/api/recipes/${id}/photo/${variant}?v=${encodeURIComponent(key)}`
+}
+
+/**
+ * PUT one compressed image straight to the bucket via its presigned URL.
+ * Deliberately not `request()`: this is a cross-origin, non-JSON call with no
+ * cookies, and the signed headers must not be augmented.
+ */
+export async function uploadPhotoBlob(
+  url: string,
+  blob: Blob,
+  headers: Record<string, string>,
+): Promise<void> {
+  const res = await fetch(url, { method: 'PUT', body: blob, headers })
+  if (!res.ok) throw new Error(`Photo upload failed (HTTP ${res.status})`)
 }
 
 /**
@@ -92,6 +128,26 @@ export const api = {
       if (opts?.excludeRecipeId) params.set('excludeRecipeId', opts.excludeRecipeId)
       return request<string[]>(`/api/recipes/tags?${params}`, { signal: opts?.signal })
     },
+  },
+  recipePhotos: {
+    /** False in environments without a bucket (dev/test) — used to gate the UI. */
+    availability: () =>
+      request<{ available: boolean }>('/api/photos/availability'),
+    mintUploads: (recipeId: string, contentType: string) =>
+      request<PhotoUploadTarget>(`/api/recipes/${recipeId}/photo/uploads`, {
+        method: 'POST',
+        body: JSON.stringify({ contentType }),
+      }),
+    attach: (recipeId: string, keys: RecipePhoto) =>
+      request<{ id: string; doc: Partial<RecipeDoc>; version?: number }>(
+        `/api/recipes/${recipeId}/photo`,
+        { method: 'PUT', body: JSON.stringify(keys) }
+      ).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
+    remove: (recipeId: string) =>
+      request<{ id: string; doc: Partial<RecipeDoc>; version?: number }>(
+        `/api/recipes/${recipeId}/photo`,
+        { method: 'DELETE' }
+      ).then((r) => ({ ...r, doc: normalizeRecipeDoc(r.doc) })),
   },
   mealPlans: {
     getCurrent: (week?: string) =>

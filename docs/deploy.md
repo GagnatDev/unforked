@@ -21,8 +21,14 @@ Remove after cutover from Serverless (no longer used): `SCALEWAY_API_KEY`, `SCW_
 ### Kubernetes secrets
 
 **`unforked-terraform-secrets`** (Terraform-managed in homectl-infra) supplies
-`DATABASE_URL` and is loaded automatically by `k8s/deployment.yml`. Ensure the
-`unforked` app is provisioned there and `terraform apply` has run before deploy.
+`DATABASE_URL` and the Object Storage credentials for recipe photos
+(`S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` —
+the app has `bucket = true` in homectl-infra, and the bucket carries a CORS
+rule for `https://unforked.homectl.no` so browsers can PUT photos directly via
+presigned URLs). All are loaded automatically by `k8s/deployment.yml`. Ensure
+the `unforked` app is provisioned there and `terraform apply` has run before
+deploy. Without the `S3_*` variables the app still runs; the photo endpoints
+just report the feature as unavailable and the frontend hides its photo UI.
 
 **`unforked-secrets`** holds app config that is not in Terraform. Create once
 in namespace `homectl` (do not commit values to git):

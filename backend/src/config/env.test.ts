@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homectlImportConfig, loadEnv } from "./env.js";
+import { homectlImportConfig, loadEnv, s3Config } from "./env.js";
 
 describe("loadEnv", () => {
   const base = { DATABASE_URL: "postgresql://a:b@host/db" };
@@ -39,6 +39,35 @@ describe("loadEnv", () => {
 
   it("requires DATABASE_URL", () => {
     expect(() => loadEnv({})).toThrow();
+  });
+
+  it("rejects a partial S3 config", () => {
+    expect(() => loadEnv({ ...base, S3_BUCKET: "homectl-unforked" })).toThrow(
+      /must be set together/,
+    );
+  });
+});
+
+describe("s3Config", () => {
+  it("returns null when not configured", () => {
+    expect(s3Config({})).toBeNull();
+  });
+
+  it("builds the config and trims trailing slashes off the endpoint", () => {
+    const cfg = s3Config({
+      S3_BUCKET: "homectl-unforked",
+      S3_REGION: "fr-par",
+      S3_ENDPOINT: "https://s3.fr-par.scw.cloud/",
+      S3_ACCESS_KEY: "AK",
+      S3_SECRET_KEY: "SK",
+    });
+    expect(cfg).toEqual({
+      bucket: "homectl-unforked",
+      region: "fr-par",
+      endpoint: "https://s3.fr-par.scw.cloud",
+      accessKey: "AK",
+      secretKey: "SK",
+    });
   });
 });
 
