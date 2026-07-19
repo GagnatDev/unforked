@@ -26,6 +26,14 @@ const EnvSchema = z
     VAPID_PUBLIC_KEY: z.string().min(1).optional(),
     VAPID_PRIVATE_KEY: z.string().min(1).optional(),
     VAPID_SUBJECT: z.string().min(1).optional(),
+    // Object Storage for recipe photos. Provisioned by homectl-infra (`bucket = true`
+    // on this app) as the `unforked-terraform-secrets` Secret; absent in dev/test,
+    // which disables the photo endpoints.
+    S3_BUCKET: z.string().min(1).optional(),
+    S3_REGION: z.string().min(1).optional(),
+    S3_ENDPOINT: z.string().url().optional(),
+    S3_ACCESS_KEY: z.string().min(1).optional(),
+    S3_SECRET_KEY: z.string().min(1).optional(),
     DISABLE_AUTH: boolFlag,
     SEED_TEST_DATA: boolFlag,
     CORS_ORIGIN: z.string().optional(),
@@ -50,6 +58,16 @@ const EnvSchema = z
         path: ["VAPID_PUBLIC_KEY"],
         message:
           "VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT must be set together (Web Push)",
+      });
+    }
+    const s3Vars = [env.S3_BUCKET, env.S3_REGION, env.S3_ENDPOINT, env.S3_ACCESS_KEY, env.S3_SECRET_KEY];
+    const s3Set = s3Vars.filter((v) => v !== undefined).length;
+    if (s3Set > 0 && s3Set < s3Vars.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["S3_BUCKET"],
+        message:
+          "S3_BUCKET, S3_REGION, S3_ENDPOINT, S3_ACCESS_KEY and S3_SECRET_KEY must be set together (recipe photos)",
       });
     }
   });
@@ -98,6 +116,40 @@ export function vapidConfig(source: {
     publicKey: source.VAPID_PUBLIC_KEY,
     privateKey: source.VAPID_PRIVATE_KEY,
     subject: source.VAPID_SUBJECT,
+  };
+}
+
+/** S3-compatible Object Storage config for recipe photos; null when not configured. */
+export interface S3Config {
+  bucket: string;
+  region: string;
+  endpoint: string;
+  accessKey: string;
+  secretKey: string;
+}
+
+export function s3Config(source: {
+  S3_BUCKET?: string;
+  S3_REGION?: string;
+  S3_ENDPOINT?: string;
+  S3_ACCESS_KEY?: string;
+  S3_SECRET_KEY?: string;
+}): S3Config | null {
+  if (
+    !source.S3_BUCKET ||
+    !source.S3_REGION ||
+    !source.S3_ENDPOINT ||
+    !source.S3_ACCESS_KEY ||
+    !source.S3_SECRET_KEY
+  ) {
+    return null;
+  }
+  return {
+    bucket: source.S3_BUCKET,
+    region: source.S3_REGION,
+    endpoint: source.S3_ENDPOINT.replace(/\/+$/, ""),
+    accessKey: source.S3_ACCESS_KEY,
+    secretKey: source.S3_SECRET_KEY,
   };
 }
 

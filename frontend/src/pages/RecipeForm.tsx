@@ -6,6 +6,7 @@ import {
   type RecipeTagsInputHandle,
 } from '@/components/RecipeTagsInput'
 import { RecipeImportUrlDialog } from '@/components/RecipeImportUrlDialog'
+import { RecipePhotoSection } from '@/components/RecipePhotoSection'
 import { RecipeSourceAttribution } from '@/components/RecipeSourceAttribution'
 import { AutoGrowTextarea } from '@/components/AutoGrowTextarea'
 import { Button } from '@/components/ui/button'
@@ -126,6 +127,14 @@ export default function RecipeForm() {
           sourceName={doc.sourceName}
           collapsible
         />
+        {id && (
+          <RecipePhotoSection
+            recipeId={id}
+            photo={doc.photo}
+            onPhotoChange={(photo) => update({ photo })}
+            alt={doc.name}
+          />
+        )}
         <div className="mb-4">
           <label className="mb-2 block font-medium">
             {t('recipeForm.servings')} <Input

@@ -1,5 +1,6 @@
+import { api } from '@/api'
 import { categorizeIngredient } from '@/lib/categorize'
-import type { MealPlanDoc, Recipe, RecipeDoc, ShoppingListEntry } from '@/types'
+import type { MealPlanDoc, Recipe, RecipeDoc, RecipePhoto, ShoppingListEntry } from '@/types'
 
 import {
   appendOutboxOp,
@@ -68,6 +69,19 @@ export async function updateRecipe(id: string, doc: RecipeDoc): Promise<Recipe> 
   await putLocalRecipe(recipe)
   await appendOutboxOp(recipeOp('update', id, { baseDoc, nextDoc: doc }, existing?.version))
   kickOutboxSync()
+  return recipe
+}
+
+/**
+ * Attach (or, with null, remove) a recipe's photo. Unlike the mutations above
+ * this is NOT queued through the outbox: uploading a photo requires the
+ * network anyway (the bytes go straight to the bucket via presigned URLs), so
+ * the server is the write path and the local store just mirrors its response.
+ */
+export async function setRecipePhoto(id: string, keys: RecipePhoto | null): Promise<Recipe> {
+  const result = keys ? await api.recipePhotos.attach(id, keys) : await api.recipePhotos.remove(id)
+  const recipe: Recipe = { id, doc: result.doc, version: result.version }
+  await putLocalRecipe(recipe)
   return recipe
 }
 

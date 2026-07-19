@@ -4,6 +4,18 @@ export interface Ingredient {
   unit: string
 }
 
+/**
+ * Bucket object keys for a recipe's photo. Server-managed: set via the photo
+ * endpoints only; regular recipe saves cannot change it (the backend strips
+ * and re-attaches the stored value on every doc write).
+ */
+export interface RecipePhoto {
+  /** Object key of the full-size (compressed) photo. */
+  key: string
+  /** Object key of the small thumbnail rendered in the recipes list. */
+  thumbKey: string
+}
+
 export interface RecipeDoc {
   name: string
   description: string
@@ -13,6 +25,7 @@ export interface RecipeDoc {
   steps: string[]
   servings: number
   tags: string[]
+  photo?: RecipePhoto | null
 }
 
 export interface Recipe {

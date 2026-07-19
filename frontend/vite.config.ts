@@ -96,6 +96,27 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          // Recipe photos: the /api URL 302-redirects to a short-lived presigned
+          // bucket URL, but the object keys are immutable (every upload gets a
+          // fresh UUID key and the ?v= param busts on replace), so the followed
+          // response can be cached hard. The <img> tags request with
+          // crossorigin="anonymous" (the bucket's CORS allows the app origin),
+          // keeping responses non-opaque so the cache stores real bytes instead
+          // of quota-padded opaque entries. Registered before the /api/recipes
+          // rule below (first matching route wins).
+          {
+            urlPattern: /^https?:\/\/[^/]+\/api\/recipes\/[^/]+\/photo\/(full|thumb)/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'api-recipe-photos',
+              expiration: {
+                maxEntries: 150,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+                purgeOnQuotaError: true,
+              },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
           // Domain data (recipes, meal plans, shopping lists) is read from the
           // IndexedDB local store — the offline-first source of truth — and the
           // network is only ever pulled in the background to refresh that store

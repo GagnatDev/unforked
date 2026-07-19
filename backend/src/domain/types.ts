@@ -8,6 +8,18 @@ export interface Ingredient {
   unit: string;
 }
 
+/**
+ * Bucket object keys for a recipe's photo. Additive and optional so legacy
+ * docs stay valid. Managed exclusively by the photo endpoints — regular
+ * recipe writes cannot set it, and the stored value survives doc updates.
+ */
+export interface RecipePhoto {
+  /** Object key of the full-size (client-compressed) photo. */
+  key: string;
+  /** Object key of the small thumbnail rendered in the recipes list. */
+  thumbKey: string;
+}
+
 export interface RecipeDoc {
   name: string;
   description: string;
@@ -17,6 +29,7 @@ export interface RecipeDoc {
   steps: string[];
   servings: number;
   tags: string[];
+  photo?: RecipePhoto | null;
 }
 
 export interface RecipeResponse {
@@ -32,7 +45,12 @@ export interface RecipeResponse {
  * and retry; `notFound` means the target row does not exist for this family.
  */
 export type ConcurrentWriteResult<TDoc> =
-  | { status: "updated"; version: number }
+  | {
+      status: "updated";
+      version: number;
+      /** The doc as persisted, when the store normalizes it (e.g. recipes keep their photo). */
+      doc?: TDoc;
+    }
   | { status: "conflict"; doc: TDoc; version: number }
   | { status: "notFound" };
 
