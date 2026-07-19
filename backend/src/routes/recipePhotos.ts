@@ -22,7 +22,9 @@ const EXTENSIONS: Record<(typeof PHOTO_CONTENT_TYPES)[number], string> = {
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
 // Photo objects get a fresh UUID key on every upload, so they are immutable
-// and can be cached hard by browsers and the service worker.
+// and can be cached hard by browsers and the service worker. Applied to the
+// presigned GET response (not the PUT): a Cache-Control *request* header on the
+// cross-origin upload would trip a CORS preflight the bucket rejects.
 const OBJECT_CACHE_CONTROL = "public, max-age=31536000, immutable";
 
 // The redirect (and thus the presigned GET URL it points to) may be reused for
@@ -81,7 +83,10 @@ export function recipePhotoRoutes(db: Db, options: PhotoRouteOptions = {}): Rout
   });
 
   // Mint presigned PUT URLs for one photo (full + thumbnail). The client must
-  // upload with exactly the returned headers — they are part of the signature.
+  // upload with exactly the returned Content-Type — it is part of the signature.
+  // No Cache-Control is signed or returned: sending that request header on the
+  // cross-origin PUT forces a CORS preflight the bucket rejects (long-lived
+  // caching is applied to the download instead).
   router.post("/recipes/:id/photo/uploads", validateBody(uploadsSchema), async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
     const id = requireUuidParam(req.params.id, res);
@@ -98,15 +103,15 @@ export function recipePhotoRoutes(db: Db, options: PhotoRouteOptions = {}): Rout
     const key = `${keyPrefix(id)}${uploadId}-full.${ext}`;
     const thumbKey = `${keyPrefix(id)}${uploadId}-thumb.${ext}`;
     const [uploadUrl, thumbUploadUrl] = await Promise.all([
-      s3.presignUpload(key, contentType, OBJECT_CACHE_CONTROL),
-      s3.presignUpload(thumbKey, contentType, OBJECT_CACHE_CONTROL),
+      s3.presignUpload(key, contentType),
+      s3.presignUpload(thumbKey, contentType),
     ]);
     res.status(201).json({
       key,
       thumbKey,
       uploadUrl,
       thumbUploadUrl,
-      headers: { "Content-Type": contentType, "Cache-Control": OBJECT_CACHE_CONTROL },
+      headers: { "Content-Type": contentType },
       maxBytes,
     });
   });
@@ -206,6 +211,7 @@ export function recipePhotoRoutes(db: Db, options: PhotoRouteOptions = {}): Rout
     const url = await s3.presignDownload(
       variant === "full" ? photo.key : photo.thumbKey,
       DOWNLOAD_EXPIRY_SECONDS,
+      OBJECT_CACHE_CONTROL,
     );
     res.setHeader("Cache-Control", `private, max-age=${REDIRECT_CACHE_SECONDS}`);
     res.redirect(302, url);

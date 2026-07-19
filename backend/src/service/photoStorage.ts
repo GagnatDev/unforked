@@ -21,10 +21,20 @@ export interface PhotoObjectStat {
  * deletes objects. Tests substitute an in-memory fake.
  */
 export interface PhotoStorage {
-  /** Presigned PUT URL. The client must send the same Content-Type and Cache-Control. */
-  presignUpload(key: string, contentType: string, cacheControl: string): Promise<string>;
-  /** Presigned GET URL, valid for `expiresInSeconds`. */
-  presignDownload(key: string, expiresInSeconds: number): Promise<string>;
+  /**
+   * Presigned PUT URL. The client must send the same Content-Type. We do NOT
+   * sign a Cache-Control header: it is a non-safelisted request header, so
+   * sending it on the cross-origin PUT forces a CORS preflight that lists
+   * `cache-control`, which the bucket's CORS rule does not allow — the browser
+   * then blocks the upload ("Load failed"). Long-lived caching is applied on the
+   * read side via `presignDownload`'s `cacheControl` instead.
+   */
+  presignUpload(key: string, contentType: string): Promise<string>;
+  /**
+   * Presigned GET URL, valid for `expiresInSeconds`. `cacheControl`, when given,
+   * overrides the Cache-Control the bucket returns with the object bytes.
+   */
+  presignDownload(key: string, expiresInSeconds: number, cacheControl?: string): Promise<string>;
   /** Object metadata, or null when the object does not exist. */
   head(key: string): Promise<PhotoObjectStat | null>;
   /** Best-effort delete; failures are logged, never thrown. */
@@ -45,23 +55,29 @@ export function createS3PhotoStorage(config: S3Config): PhotoStorage {
   });
 
   return {
-    presignUpload(key, contentType, cacheControl) {
+    presignUpload(key, contentType) {
       return getSignedUrl(
         client,
         new PutObjectCommand({
           Bucket: config.bucket,
           Key: key,
           ContentType: contentType,
-          CacheControl: cacheControl,
         }),
         { expiresIn: UPLOAD_EXPIRY_SECONDS },
       );
     },
 
-    presignDownload(key, expiresInSeconds) {
+    presignDownload(key, expiresInSeconds, cacheControl) {
       return getSignedUrl(
         client,
-        new GetObjectCommand({ Bucket: config.bucket, Key: key }),
+        new GetObjectCommand({
+          Bucket: config.bucket,
+          Key: key,
+          // Served with the object bytes, so a replaced photo (fresh UUID key)
+          // can still be cached hard by the browser without signing the header
+          // on the CORS-sensitive upload.
+          ResponseCacheControl: cacheControl,
+        }),
         { expiresIn: expiresInSeconds },
       );
     },
