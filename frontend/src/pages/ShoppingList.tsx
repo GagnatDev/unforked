@@ -7,6 +7,7 @@ import { usePersistedFlag } from '@/hooks/usePersistedFlag'
 import { groupItemsByCategory, hideCheckedItems } from '@/lib/shoppingCategories'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { getNextWeekId } from '@/lib/utils'
+import { isWeekId } from '@/lib/week-id'
 import { AddItemForm } from './shopping-list/AddItemForm'
 import { CategorySection } from './shopping-list/CategorySection'
 import {
@@ -17,11 +18,6 @@ import {
 import { useShoppingList } from './shopping-list/useShoppingList'
 
 const HIDE_CHECKED_KEY = 'shoppingList.hideChecked'
-
-/** A weekIdentifier as produced everywhere in the app, e.g. "2026-W03". */
-function isWeekId(value: string | null): value is string {
-  return value !== null && /^\d{4}-W\d{2}$/.test(value)
-}
 
 /** "started {time}" for the approved banner: time today, date + time otherwise. */
 function formatApprovedAt(iso: string, locale: string): string {

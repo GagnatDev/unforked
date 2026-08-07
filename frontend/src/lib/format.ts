@@ -1,3 +1,5 @@
+import { parseWeekId } from '@/lib/week-id'
+
 /**
  * Locale-aware date and number formatting using the Intl API.
  * Pass the current locale (e.g. from i18n.resolvedLanguage) so formatting
@@ -34,11 +36,11 @@ export function formatNumber(
  * Returns a human-readable string like "Week 10, 2025" (en) or "Uke 10, 2025" (nb).
  */
 export function formatWeekId(weekId: string, locale: string): string {
-  const match = /^(\d{4})-W(\d{2})$/.exec(weekId)
-  if (!match) return weekId
-  const [, year, week] = match
+  const parsed = parseWeekId(weekId)
+  if (!parsed) return weekId
+  const { year, week } = parsed
   if (locale.startsWith('nb')) {
-    return `Uke ${Number(week)}, ${year}`
+    return `Uke ${week}, ${year}`
   }
-  return `Week ${Number(week)}, ${year}`
+  return `Week ${week}, ${year}`
 }
