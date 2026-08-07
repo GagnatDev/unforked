@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
+import { usePersistedFlag } from '@/hooks/usePersistedFlag'
 import { groupItemsByCategory, hideCheckedItems } from '@/lib/shoppingCategories'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { getNextWeekId } from '@/lib/utils'
@@ -31,14 +31,6 @@ function formatApprovedAt(iso: string, locale: string): string {
     : date.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })
 }
 
-function readHideCheckedPreference(): boolean {
-  try {
-    return localStorage.getItem(HIDE_CHECKED_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
 export default function ShoppingList() {
   const { t, i18n } = useTranslation()
   // The viewed week lives in the URL (?week=) so push-notification deep links
@@ -48,7 +40,7 @@ export default function ShoppingList() {
   const paramWeek = searchParams.get('week')
   const weekId = isWeekId(paramWeek) ? paramWeek : getNextWeekId()
   const setWeekId = (week: string) => setSearchParams({ week }, { replace: true })
-  const [hideChecked, setHideChecked] = useState(readHideCheckedPreference)
+  const [hideChecked, setHideChecked] = usePersistedFlag(HIDE_CHECKED_KEY)
   const {
     items,
     loading,
@@ -65,14 +57,6 @@ export default function ShoppingList() {
     approve,
     reopen,
   } = useShoppingList(weekId)
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(HIDE_CHECKED_KEY, hideChecked ? '1' : '0')
-    } catch {
-      // Preference is best-effort; private mode / quota failures are fine.
-    }
-  }, [hideChecked])
 
   const groups = items ? groupItemsByCategory(items) : []
   // Exports always cover the full list; only the rendered sections are filtered.
