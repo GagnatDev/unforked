@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/api'
+import { CheckboxField } from '@/components/CheckboxField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAsync } from '@/hooks/useAsync'
@@ -101,15 +102,16 @@ export default function ApiKeys() {
             {creating ? t('common.loading') : t('apiKeys.create')}
           </Button>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={allowWrite}
-            onChange={(e) => setAllowWrite(e.target.checked)}
-          />
-          {t('apiKeys.writeLabel')}
-          <span className="text-xs text-muted-foreground">{t('apiKeys.writeHint')}</span>
-        </label>
+        <CheckboxField
+          checked={allowWrite}
+          onCheckedChange={setAllowWrite}
+          label={
+            <>
+              {t('apiKeys.writeLabel')}
+              <span className="text-xs text-muted-foreground">{t('apiKeys.writeHint')}</span>
+            </>
+          }
+        />
       </form>
 
       {createdKey && (

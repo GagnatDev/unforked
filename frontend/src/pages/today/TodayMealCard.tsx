@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { CheckboxField } from '@/components/CheckboxField'
 
 type TodayMealCardProps = {
   recipeName: string
@@ -34,15 +35,12 @@ export function TodayMealCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={keepAwake}
-            onChange={(e) => onKeepAwakeChange(e.target.checked)}
-            disabled={!wakeLockSupported}
-          />
-          {t('today.keepAwake')}
-        </label>
+        <CheckboxField
+          label={t('today.keepAwake')}
+          checked={keepAwake}
+          onCheckedChange={onKeepAwakeChange}
+          disabled={!wakeLockSupported}
+        />
         {!wakeLockSupported && (
           <span className="text-sm text-muted-foreground">{t('today.keepAwakeUnsupported')}</span>
         )}

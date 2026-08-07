@@ -1,5 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
+import { CheckboxField } from '@/components/CheckboxField'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
 import { usePersistedFlag } from '@/hooks/usePersistedFlag'
@@ -120,14 +121,11 @@ export default function ShoppingList() {
         <div className="space-y-6">
           {groups.length > 0 ? (
             <>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={hideChecked}
-                  onChange={(e) => setHideChecked(e.target.checked)}
-                />
-                {t('shoppingList.hideChecked')}
-              </label>
+              <CheckboxField
+                label={t('shoppingList.hideChecked')}
+                checked={hideChecked}
+                onCheckedChange={setHideChecked}
+              />
               {visibleGroups.length > 0 ? (
                 visibleGroups.map((group) => (
                   <CategorySection
