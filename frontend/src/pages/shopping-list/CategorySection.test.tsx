@@ -35,13 +35,14 @@ describe('CategorySection', () => {
   const group: CategoryGroup = {
     category: 'dairy',
     checkedCount: 1,
+    totalCount: 2,
     items: [
       entry({ id: 'milk', name: 'Milk' }),
       entry({ id: 'butter', name: 'Butter', checked: true }),
     ],
   }
 
-  it('renders every item and category progress by default', () => {
+  it('renders every item and category progress', () => {
     render(
       <CategorySection
         group={group}
@@ -58,11 +59,10 @@ describe('CategorySection', () => {
     expect(screen.getByTestId('item-butter')).toBeTruthy()
   })
 
-  it('hides checked items while keeping full-group progress', () => {
+  it('keeps full-group progress when checked rows were filtered out', () => {
     render(
       <CategorySection
-        group={group}
-        hideChecked
+        group={{ ...group, items: [entry({ id: 'milk', name: 'Milk' })] }}
         onToggle={noop}
         onChangeCategory={noop}
         onEdit={noop}
@@ -73,25 +73,5 @@ describe('CategorySection', () => {
     expect(screen.getByText('1/2')).toBeTruthy()
     expect(screen.getByTestId('item-milk')).toBeTruthy()
     expect(screen.queryByTestId('item-butter')).toBeNull()
-  })
-
-  it('renders nothing when every item is checked and hidden', () => {
-    const { container } = render(
-      <CategorySection
-        group={{
-          category: 'dairy',
-          checkedCount: 1,
-          items: [entry({ id: 'butter', name: 'Butter', checked: true })],
-        }}
-        hideChecked
-        onToggle={noop}
-        onChangeCategory={noop}
-        onEdit={noop}
-        onDelete={noop}
-      />,
-    )
-
-    expect(container.firstChild).toBeNull()
-    expect(screen.queryByRole('region', { name: 'Dairy & eggs' })).toBeNull()
   })
 })

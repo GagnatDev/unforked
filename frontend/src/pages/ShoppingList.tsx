@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
-import { groupItemsByCategory } from '@/lib/shoppingCategories'
+import { groupItemsByCategory, hideCheckedItems } from '@/lib/shoppingCategories'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { getNextWeekId } from '@/lib/utils'
 import { AddItemForm } from './shopping-list/AddItemForm'
@@ -75,9 +75,8 @@ export default function ShoppingList() {
   }, [hideChecked])
 
   const groups = items ? groupItemsByCategory(items) : []
-  const hasVisibleItems = hideChecked
-    ? groups.some((group) => group.items.some((item) => !item.checked))
-    : groups.length > 0
+  // Exports always cover the full list; only the rendered sections are filtered.
+  const visibleGroups = hideChecked ? hideCheckedItems(groups) : groups
 
   const exportText = () => {
     downloadFile(
@@ -145,12 +144,11 @@ export default function ShoppingList() {
                 />
                 {t('shoppingList.hideChecked')}
               </label>
-              {hasVisibleItems ? (
-                groups.map((group) => (
+              {visibleGroups.length > 0 ? (
+                visibleGroups.map((group) => (
                   <CategorySection
                     key={group.category}
                     group={group}
-                    hideChecked={hideChecked}
                     onToggle={toggleChecked}
                     onChangeCategory={changeCategory}
                     onEdit={editItem}

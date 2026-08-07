@@ -16,8 +16,11 @@ export const SHOPPING_CATEGORY_ORDER: readonly ShoppingCategory[] = [
 
 export interface CategoryGroup {
   category: ShoppingCategory
+  /** The rows to render — may be a subset of the group, see {@link hideCheckedItems}. */
   items: ShoppingListEntry[]
   checkedCount: number
+  /** Items in the whole group, including any filtered out of {@link items}. */
+  totalCount: number
 }
 
 /**
@@ -46,7 +49,19 @@ export function groupItemsByCategory(items: ShoppingListEntry[]): CategoryGroup[
         category,
         items: groupItems,
         checkedCount: groupItems.filter((i) => i.checked).length,
+        totalCount: groupItems.length,
       }
     },
   )
+}
+
+/**
+ * Drop checked rows (and any group left empty) for the "hide checked items"
+ * view. `checkedCount`/`totalCount` still describe the whole group, so a
+ * section header keeps reading e.g. "1/2" while its checked row is hidden.
+ */
+export function hideCheckedItems(groups: CategoryGroup[]): CategoryGroup[] {
+  return groups
+    .map((group) => ({ ...group, items: group.items.filter((item) => !item.checked) }))
+    .filter((group) => group.items.length > 0)
 }

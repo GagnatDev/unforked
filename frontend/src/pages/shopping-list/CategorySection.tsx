@@ -5,26 +5,25 @@ import { ShoppingItemRow } from './ShoppingItemRow'
 
 type CategorySectionProps = {
   group: CategoryGroup
-  /** When true, checked rows are omitted; progress still counts the full group. */
-  hideChecked?: boolean
   onToggle: (id: string) => void
   onChangeCategory: (id: string, category: ShoppingCategory) => void
   onEdit: (id: string, patch: { name: string; quantity: string; unit: string }) => void
   onDelete: (id: string) => void
 }
 
-/** One store section: header with picked/total progress, then its item rows. */
+/**
+ * One store section: header with picked/total progress, then its item rows.
+ * Progress counts the whole group even when `group.items` has been filtered
+ * (see `hideCheckedItems`), so it doesn't shrink as rows are hidden.
+ */
 export function CategorySection({
   group,
-  hideChecked = false,
   onToggle,
   onChangeCategory,
   onEdit,
   onDelete,
 }: CategorySectionProps) {
   const { t } = useTranslation()
-  const visibleItems = hideChecked ? group.items.filter((item) => !item.checked) : group.items
-  if (visibleItems.length === 0) return null
 
   return (
     <section className="space-y-2" aria-label={t(`shoppingList.categories.${group.category}`)}>
@@ -33,12 +32,12 @@ export function CategorySection({
         <span className="text-sm tabular-nums text-muted-foreground">
           {t('shoppingList.progress', {
             checked: group.checkedCount,
-            total: group.items.length,
+            total: group.totalCount,
           })}
         </span>
       </div>
       <ul className="m-0 list-none space-y-2 p-0">
-        {visibleItems.map((item) => (
+        {group.items.map((item) => (
           <ShoppingItemRow
             key={item.id}
             item={item}
