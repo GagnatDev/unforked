@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useLocale } from '@/hooks/useLocale'
 import { formatIsoDateTime } from '@/lib/format'
 
 type PendingInvite = { id: string; inviteeEmail: string; expiresAt: string }
@@ -24,8 +25,8 @@ export function FamilyInviteForm({
   onSendInvite,
   onCopyInviteUrl,
 }: FamilyInviteFormProps) {
-  const { t, i18n } = useTranslation()
-  const locale = i18n.resolvedLanguage ?? i18n.language
+  const { t } = useTranslation()
+  const locale = useLocale()
 
   return (
     <section className="space-y-3">

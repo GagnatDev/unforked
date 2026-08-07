@@ -3,6 +3,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { CheckboxField } from '@/components/CheckboxField'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/hooks/useLocale'
 import { usePersistedFlag } from '@/hooks/usePersistedFlag'
 import { groupItemsByCategory, hideCheckedItems } from '@/lib/shoppingCategories'
 import { formatIsoTimeOrDateTime } from '@/lib/format'
@@ -21,7 +22,8 @@ import { useShoppingList } from './shopping-list/useShoppingList'
 const HIDE_CHECKED_KEY = 'shoppingList.hideChecked'
 
 export default function ShoppingList() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
+  const locale = useLocale()
   // The viewed week lives in the URL (?week=) so push-notification deep links
   // land on the right list (design #104 D5/D6); without a valid param the
   // page defaults to the upcoming week as before.
@@ -70,11 +72,7 @@ export default function ShoppingList() {
     <div>
       <h1>{t('shoppingList.title')}</h1>
       <div className="mb-4">
-        <WeekPicker
-          value={weekId}
-          onChange={setWeekId}
-          locale={i18n.resolvedLanguage ?? i18n.language}
-        />
+        <WeekPicker value={weekId} onChange={setWeekId} locale={locale} />
       </div>
       {/* Approved / "shopping now" state (design #104 D4): a persistent banner
           while someone is shopping, with "Done" to reopen; otherwise the
@@ -87,9 +85,7 @@ export default function ShoppingList() {
           <span>
             {t('shoppingList.approvedBanner', {
               email: approvedByEmail ?? '',
-              time: approvedAt
-                ? formatIsoTimeOrDateTime(approvedAt, i18n.resolvedLanguage ?? i18n.language)
-                : '',
+              time: approvedAt ? formatIsoTimeOrDateTime(approvedAt, locale) : '',
             })}
           </span>
           <Button onClick={reopen} variant="secondary">

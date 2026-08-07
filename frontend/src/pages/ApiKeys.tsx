@@ -5,6 +5,7 @@ import { CheckboxField } from '@/components/CheckboxField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAsync } from '@/hooks/useAsync'
+import { useLocale } from '@/hooks/useLocale'
 import { formatIsoDate, formatIsoDateTime } from '@/lib/format'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
 import type { ApiKey } from '@/types'
@@ -15,8 +16,8 @@ import type { ApiKey } from '@/types'
  * docs/aivo-integration.md in the repo.
  */
 export default function ApiKeys() {
-  const { t, i18n } = useTranslation()
-  const locale = i18n.resolvedLanguage ?? i18n.language
+  const { t } = useTranslation()
+  const locale = useLocale()
   const [reloadKey, setReloadKey] = useState(0)
   const { data: keys, loading, error: loadError } = useAsync(
     (_signal) => api.apiKeys.list(),
