@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { formatIsoDateTime } from '@/lib/format'
 
 type PendingInvite = { id: string; inviteeEmail: string; expiresAt: string }
 
@@ -23,7 +24,8 @@ export function FamilyInviteForm({
   onSendInvite,
   onCopyInviteUrl,
 }: FamilyInviteFormProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage ?? i18n.language
 
   return (
     <section className="space-y-3">
@@ -59,7 +61,7 @@ export function FamilyInviteForm({
           <ul className="text-sm text-muted-foreground">
             {pendingInvites.map((p) => (
               <li key={p.id}>
-                {p.inviteeEmail} — {t('family.expires')} {new Date(p.expiresAt).toLocaleString()}
+                {p.inviteeEmail} — {t('family.expires')} {formatIsoDateTime(p.expiresAt, locale)}
               </li>
             ))}
           </ul>

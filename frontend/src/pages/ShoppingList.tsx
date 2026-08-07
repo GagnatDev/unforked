@@ -5,6 +5,7 @@ import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
 import { usePersistedFlag } from '@/hooks/usePersistedFlag'
 import { groupItemsByCategory, hideCheckedItems } from '@/lib/shoppingCategories'
+import { formatIsoTimeOrDateTime } from '@/lib/format'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { getNextWeekId } from '@/lib/utils'
 import { isWeekId } from '@/lib/week-id'
@@ -18,15 +19,6 @@ import {
 import { useShoppingList } from './shopping-list/useShoppingList'
 
 const HIDE_CHECKED_KEY = 'shoppingList.hideChecked'
-
-/** "started {time}" for the approved banner: time today, date + time otherwise. */
-function formatApprovedAt(iso: string, locale: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toDateString() === new Date().toDateString()
-    ? date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
-    : date.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })
-}
 
 export default function ShoppingList() {
   const { t, i18n } = useTranslation()
@@ -96,7 +88,7 @@ export default function ShoppingList() {
             {t('shoppingList.approvedBanner', {
               email: approvedByEmail ?? '',
               time: approvedAt
-                ? formatApprovedAt(approvedAt, i18n.resolvedLanguage ?? i18n.language)
+                ? formatIsoTimeOrDateTime(approvedAt, i18n.resolvedLanguage ?? i18n.language)
                 : '',
             })}
           </span>

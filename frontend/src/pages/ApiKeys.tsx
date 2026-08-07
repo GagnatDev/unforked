@@ -5,6 +5,7 @@ import { CheckboxField } from '@/components/CheckboxField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAsync } from '@/hooks/useAsync'
+import { formatIsoDate, formatIsoDateTime } from '@/lib/format'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
 import type { ApiKey } from '@/types'
 
@@ -14,7 +15,8 @@ import type { ApiKey } from '@/types'
  * docs/aivo-integration.md in the repo.
  */
 export default function ApiKeys() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage ?? i18n.language
   const [reloadKey, setReloadKey] = useState(0)
   const { data: keys, loading, error: loadError } = useAsync(
     (_signal) => api.apiKeys.list(),
@@ -143,10 +145,10 @@ export default function ApiKeys() {
                   )}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {t('apiKeys.createdAt')} {new Date(key.createdAt).toLocaleDateString()}
+                  {t('apiKeys.createdAt')} {formatIsoDate(key.createdAt, locale)}
                   {' · '}
                   {key.lastUsedAt
-                    ? `${t('apiKeys.lastUsed')} ${new Date(key.lastUsedAt).toLocaleString()}`
+                    ? `${t('apiKeys.lastUsed')} ${formatIsoDateTime(key.lastUsedAt, locale)}`
                     : t('apiKeys.neverUsed')}
                 </p>
               </div>
