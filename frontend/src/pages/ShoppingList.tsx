@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { WeekPicker } from '@/components/WeekPicker'
@@ -14,6 +15,8 @@ import {
 } from './shopping-list/exportShoppingList'
 import { useShoppingList } from './shopping-list/useShoppingList'
 
+const HIDE_CHECKED_KEY = 'shoppingList.hideChecked'
+
 /** A weekIdentifier as produced everywhere in the app, e.g. "2026-W03". */
 function isWeekId(value: string | null): value is string {
   return value !== null && /^\d{4}-W\d{2}$/.test(value)
@@ -28,6 +31,14 @@ function formatApprovedAt(iso: string, locale: string): string {
     : date.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })
 }
 
+function readHideCheckedPreference(): boolean {
+  try {
+    return localStorage.getItem(HIDE_CHECKED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 export default function ShoppingList() {
   const { t, i18n } = useTranslation()
   // The viewed week lives in the URL (?week=) so push-notification deep links
@@ -37,6 +48,7 @@ export default function ShoppingList() {
   const paramWeek = searchParams.get('week')
   const weekId = isWeekId(paramWeek) ? paramWeek : getNextWeekId()
   const setWeekId = (week: string) => setSearchParams({ week }, { replace: true })
+  const [hideChecked, setHideChecked] = useState(readHideCheckedPreference)
   const {
     items,
     loading,
@@ -54,7 +66,18 @@ export default function ShoppingList() {
     reopen,
   } = useShoppingList(weekId)
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(HIDE_CHECKED_KEY, hideChecked ? '1' : '0')
+    } catch {
+      // Preference is best-effort; private mode / quota failures are fine.
+    }
+  }, [hideChecked])
+
   const groups = items ? groupItemsByCategory(items) : []
+  const hasVisibleItems = hideChecked
+    ? groups.some((group) => group.items.some((item) => !item.checked))
+    : groups.length > 0
 
   const exportText = () => {
     downloadFile(
@@ -113,16 +136,31 @@ export default function ShoppingList() {
       ) : (
         <div className="space-y-6">
           {groups.length > 0 ? (
-            groups.map((group) => (
-              <CategorySection
-                key={group.category}
-                group={group}
-                onToggle={toggleChecked}
-                onChangeCategory={changeCategory}
-                onEdit={editItem}
-                onDelete={deleteItem}
-              />
-            ))
+            <>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={hideChecked}
+                  onChange={(e) => setHideChecked(e.target.checked)}
+                />
+                {t('shoppingList.hideChecked')}
+              </label>
+              {hasVisibleItems ? (
+                groups.map((group) => (
+                  <CategorySection
+                    key={group.category}
+                    group={group}
+                    hideChecked={hideChecked}
+                    onToggle={toggleChecked}
+                    onChangeCategory={changeCategory}
+                    onEdit={editItem}
+                    onDelete={deleteItem}
+                  />
+                ))
+              ) : (
+                <p>{t('shoppingList.allCheckedHidden')}</p>
+              )}
+            </>
           ) : (
             <p>
               <Trans

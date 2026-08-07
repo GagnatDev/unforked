@@ -5,6 +5,8 @@ import { ShoppingItemRow } from './ShoppingItemRow'
 
 type CategorySectionProps = {
   group: CategoryGroup
+  /** When true, checked rows are omitted; progress still counts the full group. */
+  hideChecked?: boolean
   onToggle: (id: string) => void
   onChangeCategory: (id: string, category: ShoppingCategory) => void
   onEdit: (id: string, patch: { name: string; quantity: string; unit: string }) => void
@@ -14,12 +16,15 @@ type CategorySectionProps = {
 /** One store section: header with picked/total progress, then its item rows. */
 export function CategorySection({
   group,
+  hideChecked = false,
   onToggle,
   onChangeCategory,
   onEdit,
   onDelete,
 }: CategorySectionProps) {
   const { t } = useTranslation()
+  const visibleItems = hideChecked ? group.items.filter((item) => !item.checked) : group.items
+  if (visibleItems.length === 0) return null
 
   return (
     <section className="space-y-2" aria-label={t(`shoppingList.categories.${group.category}`)}>
@@ -33,7 +38,7 @@ export function CategorySection({
         </span>
       </div>
       <ul className="m-0 list-none space-y-2 p-0">
-        {group.items.map((item) => (
+        {visibleItems.map((item) => (
           <ShoppingItemRow
             key={item.id}
             item={item}
