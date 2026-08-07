@@ -10,23 +10,9 @@ import {
   subscribeLocal,
 } from './db'
 import type { Recipe } from '@/types'
+import { waitFor } from '@/test/waitFor'
 
 const CHANNEL_NAME = 'unforked-cross-tab'
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
-
-/**
- * Yield to the event loop until `predicate` holds. Cross-tab delivery goes
- * through a `BroadcastChannel`, which hands messages off asynchronously with no
- * guarantee they land within a single macrotask — polling for the expected
- * effect is deterministic where a fixed `setTimeout(0)` races the assertion.
- */
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let i = 0; i < 50; i++) {
-    if (predicate()) return
-    await new Promise((resolve) => setTimeout(resolve, 0))
-  }
-  expect(predicate(), 'waitFor: condition not met in time').toBe(true)
-}
 
 function recipe(id: string, name: string): Recipe {
   return {
@@ -75,14 +61,20 @@ describe('cross-tab reactive reads (phase 6)', () => {
     startCrossTabSync()
     const callback = vi.fn()
     const unsubscribe = subscribeLocal(['mealPlans'], callback)
+    // A subscriber that *does* watch `recipes` witnesses the delivery, so a
+    // quiet `callback` means the store filter held rather than that the
+    // assertion ran before the message arrived.
+    const witness = vi.fn()
+    const unsubscribeWitness = subscribeLocal(['recipes'], witness)
 
     const otherTab = new BroadcastChannel(CHANNEL_NAME)
     otherTab.postMessage({ kind: 'local-write', stores: ['recipes'] })
-    await flush()
+    await waitFor(() => witness.mock.calls.length > 0)
     otherTab.close()
 
     expect(callback).not.toHaveBeenCalled()
     unsubscribe()
+    unsubscribeWitness()
   })
 
   it('broadcasts a committed local write to other tabs', async () => {
@@ -102,8 +94,15 @@ describe('cross-tab reactive reads (phase 6)', () => {
     const callback = vi.fn()
     const unsubscribe = subscribeLocal(['recipes'], callback)
 
+    // Another tab receiving the broadcast marks the point where an echo back to
+    // this tab would have arrived too, had the channel made one.
+    const otherTab = new BroadcastChannel(CHANNEL_NAME)
+    const seen: unknown[] = []
+    otherTab.onmessage = (event: MessageEvent) => seen.push(event.data)
+
     await putLocalRecipe(recipe('r1', 'Soup'))
-    await flush()
+    await waitFor(() => seen.length > 0)
+    otherTab.close()
 
     // The in-tab listener fires synchronously on commit; the broadcast is never
     // delivered back to the sender, so there is no second (echoed) call.
