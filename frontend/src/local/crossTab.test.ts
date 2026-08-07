@@ -9,11 +9,9 @@ import {
   startLeaderElection,
   subscribeCrossTab,
 } from './crossTab'
+import { waitFor } from '@/test/waitFor'
 
 const CHANNEL_NAME = 'unforked-cross-tab'
-
-/** Let queued BroadcastChannel messages deliver (delivery is asynchronous). */
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 /** Emulate the Web Locks API, granting queued lock requests on demand. */
 function stubWebLocks(): { grantNext: () => void } {
@@ -53,7 +51,7 @@ describe('cross-tab message bus', () => {
 
     const otherTab = new BroadcastChannel(CHANNEL_NAME)
     otherTab.postMessage({ kind: 'local-write', stores: ['recipes'] })
-    await flush()
+    await waitFor(() => received.length > 0)
     otherTab.close()
 
     expect(received).toEqual([{ kind: 'local-write', stores: ['recipes'] }])
@@ -68,7 +66,7 @@ describe('cross-tab message bus', () => {
     otherTab.onmessage = (event: MessageEvent<CrossTabMessage>) => seen.push(event.data)
 
     postCrossTab({ kind: 'outbox-kick' })
-    await flush()
+    await waitFor(() => seen.length > 0)
     otherTab.close()
 
     // A BroadcastChannel never echoes to the sender, so our own handler is quiet.
@@ -80,10 +78,15 @@ describe('cross-tab message bus', () => {
     const handler = vi.fn()
     const unsubscribe = subscribeCrossTab(handler)
     unsubscribe()
+    // A still-subscribed witness on the same channel: once it has seen the
+    // message the delivery has happened, so a quiet `handler` means unsubscribe
+    // worked rather than that the assertion merely ran too early.
+    const witness = vi.fn()
+    subscribeCrossTab(witness)
 
     const otherTab = new BroadcastChannel(CHANNEL_NAME)
     otherTab.postMessage({ kind: 'outbox-kick' })
-    await flush()
+    await waitFor(() => witness.mock.calls.length > 0)
     otherTab.close()
 
     expect(handler).not.toHaveBeenCalled()
