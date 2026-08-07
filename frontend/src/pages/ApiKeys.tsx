@@ -1,9 +1,12 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/api'
+import { CheckboxField } from '@/components/CheckboxField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAsync } from '@/hooks/useAsync'
+import { useLocale } from '@/hooks/useLocale'
+import { formatIsoDate, formatIsoDateTime } from '@/lib/format'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
 import type { ApiKey } from '@/types'
 
@@ -14,6 +17,7 @@ import type { ApiKey } from '@/types'
  */
 export default function ApiKeys() {
   const { t } = useTranslation()
+  const locale = useLocale()
   const [reloadKey, setReloadKey] = useState(0)
   const { data: keys, loading, error: loadError } = useAsync(
     (_signal) => api.apiKeys.list(),
@@ -101,15 +105,16 @@ export default function ApiKeys() {
             {creating ? t('common.loading') : t('apiKeys.create')}
           </Button>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={allowWrite}
-            onChange={(e) => setAllowWrite(e.target.checked)}
-          />
-          {t('apiKeys.writeLabel')}
-          <span className="text-xs text-muted-foreground">{t('apiKeys.writeHint')}</span>
-        </label>
+        <CheckboxField
+          checked={allowWrite}
+          onCheckedChange={setAllowWrite}
+          label={
+            <>
+              {t('apiKeys.writeLabel')}
+              <span className="text-xs text-muted-foreground">{t('apiKeys.writeHint')}</span>
+            </>
+          }
+        />
       </form>
 
       {createdKey && (
@@ -141,10 +146,10 @@ export default function ApiKeys() {
                   )}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {t('apiKeys.createdAt')} {new Date(key.createdAt).toLocaleDateString()}
+                  {t('apiKeys.createdAt')} {formatIsoDate(key.createdAt, locale)}
                   {' · '}
                   {key.lastUsedAt
-                    ? `${t('apiKeys.lastUsed')} ${new Date(key.lastUsedAt).toLocaleString()}`
+                    ? `${t('apiKeys.lastUsed')} ${formatIsoDateTime(key.lastUsedAt, locale)}`
                     : t('apiKeys.neverUsed')}
                 </p>
               </div>

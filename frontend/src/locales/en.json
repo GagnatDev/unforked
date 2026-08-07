@@ -167,6 +167,8 @@
     "editCancel": "Cancel",
     "deleteItem": "Remove {{name}}",
     "itemCheckboxAria": "Mark {{name}} as in cart",
+    "hideChecked": "Hide checked items",
+    "allCheckedHidden": "All items are checked. Turn off Hide checked items to see them again.",
     "updateFailed": "Could not save the change. Try again."
   },
   "notifications": {

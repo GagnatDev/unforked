@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { readStored, removeStored, writeStored } from '@/lib/storage'
 
 export type StepChecklist = {
   checkedSteps: boolean[]
@@ -21,12 +22,12 @@ export function useStepChecklist(steps: string[], storageKey: string | null): St
       setCheckedSteps(steps.map(() => false))
       return
     }
+    const raw = readStored(storageKey)
+    if (!raw) {
+      setCheckedSteps(steps.map(() => false))
+      return
+    }
     try {
-      const raw = localStorage.getItem(storageKey)
-      if (!raw) {
-        setCheckedSteps(steps.map(() => false))
-        return
-      }
       const parsed = JSON.parse(raw) as unknown
       if (!Array.isArray(parsed)) {
         setCheckedSteps(steps.map(() => false))
@@ -35,6 +36,7 @@ export function useStepChecklist(steps: string[], storageKey: string | null): St
       const next = steps.map((_, i) => Boolean(parsed[i]))
       setCheckedSteps(next)
     } catch {
+      // Corrupt JSON: start over rather than trusting it.
       setCheckedSteps(steps.map(() => false))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `steps` tracked via stepsKey to avoid unstable [] identity loops
@@ -42,11 +44,7 @@ export function useStepChecklist(steps: string[], storageKey: string | null): St
 
   useEffect(() => {
     if (!storageKey) return
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(checkedSteps))
-    } catch {
-      // ignore quota/private mode issues
-    }
+    writeStored(storageKey, JSON.stringify(checkedSteps))
   }, [storageKey, checkedSteps])
 
   const toggleStep = useCallback((idx: number) => {
@@ -55,13 +53,7 @@ export function useStepChecklist(steps: string[], storageKey: string | null): St
 
   const resetProgress = useCallback(() => {
     setCheckedSteps(steps.map(() => false))
-    if (storageKey) {
-      try {
-        localStorage.removeItem(storageKey)
-      } catch {
-        // ignore
-      }
-    }
+    if (storageKey) removeStored(storageKey)
   }, [steps, storageKey])
 
   return { checkedSteps, toggleStep, resetProgress }

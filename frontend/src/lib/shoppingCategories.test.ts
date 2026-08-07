@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ShoppingListEntry } from '@/types'
-import { groupItemsByCategory } from './shoppingCategories'
+import { groupItemsByCategory, hideCheckedItems } from './shoppingCategories'
 
 function entry(overrides: Partial<ShoppingListEntry>): ShoppingListEntry {
   return {
@@ -35,6 +35,7 @@ describe('groupItemsByCategory', () => {
     expect(groups).toHaveLength(1)
     expect(groups[0].items.map((i) => i.name)).toEqual(['Basil', 'Onion', 'Tomato'])
     expect(groups[0].checkedCount).toBe(2)
+    expect(groups[0].totalCount).toBe(3)
   })
 
   it('sends unknown categories to other', () => {
@@ -46,5 +47,38 @@ describe('groupItemsByCategory', () => {
 
   it('returns no groups for an empty list', () => {
     expect(groupItemsByCategory([])).toEqual([])
+  })
+})
+
+describe('hideCheckedItems', () => {
+  it('drops checked items but keeps full-group progress counts', () => {
+    const groups = hideCheckedItems(
+      groupItemsByCategory([
+        entry({ name: 'Milk', category: 'dairy' }),
+        entry({ name: 'Butter', category: 'dairy', checked: true }),
+      ]),
+    )
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].items.map((i) => i.name)).toEqual(['Milk'])
+    expect(groups[0].checkedCount).toBe(1)
+    expect(groups[0].totalCount).toBe(2)
+  })
+
+  it('drops groups where everything is checked', () => {
+    const groups = hideCheckedItems(
+      groupItemsByCategory([
+        entry({ name: 'Butter', category: 'dairy', checked: true }),
+        entry({ name: 'Carrot', category: 'produce' }),
+      ]),
+    )
+
+    expect(groups.map((g) => g.category)).toEqual(['produce'])
+  })
+
+  it('leaves the input groups untouched', () => {
+    const groups = groupItemsByCategory([entry({ name: 'Butter', checked: true })])
+    hideCheckedItems(groups)
+    expect(groups[0].items).toHaveLength(1)
   })
 })

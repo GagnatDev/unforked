@@ -11,7 +11,11 @@ type CategorySectionProps = {
   onDelete: (id: string) => void
 }
 
-/** One store section: header with picked/total progress, then its item rows. */
+/**
+ * One store section: header with picked/total progress, then its item rows.
+ * Progress counts the whole group even when `group.items` has been filtered
+ * (see `hideCheckedItems`), so it doesn't shrink as rows are hidden.
+ */
 export function CategorySection({
   group,
   onToggle,
@@ -28,7 +32,7 @@ export function CategorySection({
         <span className="text-sm tabular-nums text-muted-foreground">
           {t('shoppingList.progress', {
             checked: group.checkedCount,
-            total: group.items.length,
+            total: group.totalCount,
           })}
         </span>
       </div>

@@ -7,14 +7,14 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { readStored, writeStored } from '@/lib/storage'
 
 export type Theme = 'light' | 'dark' | 'system'
 
 const STORAGE_KEY = 'theme'
 
 function getStoredTheme(): Theme {
-  if (typeof window === 'undefined') return 'system'
-  const stored = localStorage.getItem(STORAGE_KEY)
+  const stored = readStored(STORAGE_KEY)
   if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
   return 'system'
 }
@@ -61,7 +61,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next)
-    localStorage.setItem(STORAGE_KEY, next)
+    writeStored(STORAGE_KEY, next)
   }, [])
 
   const value = useMemo<ThemeContextValue>(

@@ -76,6 +76,28 @@ test('checking off an item PATCHes and strikes it through', async ({ page }) => 
     .toEqual([{ checked: true }])
 })
 
+test('hide checked items filters rows and can be turned back off', async ({ page }) => {
+  await mockShoppingList(page, '2026-W13', WEEK_ITEMS)
+
+  await page.goto('/shopping-list')
+
+  const dairy = page.getByRole('region', { name: 'Dairy & eggs' })
+  await expect(dairy.getByRole('listitem')).toHaveCount(2)
+  await expect(dairy.getByText('Butter')).toBeVisible()
+
+  await page.getByLabel('Hide checked items').check()
+
+  await expect(dairy.getByRole('listitem')).toHaveCount(1)
+  await expect(dairy.getByText('Milk')).toBeVisible()
+  await expect(dairy.getByText('Butter')).toHaveCount(0)
+  // Progress still reflects the full category, including hidden checked items.
+  await expect(dairy.getByText('1/2')).toBeVisible()
+
+  await page.getByLabel('Hide checked items').uncheck()
+  await expect(dairy.getByRole('listitem')).toHaveCount(2)
+  await expect(dairy.getByText('Butter')).toBeVisible()
+})
+
 test('adds a manual item into its section', async ({ page }) => {
   const { requests } = await mockShoppingList(page, '2026-W13', WEEK_ITEMS)
 

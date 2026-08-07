@@ -4,6 +4,7 @@ import { MealPlanWeekAssignments } from '@/components/meal-plan/MealPlanWeekAssi
 import { DAYS } from '@/components/meal-plan/constants'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/hooks/useLocale'
 import { getLocalMealPlan, getSyncMeta, listLocalRecipes } from '@/local/db'
 import { saveMealPlan } from '@/local/mutations'
 import {
@@ -40,7 +41,8 @@ function planFingerprint(doc: MealPlanDoc): string {
 }
 
 export default function MealPlan() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
+  const locale = useLocale()
   const [weekId, setWeekId] = useState(getNextWeekId)
   const [plan, setPlan] = useState<MealPlanDoc | null>(null)
   const [savedPlan, setSavedPlan] = useState<MealPlanDoc | null>(null)
@@ -187,11 +189,7 @@ export default function MealPlan() {
     <div>
       <h1>{t('mealPlan.title')}</h1>
       <div className="mb-4">
-        <WeekPicker
-          value={weekId}
-          onChange={setWeekId}
-          locale={i18n.resolvedLanguage ?? i18n.language}
-        />
+        <WeekPicker value={weekId} onChange={setWeekId} locale={locale} />
       </div>
       {loading ? (
         <p>{t('mealPlan.loading')}</p>

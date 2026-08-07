@@ -1,10 +1,15 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
+import { CheckboxField } from '@/components/CheckboxField'
 import { WeekPicker } from '@/components/WeekPicker'
 import { Button } from '@/components/ui/button'
-import { groupItemsByCategory } from '@/lib/shoppingCategories'
+import { useLocale } from '@/hooks/useLocale'
+import { usePersistedFlag } from '@/hooks/usePersistedFlag'
+import { groupItemsByCategory, hideCheckedItems } from '@/lib/shoppingCategories'
+import { formatIsoTimeOrDateTime } from '@/lib/format'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { getNextWeekId } from '@/lib/utils'
+import { isWeekId } from '@/lib/week-id'
 import { AddItemForm } from './shopping-list/AddItemForm'
 import { CategorySection } from './shopping-list/CategorySection'
 import {
@@ -14,22 +19,11 @@ import {
 } from './shopping-list/exportShoppingList'
 import { useShoppingList } from './shopping-list/useShoppingList'
 
-/** A weekIdentifier as produced everywhere in the app, e.g. "2026-W03". */
-function isWeekId(value: string | null): value is string {
-  return value !== null && /^\d{4}-W\d{2}$/.test(value)
-}
-
-/** "started {time}" for the approved banner: time today, date + time otherwise. */
-function formatApprovedAt(iso: string, locale: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toDateString() === new Date().toDateString()
-    ? date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
-    : date.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })
-}
+const HIDE_CHECKED_KEY = 'shoppingList.hideChecked'
 
 export default function ShoppingList() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
+  const locale = useLocale()
   // The viewed week lives in the URL (?week=) so push-notification deep links
   // land on the right list (design #104 D5/D6); without a valid param the
   // page defaults to the upcoming week as before.
@@ -37,6 +31,7 @@ export default function ShoppingList() {
   const paramWeek = searchParams.get('week')
   const weekId = isWeekId(paramWeek) ? paramWeek : getNextWeekId()
   const setWeekId = (week: string) => setSearchParams({ week }, { replace: true })
+  const [hideChecked, setHideChecked] = usePersistedFlag(HIDE_CHECKED_KEY)
   const {
     items,
     loading,
@@ -55,6 +50,8 @@ export default function ShoppingList() {
   } = useShoppingList(weekId)
 
   const groups = items ? groupItemsByCategory(items) : []
+  // Exports always cover the full list; only the rendered sections are filtered.
+  const visibleGroups = hideChecked ? hideCheckedItems(groups) : groups
 
   const exportText = () => {
     downloadFile(
@@ -75,11 +72,7 @@ export default function ShoppingList() {
     <div>
       <h1>{t('shoppingList.title')}</h1>
       <div className="mb-4">
-        <WeekPicker
-          value={weekId}
-          onChange={setWeekId}
-          locale={i18n.resolvedLanguage ?? i18n.language}
-        />
+        <WeekPicker value={weekId} onChange={setWeekId} locale={locale} />
       </div>
       {/* Approved / "shopping now" state (design #104 D4): a persistent banner
           while someone is shopping, with "Done" to reopen; otherwise the
@@ -92,9 +85,7 @@ export default function ShoppingList() {
           <span>
             {t('shoppingList.approvedBanner', {
               email: approvedByEmail ?? '',
-              time: approvedAt
-                ? formatApprovedAt(approvedAt, i18n.resolvedLanguage ?? i18n.language)
-                : '',
+              time: approvedAt ? formatIsoTimeOrDateTime(approvedAt, locale) : '',
             })}
           </span>
           <Button onClick={reopen} variant="secondary">
@@ -113,16 +104,27 @@ export default function ShoppingList() {
       ) : (
         <div className="space-y-6">
           {groups.length > 0 ? (
-            groups.map((group) => (
-              <CategorySection
-                key={group.category}
-                group={group}
-                onToggle={toggleChecked}
-                onChangeCategory={changeCategory}
-                onEdit={editItem}
-                onDelete={deleteItem}
+            <>
+              <CheckboxField
+                label={t('shoppingList.hideChecked')}
+                checked={hideChecked}
+                onCheckedChange={setHideChecked}
               />
-            ))
+              {visibleGroups.length > 0 ? (
+                visibleGroups.map((group) => (
+                  <CategorySection
+                    key={group.category}
+                    group={group}
+                    onToggle={toggleChecked}
+                    onChangeCategory={changeCategory}
+                    onEdit={editItem}
+                    onDelete={deleteItem}
+                  />
+                ))
+              ) : (
+                <p>{t('shoppingList.allCheckedHidden')}</p>
+              )}
+            </>
           ) : (
             <p>
               <Trans

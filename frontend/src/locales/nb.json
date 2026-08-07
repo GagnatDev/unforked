@@ -167,6 +167,8 @@
     "editCancel": "Avbryt",
     "deleteItem": "Fjern {{name}}",
     "itemCheckboxAria": "Merk {{name}} som handlet",
+    "hideChecked": "Skjul avhukede varer",
+    "allCheckedHidden": "Alle varer er avhuket. Skru av Skjul avhukede varer for å se dem igjen.",
     "updateFailed": "Kunne ikke lagre endringen. Prøv igjen."
   },
   "notifications": {
