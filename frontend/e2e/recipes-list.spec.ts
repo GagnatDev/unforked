@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { swipeRowOpen } from './swipe'
+
 /** Must match [playwright.config.ts](playwright.config.ts) e2e backend port (see `E2E_BACKEND_PORT`). */
 const backendOrigin =
   process.env.PLAYWRIGHT_API_ORIGIN ??
@@ -59,6 +61,51 @@ test.describe('recipes list (real API)', { tag: '@integration' }, () => {
     await searchInput.fill('no-such-recipe-name-e2e')
 
     await expect(page.getByText('No recipes yet.')).toBeVisible()
+
+    expect(pageError).toBeUndefined()
+  })
+
+  test('deletes a recipe by swiping the row open and pressing the trash panel', async ({
+    page,
+    request,
+  }) => {
+    let pageError: Error | undefined
+    page.on('pageerror', (e) => {
+      pageError = e
+    })
+
+    const recipeName = `Swipe Delete ${Date.now()}`
+    const createRes = await request.post(`${backendOrigin}/api/recipes`, {
+      data: { name: recipeName, description: '', ingredients: [], steps: [], servings: 2, tags: [] },
+    })
+    expect(createRes.ok()).toBeTruthy()
+
+    await page.goto('/recipes')
+
+    // Narrow the list to this recipe alone: other specs add recipes in
+    // parallel, and a growing list would shift the row mid-swipe.
+    await page.getByPlaceholder(/search/i).fill(recipeName)
+
+    const row = page.getByRole('listitem').filter({ hasText: recipeName })
+    await expect(row).toHaveCount(1)
+
+    await swipeRowOpen(page, row)
+
+    // Revealing the panel is not itself destructive.
+    await expect(row.locator('[data-swipe-state]')).toHaveAttribute('data-swipe-state', 'open')
+    await expect(page.getByRole('link', { name: recipeName })).toBeVisible()
+
+    const deleteResponse = page.waitForResponse(
+      (response) => response.request().method() === 'DELETE' && response.url().includes('/api/recipes/'),
+    )
+    await row.getByRole('button', { name: `Delete ${recipeName}` }).click()
+
+    await expect(page.getByRole('link', { name: recipeName })).toHaveCount(0)
+    expect((await deleteResponse).ok()).toBeTruthy()
+
+    // The row stays gone after a reload, so the delete really reached the API.
+    await page.reload()
+    await expect(page.getByRole('link', { name: recipeName })).toHaveCount(0)
 
     expect(pageError).toBeUndefined()
   })

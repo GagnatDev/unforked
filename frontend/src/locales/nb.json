@@ -39,8 +39,7 @@
     "title": "Oppskrifter",
     "searchPlaceholder": "Søk på navn",
     "loading": "Laster oppskrifter…",
-    "delete": "Slett",
-    "deleteConfirm": "Slette \"{{name}}\"?",
+    "deleteRecipe": "Slett {{name}}",
     "serves": "Porsjoner: {{count}}",
     "noRecipes": "Ingen oppskrifter ennå. <1>Legg til en</1>.",
     "addOne": "Legg til en"
