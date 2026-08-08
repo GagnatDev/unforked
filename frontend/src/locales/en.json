@@ -39,8 +39,7 @@
     "title": "Recipes",
     "searchPlaceholder": "Search by name",
     "loading": "Loading recipes…",
-    "delete": "Delete",
-    "deleteConfirm": "Delete \"{{name}}\"?",
+    "deleteRecipe": "Delete {{name}}",
     "serves": "Serves {{count}}",
     "noRecipes": "No recipes yet. <1>Add one</1>.",
     "addOne": "Add one"

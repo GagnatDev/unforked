@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { mockShoppingList, type MockShoppingListEntry } from './mock-api'
+import { swipeRowOpen } from './swipe'
 
 function entry(overrides: Partial<MockShoppingListEntry>): MockShoppingListEntry {
   return {
@@ -171,6 +172,49 @@ test('cancelling an edit leaves the item untouched', async ({ page }) => {
 
   await expect(beverages.getByText('Coffee')).toBeVisible()
   expect(requests.filter((r) => r.method === 'PATCH')).toHaveLength(0)
+})
+
+test('swiping a manual item left reveals a trash panel that removes it', async ({ page }) => {
+  const { requests } = await mockShoppingList(page, '2026-W13', [
+    entry({
+      id: '55555555-5555-4555-8555-555555555555',
+      name: 'Coffee',
+      recipeIds: [],
+      category: 'beverages',
+      manual: true,
+    }),
+  ])
+
+  await page.goto('/shopping-list')
+
+  const beverages = page.getByRole('region', { name: 'Beverages' })
+  const row = beverages.getByRole('listitem').filter({ hasText: 'Coffee' })
+  await expect(row).toBeVisible()
+
+  await swipeRowOpen(page, row)
+
+  // The swipe only reveals the panel — nothing is removed until it is pressed.
+  await expect(row.locator('[data-swipe-state]')).toHaveAttribute('data-swipe-state', 'open')
+  await expect(beverages.getByText('Coffee')).toBeVisible()
+  expect(requests.filter((r) => r.method === 'DELETE')).toHaveLength(0)
+
+  await row.getByRole('button', { name: 'Remove Coffee' }).click()
+
+  await expect(beverages.getByText('Coffee')).toHaveCount(0)
+  await expect.poll(() => requests.filter((r) => r.method === 'DELETE').length).toBe(1)
+})
+
+test('recipe items cannot be swiped away', async ({ page }) => {
+  await mockShoppingList(page, '2026-W13', WEEK_ITEMS)
+
+  await page.goto('/shopping-list')
+
+  const dairy = page.getByRole('region', { name: 'Dairy & eggs' })
+  const row = dairy.getByRole('listitem').filter({ hasText: 'Milk' })
+  await swipeRowOpen(page, row)
+
+  await expect(row).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Remove Milk' })).toHaveCount(0)
 })
 
 test('recipe items offer no edit control', async ({ page }) => {

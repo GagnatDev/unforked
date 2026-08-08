@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { recipePhotoUrl } from '@/api'
-import { Button } from '@/components/ui/button'
+import { SwipeToDelete } from '@/components/SwipeToDelete'
 import { Input } from '@/components/ui/input'
 import { listLocalRecipes } from '@/local/db'
 import { deleteRecipe } from '@/local/mutations'
@@ -35,8 +35,9 @@ export default function RecipeList() {
   const loading = localLoading || (allRecipes == null && pullError == null)
   const error = allRecipes == null ? pullError : null
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(t('recipes.deleteConfirm', { name }))) return
+  // No confirm dialog: swiping the row open and then pressing the trash panel
+  // is itself the two-step confirmation.
+  const handleDelete = async (id: string) => {
     try {
       // Optimistic: removes locally and queues the server delete (offline-first).
       await deleteRecipe(id)
@@ -69,47 +70,46 @@ export default function RecipeList() {
         <>
           <ul className="list-none p-0 space-y-2">
             {recipes.map((r) => (
-              <li
-              key={r.id}
-              className="flex justify-between items-center gap-2 rounded-lg bg-card border border-border px-3 py-3 text-card-foreground"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                {r.doc.photo && (
-                  <Link to={`/recipes/${r.id}/edit`} className="shrink-0" tabIndex={-1} aria-hidden="true">
-                    <img
-                      src={recipePhotoUrl(r.id, 'thumb', r.doc.photo.key)}
-                      crossOrigin="anonymous"
-                      loading="lazy"
-                      alt=""
-                      className="h-12 w-12 rounded-md border border-border object-cover"
-                    />
-                  </Link>
-                )}
-                <div className="min-w-0">
-                <Link to={`/recipes/${r.id}/edit`} className="font-semibold">
-                  {r.doc.name}
-                </Link>
-                {r.doc.servings > 0 && (
-                  <span className="ml-2 text-muted-foreground">
-                    {t('recipes.serves', { count: r.doc.servings })}
-                  </span>
-                )}
-                {r.doc.tags.length > 0 && (
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {r.doc.tags.join(', ')}
-                  </span>
-                )}
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={() => handleDelete(r.id, r.doc.name)}
-              >
-                {t('recipes.delete')}
-              </Button>
-            </li>
+              <li key={r.id}>
+                <SwipeToDelete
+                  onDelete={() => void handleDelete(r.id)}
+                  deleteLabel={t('recipes.deleteRecipe', { name: r.doc.name })}
+                >
+                  <div className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card px-3 py-3 text-card-foreground">
+                    {r.doc.photo && (
+                      <Link
+                        to={`/recipes/${r.id}/edit`}
+                        className="shrink-0"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                      >
+                        <img
+                          src={recipePhotoUrl(r.id, 'thumb', r.doc.photo.key)}
+                          crossOrigin="anonymous"
+                          loading="lazy"
+                          alt=""
+                          className="h-12 w-12 rounded-md border border-border object-cover"
+                        />
+                      </Link>
+                    )}
+                    <div className="min-w-0">
+                      <Link to={`/recipes/${r.id}/edit`} className="font-semibold">
+                        {r.doc.name}
+                      </Link>
+                      {r.doc.servings > 0 && (
+                        <span className="ml-2 text-muted-foreground">
+                          {t('recipes.serves', { count: r.doc.servings })}
+                        </span>
+                      )}
+                      {r.doc.tags.length > 0 && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {r.doc.tags.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </SwipeToDelete>
+              </li>
             ))}
           </ul>
           {recipes.length === 0 && (
