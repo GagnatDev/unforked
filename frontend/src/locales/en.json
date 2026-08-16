@@ -114,8 +114,6 @@
     "peopleUnset": "—",
     "recipeForDay": "Recipe for {{day}}",
     "saving": "Saving…",
-    "savePlan": "Save plan",
-    "unsavedChanges": "Unsaved changes",
     "savedIndicator": "Saved",
     "swapAria": "Swap {{day}}'s dinner with another day",
     "swapTargetAria": "Swap with {{day}}",
