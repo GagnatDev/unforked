@@ -41,36 +41,38 @@ export function MealPlanRecipeSelect({
   )
 
   return (
-    <>
-      <label htmlFor={id} className="sr-only">
-        {t('mealPlan.recipeForDay', { day: dayLabel })}
-      </label>
-      <Select
-        items={items}
-        value={value}
-        onValueChange={(recipeId) => {
-          if (!recipeId) {
-            setAssignment(day, null, '')
-            return
-          }
-          const r = recipes.find((x) => x.id === recipeId)
-          setAssignment(day, recipeId, r?.doc.name ?? '')
-        }}
+    <Select
+      items={items}
+      value={value}
+      onValueChange={(recipeId) => {
+        if (!recipeId) {
+          setAssignment(day, null, '')
+          return
+        }
+        const r = recipes.find((x) => x.id === recipeId)
+        setAssignment(day, recipeId, r?.doc.name ?? '')
+      }}
+    >
+      {/* Named with aria-label rather than a <label for>: the trigger is a
+          button, which `for=` cannot label — and each row now holds a second
+          dropdown for the head count. */}
+      <SelectTrigger
+        id={id}
+        aria-label={t('mealPlan.recipeForDay', { day: dayLabel })}
+        className={cn('w-full', className)}
       >
-        <SelectTrigger id={id} className={cn('w-full', className)}>
-          <SelectValue placeholder={t('mealPlan.noRecipe')} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem value="">{t('mealPlan.noRecipe')}</SelectItem>
-            {recipes.map((r) => (
-              <SelectItem key={r.id} value={r.id}>
-                {r.doc.name}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </>
+        <SelectValue placeholder={t('mealPlan.noRecipe')} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          <SelectItem value="">{t('mealPlan.noRecipe')}</SelectItem>
+          {recipes.map((r) => (
+            <SelectItem key={r.id} value={r.id}>
+              {r.doc.name}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   )
 }

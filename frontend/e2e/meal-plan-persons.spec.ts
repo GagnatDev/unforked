@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
-import { selectMealPlanRecipe } from './meal-plan-select'
+import { selectMealPlanPeople, selectMealPlanRecipe } from './meal-plan-select'
 
 /** Same frozen instant as week-picker.spec.ts → ISO week 2026-W25 in UTC. */
 const FROZEN_NOW = new Date(Date.UTC(2026, 5, 15, 12, 0, 0))
@@ -102,16 +102,20 @@ test.describe('meal plan people (mocked)', () => {
     await expect(page.getByRole('heading', { name: "This week's dinners" })).toBeVisible()
 
     const defaultPeople = page.getByLabel(MEAL_PLAN_DEFAULT_PEOPLE_LABEL)
-    await expect(defaultPeople).toHaveValue('3')
+    await expect(defaultPeople).toHaveText('3')
+    // Days without an override name the week default they fall back to.
     await expect(
-      page.getByRole('spinbutton', { name: /People for Monday/i })
-    ).toHaveValue('')
+      page.getByRole('combobox', { name: /People for Monday/i })
+    ).toHaveText('Default (3)')
     await expect(
-      page.getByRole('spinbutton', { name: /People for Tuesday/i })
-    ).toHaveValue('2')
+      page.getByRole('combobox', { name: /People for Tuesday/i })
+    ).toHaveText('2')
 
-    await defaultPeople.fill('5')
-    await page.getByRole('spinbutton', { name: /People for Tuesday/i }).fill('4')
+    await selectMealPlanPeople(defaultPeople, '5')
+    await selectMealPlanPeople(
+      page.getByRole('combobox', { name: /People for Tuesday/i }),
+      '4'
+    )
 
     const putPromise = page.waitForRequest(
       (req) =>
@@ -149,7 +153,7 @@ test.describe('meal plan people and shopping list', { tag: '@integration' }, () 
     await page.goto('/meal-plan')
     await expect(page.getByRole('heading', { name: "This week's dinners" })).toBeVisible()
 
-    await page.getByLabel(MEAL_PLAN_DEFAULT_PEOPLE_LABEL).fill('2')
+    await selectMealPlanPeople(page.getByLabel(MEAL_PLAN_DEFAULT_PEOPLE_LABEL), '2')
     await selectMealPlanRecipe(page.getByRole('row', { name: /^Monday\b/i }), recipeName)
 
     const savePlanResponse = page.waitForResponse((response) => {
@@ -179,14 +183,17 @@ test.describe('meal plan people and shopping list', { tag: '@integration' }, () 
     await createFlourRecipe(page, recipeName)
 
     await page.goto('/meal-plan')
-    await page.getByLabel(MEAL_PLAN_DEFAULT_PEOPLE_LABEL).fill('4')
+    await selectMealPlanPeople(page.getByLabel(MEAL_PLAN_DEFAULT_PEOPLE_LABEL), '4')
 
     const mondayRow = page.getByRole('row', { name: /^Monday\b/i })
     const tuesdayRow = page.getByRole('row', { name: /^Tuesday\b/i })
     await selectMealPlanRecipe(mondayRow, recipeName)
     await selectMealPlanRecipe(tuesdayRow, recipeName)
 
-    await mondayRow.getByRole('spinbutton', { name: /People for Monday/i }).fill('2')
+    await selectMealPlanPeople(
+      mondayRow.getByRole('combobox', { name: /People for Monday/i }),
+      '2'
+    )
 
     const savePlanResponse = page.waitForResponse((response) => {
       return response.request().method() === 'PUT' && response.url().includes('/api/meal-plans/current')

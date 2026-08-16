@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MealPlanPeopleSelect } from '@/components/meal-plan/MealPlanPeopleSelect'
 import { MealPlanWeekAssignments } from '@/components/meal-plan/MealPlanWeekAssignments'
 import { DAYS } from '@/components/meal-plan/constants'
 import { WeekPicker } from '@/components/WeekPicker'
@@ -16,16 +17,8 @@ import {
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
-import { Input } from '@/components/ui/input'
 import { getNextWeekId } from '@/lib/utils'
 import type { MealPlanDoc, DayAssignment, Recipe } from '@/types'
-
-function parsePositiveInt(raw: string): number | null {
-  if (raw.trim() === '') return null
-  const n = Number.parseInt(raw, 10)
-  if (!Number.isFinite(n) || n < 1) return null
-  return n
-}
 
 /** Normalized fingerprint of what a save would persist, for dirty checking. */
 function planFingerprint(doc: MealPlanDoc): string {
@@ -147,19 +140,18 @@ export default function MealPlan() {
     setPlan({ ...plan, assignments: next })
   }
 
-  const setDefaultPeople = (raw: string) => {
+  const setDefaultPeople = (persons: number | null) => {
     if (!plan) return
     setPlan({
       ...plan,
-      defaultPersons: parsePositiveInt(raw),
+      defaultPersons: persons,
     })
   }
 
-  const setDayPeople = (day: string, raw: string) => {
+  const setDayPeople = (day: string, persons: number | null) => {
     if (!plan) return
     const assignment = byDay[day]
     if (!assignment?.recipeId) return
-    const persons = parsePositiveInt(raw)
     setPlan({
       ...plan,
       assignments: plan.assignments.map((a) =>
@@ -206,21 +198,19 @@ export default function MealPlan() {
             onSwapDays={swapDays}
           />
           <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <label
-              htmlFor="meal-plan-default-people"
-              className="text-sm text-muted-foreground"
-            >
+            {/* A plain span, not a <label>: the dropdown trigger is a button,
+                which `for=` cannot label — it carries the same text as its
+                aria-label instead. */}
+            <span className="text-sm text-muted-foreground">
               {t('mealPlan.defaultPeople')}
-            </label>
-            <Input
+            </span>
+            <MealPlanPeopleSelect
               id="meal-plan-default-people"
-              type="number"
-              min={1}
-              step={1}
-              inputMode="numeric"
-              value={plan?.defaultPersons ?? ''}
-              onChange={(e) => setDefaultPeople(e.target.value)}
-              className="h-8 w-20"
+              value={plan?.defaultPersons ?? null}
+              onValueChange={setDefaultPeople}
+              ariaLabel={t('mealPlan.defaultPeople')}
+              emptyLabel={t('mealPlan.peopleUnset')}
+              className="h-8 w-28"
             />
             <p className="w-full text-xs text-muted-foreground">
               {t('mealPlan.defaultPeopleHint')}

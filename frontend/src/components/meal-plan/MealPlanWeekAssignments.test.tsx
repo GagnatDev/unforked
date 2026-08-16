@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DayAssignment, Recipe } from '@/types'
 import '@/i18n'
+import { openOptions, selectOption } from '@/test/selectOption'
 import { MealPlanWeekAssignments } from './MealPlanWeekAssignments'
 
 function recipe(id: string, name: string): Recipe {
@@ -27,18 +28,25 @@ const byDay: Record<string, DayAssignment | undefined> = {
   tuesday: { day: 'tuesday', recipeId: 'recipe-2', recipeName: 'Tacos', persons: 2 },
 }
 
-function renderAssignments(onSwapDays = vi.fn()) {
+function renderAssignments(onSwapDays = vi.fn(), setDayPeople = vi.fn()) {
   render(
     <MealPlanWeekAssignments
       byDay={byDay}
       recipes={recipes}
       defaultPersons={4}
       setAssignment={vi.fn()}
-      setDayPeople={vi.fn()}
+      setDayPeople={setDayPeople}
       onSwapDays={onSwapDays}
     />,
   )
   return onSwapDays
+}
+
+/** Both layouts (mobile list, desktop table) render; either control works. */
+function peopleTrigger(day: string) {
+  return screen.getAllByRole('combobox', {
+    name: new RegExp(`People for ${day}`, 'i'),
+  })[0]
 }
 
 describe('MealPlanWeekAssignments swap', () => {
@@ -79,5 +87,38 @@ describe('MealPlanWeekAssignments swap', () => {
       name: /Swap with Sunday/i,
     })[0] as HTMLButtonElement
     expect(sundayTarget.disabled).toBe(false)
+  })
+})
+
+describe('MealPlanWeekAssignments people', () => {
+  afterEach(() => cleanup())
+
+  it('reports the head count picked for a day as a number', async () => {
+    const setDayPeople = vi.fn()
+    renderAssignments(vi.fn(), setDayPeople)
+
+    await selectOption(peopleTrigger('Tuesday'), '6')
+
+    expect(setDayPeople).toHaveBeenCalledWith('tuesday', 6)
+  })
+
+  it('names the week default on the entry that clears a day override', async () => {
+    renderAssignments()
+
+    // Falling back to the week default (4 here) is what an empty day means.
+    expect(await openOptions(peopleTrigger('Tuesday'))).toContain('Default (4)')
+  })
+
+  it('shows the day override in the trigger, not the week default', () => {
+    renderAssignments()
+
+    expect(peopleTrigger('Tuesday').textContent).toContain('2')
+    expect(peopleTrigger('Monday').textContent).toContain('Default (4)')
+  })
+
+  it('disables the picker for a day with no recipe', () => {
+    renderAssignments()
+
+    expect((peopleTrigger('Sunday') as HTMLButtonElement).disabled).toBe(true)
   })
 })
