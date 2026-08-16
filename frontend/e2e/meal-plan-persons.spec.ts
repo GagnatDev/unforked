@@ -130,15 +130,17 @@ test.describe('meal plan people (mocked)', () => {
     await page.goto('/meal-plan')
     await expect(page.getByRole('heading', { name: "This week's dinners" })).toBeVisible()
 
+    // Anchored rather than exact: the trigger's text carries a trailing
+    // dropdown glyph after the selected value.
     const defaultPeople = page.getByLabel(MEAL_PLAN_DEFAULT_PEOPLE_LABEL)
-    await expect(defaultPeople).toHaveText('3')
+    await expect(defaultPeople).toHaveText(/^3/)
     // Days without an override name the week default they fall back to.
     await expect(
       page.getByRole('combobox', { name: /People for Monday/i })
-    ).toHaveText('Default (3)')
+    ).toHaveText(/^Default \(3\)/)
     await expect(
       page.getByRole('combobox', { name: /People for Tuesday/i })
-    ).toHaveText('2')
+    ).toHaveText(/^2/)
 
     // Nothing to press: both edits save themselves.
     await expect(page.getByRole('button', { name: /save/i })).toHaveCount(0)
@@ -159,7 +161,7 @@ test.describe('meal plan people (mocked)', () => {
     expect(payload.weekIdentifier).toMatch(/^2026-W\d{2}$/)
     const monday = payload.assignments.find((a) => a.day === 'monday')
     expect(monday?.persons == null || monday.persons === undefined).toBe(true)
-    await expect(page.getByRole('status')).toHaveText('Saved')
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible()
   })
 })
 
