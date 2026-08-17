@@ -65,17 +65,15 @@ test.describe('weekly flow (recipes → meal plan → shopping list → today)',
     await expect(weekDialog).toBeVisible()
     await weekDialog.getByRole('button', { name: JUNE_15_DAY_BUTTON }).click()
 
-    // 2) Assign the seeded recipe to Monday and save the plan for week 2026-W25.
+    // 2) Assign the seeded recipe to Monday; the page saves it on its own.
     const mondayRow = page.getByRole('row', { name: /^Monday\b/i })
-    await selectMealPlanRecipe(mondayRow, recipeName)
-
     const savePlanResponse = page.waitForResponse((response) => {
       return (
         response.request().method() === 'PUT' &&
         response.url().includes('/api/meal-plans/current')
       )
     })
-    await page.getByRole('button', { name: /save plan/i }).click()
+    await selectMealPlanRecipe(mondayRow, recipeName)
     expect((await savePlanResponse).ok()).toBeTruthy()
 
     // 3) Visit shopping list, switch to the same week, and verify the ingredient appears.

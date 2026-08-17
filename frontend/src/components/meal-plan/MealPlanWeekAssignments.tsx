@@ -9,7 +9,7 @@ import type { DayAssignment, Recipe } from '@/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { DAYS, type DayKey } from './constants'
-import { MealPlanDayPeopleInput } from './MealPlanDayPeopleInput'
+import { MealPlanDayPeopleSelect } from './MealPlanDayPeopleSelect'
 import { MealPlanRecipeSelect } from './MealPlanRecipeSelect'
 
 /** Pointer must travel this far before a press on the handle becomes a drag. */
@@ -37,7 +37,7 @@ export function MealPlanWeekAssignments({
   recipes: Recipe[]
   defaultPersons: number | null
   setAssignment: (day: string, recipeId: string | null, recipeName: string) => void
-  setDayPeople: (day: string, raw: string) => void
+  setDayPeople: (day: string, persons: number | null) => void
   onSwapDays: (dayA: string, dayB: string) => void
 }) {
   const { t } = useTranslation()
@@ -173,19 +173,19 @@ export function MealPlanWeekAssignments({
               </div>
               {byDay[day]?.recipeId && (
                 <div className="mt-2 flex items-center justify-between gap-3">
-                  <label
-                    htmlFor={`meal-plan-people-mobile-${day}`}
-                    className="text-sm text-muted-foreground"
-                  >
+                  {/* A plain span, not a <label>: the dropdown trigger is a
+                      button, which `for=` cannot label — it carries its own
+                      per-day aria-label instead. */}
+                  <span className="text-sm text-muted-foreground">
                     {t('mealPlan.dayPeople')}
-                  </label>
-                  <MealPlanDayPeopleInput
+                  </span>
+                  <MealPlanDayPeopleSelect
                     id={`meal-plan-people-mobile-${day}`}
                     day={day}
                     byDay={byDay}
                     defaultPersons={defaultPersons}
                     setDayPeople={setDayPeople}
-                    className="w-24 shrink-0"
+                    className="w-32 shrink-0"
                   />
                 </div>
               )}
@@ -197,7 +197,7 @@ export function MealPlanWeekAssignments({
             <tr className="border-b-2 border-border">
               <th className="w-44 p-3 text-left">{t('mealPlan.day')}</th>
               <th className="p-3 text-left">{t('mealPlan.recipe')}</th>
-              <th className="w-36 p-3 text-left">{t('mealPlan.people')}</th>
+              <th className="w-40 p-3 text-left">{t('mealPlan.people')}</th>
             </tr>
           </thead>
           <tbody>
@@ -224,7 +224,7 @@ export function MealPlanWeekAssignments({
                   />
                 </td>
                 <td className="p-3">
-                  <MealPlanDayPeopleInput
+                  <MealPlanDayPeopleSelect
                     day={day}
                     byDay={byDay}
                     defaultPersons={defaultPersons}

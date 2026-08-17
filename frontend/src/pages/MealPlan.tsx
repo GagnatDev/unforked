@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MealPlanPeopleSelect } from '@/components/meal-plan/MealPlanPeopleSelect'
 import { MealPlanWeekAssignments } from '@/components/meal-plan/MealPlanWeekAssignments'
 import { DAYS } from '@/components/meal-plan/constants'
 import { WeekPicker } from '@/components/WeekPicker'
-import { Button } from '@/components/ui/button'
 import { useLocale } from '@/hooks/useLocale'
 import { getLocalMealPlan, getSyncMeta, listLocalRecipes } from '@/local/db'
 import { saveMealPlan } from '@/local/mutations'
@@ -16,16 +16,8 @@ import {
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
-import { Input } from '@/components/ui/input'
-import { getNextWeekId } from '@/lib/utils'
+import { cn, getNextWeekId } from '@/lib/utils'
 import type { MealPlanDoc, DayAssignment, Recipe } from '@/types'
-
-function parsePositiveInt(raw: string): number | null {
-  if (raw.trim() === '') return null
-  const n = Number.parseInt(raw, 10)
-  if (!Number.isFinite(n) || n < 1) return null
-  return n
-}
 
 /** Normalized fingerprint of what a save would persist, for dirty checking. */
 function planFingerprint(doc: MealPlanDoc): string {
@@ -50,6 +42,8 @@ export default function MealPlan() {
   const [saving, setSaving] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Ticket of the most recently started save; older ones are ignored. */
+  const saveSeq = useRef(0)
 
   const { data, loading: localLoading } = useLocal(
     async () => {
@@ -87,6 +81,10 @@ export default function MealPlan() {
     setPlan(null)
     setSavedPlan(null)
     setJustSaved(false)
+    // Abandon any in-flight save: its doc belongs to the week we just left.
+    saveSeq.current++
+    setSaving(false)
+    setError(null)
   }, [weekId])
 
   useEffect(() => {
@@ -104,12 +102,34 @@ export default function MealPlan() {
 
   const assignments = plan?.assignments ?? []
   const byDay = Object.fromEntries(assignments.map((a) => [a.day, a]))
-  const dirty =
-    plan != null && savedPlan != null && planFingerprint(plan) !== planFingerprint(savedPlan)
 
-  useEffect(() => {
-    if (dirty) setJustSaved(false)
-  }, [dirty])
+  /**
+   * Show an edit and persist it in one step — every change to the plan is a
+   * save, so there is no button to press and nothing to lose by navigating
+   * away. Saves are cheap and always ordered: the newest one owns the outcome,
+   * so a slower earlier save can never report over it or restore its doc.
+   */
+  const applyAndSave = (doc: MealPlanDoc) => {
+    setPlan(doc)
+    const seq = ++saveSeq.current
+    setSaving(true)
+    setError(null)
+    // Offline-first: apply to the local store and queue the server PUT (with
+    // a day-level merge on sync). Succeeds offline; nothing awaits the network.
+    void saveMealPlan(weekId, doc).then(
+      () => {
+        if (seq !== saveSeq.current) return
+        setSavedPlan(doc)
+        setJustSaved(true)
+        setSaving(false)
+      },
+      (e) => {
+        if (seq !== saveSeq.current) return
+        setError(mapAsyncCatchError(e))
+        setSaving(false)
+      },
+    )
+  }
 
   const setAssignment = (day: string, recipeId: string | null, recipeName: string) => {
     if (!plan) return
@@ -124,7 +144,7 @@ export default function MealPlan() {
       defaultPersons: plan.defaultPersons ?? null,
       assignments: next,
     }
-    setPlan(doc)
+    applyAndSave(doc)
   }
 
   /** Swaps the recipes of two days; per-day people overrides stay with their day. */
@@ -144,45 +164,27 @@ export default function MealPlan() {
         },
       ]
     })
-    setPlan({ ...plan, assignments: next })
+    applyAndSave({ ...plan, assignments: next })
   }
 
-  const setDefaultPeople = (raw: string) => {
+  const setDefaultPeople = (persons: number | null) => {
     if (!plan) return
-    setPlan({
+    applyAndSave({
       ...plan,
-      defaultPersons: parsePositiveInt(raw),
+      defaultPersons: persons,
     })
   }
 
-  const setDayPeople = (day: string, raw: string) => {
+  const setDayPeople = (day: string, persons: number | null) => {
     if (!plan) return
     const assignment = byDay[day]
     if (!assignment?.recipeId) return
-    const persons = parsePositiveInt(raw)
-    setPlan({
+    applyAndSave({
       ...plan,
       assignments: plan.assignments.map((a) =>
         a.day === day ? { ...a, persons } : a
       ),
     })
-  }
-
-  const save = async () => {
-    if (!plan) return
-    setSaving(true)
-    setError(null)
-    try {
-      // Offline-first: apply to the local store and queue the server PUT (with
-      // a day-level merge on sync). Succeeds offline; nothing awaits the network.
-      await saveMealPlan(weekId, plan)
-      setSavedPlan(plan)
-      setJustSaved(true)
-    } catch (e) {
-      setError(mapAsyncCatchError(e))
-    } finally {
-      setSaving(false)
-    }
   }
 
   return (
@@ -206,49 +208,40 @@ export default function MealPlan() {
             onSwapDays={swapDays}
           />
           <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <label
-              htmlFor="meal-plan-default-people"
-              className="text-sm text-muted-foreground"
-            >
+            {/* A plain span, not a <label>: the dropdown trigger is a button,
+                which `for=` cannot label — it carries the same text as its
+                aria-label instead. */}
+            <span className="text-sm text-muted-foreground">
               {t('mealPlan.defaultPeople')}
-            </label>
-            <Input
+            </span>
+            <MealPlanPeopleSelect
               id="meal-plan-default-people"
-              type="number"
-              min={1}
-              step={1}
-              inputMode="numeric"
-              value={plan?.defaultPersons ?? ''}
-              onChange={(e) => setDefaultPeople(e.target.value)}
-              className="h-8 w-20"
+              value={plan?.defaultPersons ?? null}
+              onValueChange={setDefaultPeople}
+              ariaLabel={t('mealPlan.defaultPeople')}
+              emptyLabel={t('mealPlan.peopleUnset')}
+              className="h-8 w-28"
             />
             <p className="w-full text-xs text-muted-foreground">
               {t('mealPlan.defaultPeopleHint')}
             </p>
           </div>
-          <div className="sticky bottom-0 z-10 -mx-6 mt-6 border-t border-border bg-background/90 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm">
-            {error != null && (
-              <p className="mb-2 text-sm text-destructive">
-                {formatLoadErrorMessage(error, t)}
-              </p>
+          {/* Edits save themselves; this line is the only save feedback. */}
+          <p
+            role="status"
+            className={cn(
+              'mt-4 min-h-5 text-sm',
+              error != null ? 'text-destructive' : 'text-muted-foreground',
             )}
-            <div className="flex items-center justify-end gap-3">
-              <span className="text-sm text-muted-foreground" role="status">
-                {dirty
-                  ? t('mealPlan.unsavedChanges')
-                  : justSaved
-                    ? t('mealPlan.savedIndicator')
-                    : ''}
-              </span>
-              <Button
-                onClick={save}
-                disabled={saving || !dirty}
-                className="flex-1 sm:flex-none"
-              >
-                {saving ? t('mealPlan.saving') : t('mealPlan.savePlan')}
-              </Button>
-            </div>
-          </div>
+          >
+            {error != null
+              ? formatLoadErrorMessage(error, t)
+              : saving
+                ? t('mealPlan.saving')
+                : justSaved
+                  ? t('mealPlan.savedIndicator')
+                  : ''}
+          </p>
         </>
       )}
     </div>
