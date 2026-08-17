@@ -19,7 +19,7 @@ docker compose up --build
 ```
 
 - App + API: http://localhost:8082 (frontend and backend in one container)
-- Machine API (API-key-authenticated, for other local apps like aivo): http://localhost:8083 — see [Testing the aivo↔unforked integration locally](#testing-the-aivounforked-integration-locally)
+- Machine API (API-key-authenticated, for other local apps like aivo): http://localhost:8086 — see [Testing the aivo↔unforked integration locally](#testing-the-aivounforked-integration-locally)
 - Postgres: localhost:5632 (user `meals`, password `meals`, db `meals`)
 
 Local ports are deliberately moved off this platform's defaults (8080/3000/5432) to avoid collisions when running several homectl apps side by side. Production still uses the defaults (see `k8s/deployment.yml`).
@@ -45,7 +45,7 @@ docker compose up -d postgres
 ```bash
 export DATABASE_URL=postgresql://meals:meals@localhost:5632/meals
 export PORT=8082
-export MACHINE_PORT=8083   # separate listener for the machine API; see docs/aivo-integration.md
+export MACHINE_PORT=8086   # separate listener for the machine API; see docs/aivo-integration.md
 export DISABLE_AUTH=true   # no auth sidecar locally; use the fixed dev admin
 pnpm --filter @unforked/backend run dev   # tsx watch, auto-restart
 ```
@@ -118,7 +118,7 @@ human API and frontend above — not the same `:8082` used by the browser. With
 `docker compose up --build` running here, aivo (or any other local app) should
 use:
 
-- **Machine API base URL:** `http://localhost:8083` (routes under `/machine/v1/`,
+- **Machine API base URL:** `http://localhost:8086` (routes under `/machine/v1/`,
   see `docs/aivo-integration.md` §5). This is published by `docker-compose.yml`
   precisely so another locally-running app can reach it.
 - **Auth:** a real per-user API key, not `DISABLE_AUTH`. `DISABLE_AUTH=true`

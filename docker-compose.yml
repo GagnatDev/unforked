@@ -31,9 +31,11 @@ services:
       - PORT=8082
       # Moved off the code default of 8081 (docs/aivo-integration.md) so this
       # doesn't collide with aivo's local dev backend, which also uses 8081.
+      # Also moved off 8083, which collides with mygarden's local dev backend
+      # workspace-wide (see homectl-reference/docs/local-ports.md).
       # Production/k8s keeps the 8081 default (see k8s/deployment.yml) since
       # there's no host-port collision there.
-      - MACHINE_PORT=8083
+      - MACHINE_PORT=8086
       - SEED_TEST_DATA=true
       # No auth sidecar in compose: fall back to the fixed dev admin identity.
       - DISABLE_AUTH=true
@@ -43,7 +45,7 @@ services:
       # listener from the human API above). Published so another local app
       # (e.g. aivo) can reach it for local integration testing — see README's
       # "Testing the aivo↔unforked integration locally".
-      - "8083:8083"
+      - "8086:8086"
     depends_on:
       postgres:
         condition: service_healthy
