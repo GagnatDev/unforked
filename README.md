@@ -18,8 +18,11 @@ From the repo root:
 docker compose up --build
 ```
 
-- App + API: http://localhost:8080 (frontend and backend in one container)
-- Postgres: localhost:5432 (user `meals`, password `meals`, db `meals`)
+- App + API: http://localhost:8082 (frontend and backend in one container)
+- Machine API (API-key-authenticated, for other local apps like aivo): http://localhost:8083 — see [Testing the aivo↔unforked integration locally](#testing-the-aivounforked-integration-locally)
+- Postgres: localhost:5632 (user `meals`, password `meals`, db `meals`)
+
+Local ports are deliberately moved off this platform's defaults (8080/3000/5432) to avoid collisions when running several homectl apps side by side. Production still uses the defaults (see `k8s/deployment.yml`).
 
 ## Run locally (dev)
 
@@ -40,12 +43,14 @@ docker compose up -d postgres
 ### 3. Backend
 
 ```bash
-export DATABASE_URL=postgresql://meals:meals@localhost:5432/meals
+export DATABASE_URL=postgresql://meals:meals@localhost:5632/meals
+export PORT=8082
+export MACHINE_PORT=8083   # separate listener for the machine API; see docs/aivo-integration.md
 export DISABLE_AUTH=true   # no auth sidecar locally; use the fixed dev admin
 pnpm --filter @unforked/backend run dev   # tsx watch, auto-restart
 ```
 
-Migrations run automatically at boot. API: http://localhost:8080
+Migrations run automatically at boot. API: http://localhost:8082
 
 `DISABLE_AUTH=true` makes requests without the sidecar's `X-Homectl-*` identity
 headers resolve to a fixed dev admin (see [Authentication](#authentication)).
@@ -59,7 +64,7 @@ Do not set it in production.
 pnpm --filter meal-planning-frontend run dev
 ```
 
-Vite proxies `/api` to the backend. App: http://localhost:3000
+Vite proxies `/api` to the backend. App: http://localhost:3002
 
 ### Repo-wide scripts (from the root)
 
@@ -102,3 +107,47 @@ All `/api` routes read the sidecar identity headers (or the dev fallback).
 - `GET/PUT /api/meal-plans/current?week=YYYY-Wnn`
 - `GET /api/shopping-lists?week=YYYY-Wnn`
 - `GET /health`
+
+## Local integration testing
+
+### Testing the aivo↔unforked integration locally
+
+[Aivo](https://github.com/GagnatDev/aivo) talks to unforked over the **machine
+API** (`docs/aivo-integration.md`), which is a separate listener/port from the
+human API and frontend above — not the same `:8082` used by the browser. With
+`docker compose up --build` running here, aivo (or any other local app) should
+use:
+
+- **Machine API base URL:** `http://localhost:8083` (routes under `/machine/v1/`,
+  see `docs/aivo-integration.md` §5). This is published by `docker-compose.yml`
+  precisely so another locally-running app can reach it.
+- **Auth:** a real per-user API key, not `DISABLE_AUTH`. `DISABLE_AUTH=true`
+  only affects the human API/frontend — the machine listener always requires a
+  valid `Authorization: Bearer ufk_…` key (`backend/src/middleware/machineAuth.ts`).
+  Create one from unforked's own UI (API-keys page) or `POST /api/api-keys`
+  against the human API (`http://localhost:8082`, using the dev-admin fallback
+  or a real session), then register the plaintext key on the calling app's
+  side (e.g. aivo's own config/Secret for `UNFORKED_API_KEY`).
+
+### Running the homectl-auth-proxy sidecar locally
+
+To test with real homectl-auth sessions instead of `DISABLE_AUTH`, run the real
+[homectl-auth-proxy](https://github.com/GagnatDev/homectl-auth) sidecar in
+front of unforked's human API. Use a `LISTEN_PORT` distinct from aivo's sidecar
+(`4180`), since both may run at once when testing the integration end-to-end:
+
+```bash
+docker run --rm -p 4181:4181 \
+  -e LISTEN_PORT=4181 \
+  -e PUBLIC_AUTH_URL=http://localhost:4400 \
+  -e INTERNAL_AUTH_URL=http://localhost:4400 \
+  -e UPSTREAM=http://host.docker.internal:8082 \
+  -e AUTH_CLIENT_ID=unforked \
+  -e AUTH_CLIENT_SECRET=<from the homectl-auth-registered dev secret> \
+  -e DEV_FAKE_IDENTITY=<as documented in homectl-auth's sidecar docs> \
+  ghcr.io/gagnatdev/homectl-auth-proxy:latest
+```
+
+Then browse to `http://localhost:4181` instead of `:8082` directly. See
+homectl-auth's own sidecar docs for the exact `DEV_FAKE_IDENTITY` format and
+image reference.
