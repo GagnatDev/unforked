@@ -71,18 +71,20 @@ test.describe('weekly flow (recipes → meal plan → shopping list → today)',
     await selectMealPlanRecipe(mondayRow, recipeName)
     expect((await savePlanResponse).ok()).toBeTruthy()
 
-    // 3) Visit shopping list, switch to the same week, and verify the ingredient appears.
-    await page.goto('/shopping-list')
-    await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
-
+    // 3) Visit the shopping list for the week just planned. The week is pinned
+    // in the URL: without it the page picks a week itself (next week, or this
+    // week when next week is empty), which a spec planning another week in
+    // parallel could sway.
     const requestedShoppingUrls: string[] = []
     await page.route('**/api/shopping-lists**', async (route) => {
       requestedShoppingUrls.push(route.request().url())
       await route.continue()
     })
 
+    await page.goto('/shopping-list?week=2026-W25')
+    await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
+
     const shoppingWeekStrip = page.getByRole('group', { name: 'Select week' })
-    await shoppingWeekStrip.getByRole('button', { name: /^Previous week/ }).click()
     await expect(
       shoppingWeekStrip.locator('button[aria-current="true"]'),
     ).toHaveAccessibleName(/Week 25, 2026/)

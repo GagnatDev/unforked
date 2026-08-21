@@ -14,6 +14,24 @@ async function fulfillJson(route: Route, body: unknown) {
   })
 }
 
+/**
+ * The shopping list opens on this week when next week's list is empty, so the
+ * picker tests below keep one item in the default week (2026-W26) to start
+ * where they expect. The fallback itself is covered in shopping-list.spec.ts.
+ */
+const DEFAULT_WEEK_ITEM = {
+  id: '11111111-1111-4111-8111-111111111111',
+  name: 'Milk',
+  quantity: '1',
+  unit: 'l',
+  recipeIds: ['r1'],
+  category: 'dairy',
+  checked: false,
+  manual: false,
+}
+
+const shoppingListItems = (week: string) => (week === '2026-W26' ? [DEFAULT_WEEK_ITEM] : [])
+
 const weekStrip = (page: Page) => page.getByRole('group', { name: 'Select week' })
 
 /** The raised week in the middle of the strip. */
@@ -87,7 +105,7 @@ test.describe('week picker', () => {
         new URL(route.request().url()).searchParams.get('week') ?? '2026-W26'
       await fulfillJson(route, {
         weekIdentifier: week,
-        items: [],
+        items: shoppingListItems(week),
       })
     })
 
@@ -121,7 +139,7 @@ test.describe('week picker', () => {
     await page.route('**/api/shopping-lists**', async (route) => {
       const week =
         new URL(route.request().url()).searchParams.get('week') ?? '2026-W26'
-      await fulfillJson(route, { weekIdentifier: week, items: [] })
+      await fulfillJson(route, { weekIdentifier: week, items: shoppingListItems(week) })
     })
 
     await page.goto('/shopping-list')

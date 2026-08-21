@@ -4,10 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/i18n'
 import type { ShoppingListEntry } from '@/types'
 
-const mocks = vi.hoisted(() => ({ useShoppingList: vi.fn() }))
+const mocks = vi.hoisted(() => ({ useShoppingList: vi.fn(), useShoppingWeek: vi.fn() }))
 
 vi.mock('./shopping-list/useShoppingList', () => ({
   useShoppingList: mocks.useShoppingList,
+}))
+
+// Which week the page lands on is the week hook's job (and its own test);
+// here it is fed in so the rows under test don't depend on the local store.
+vi.mock('./shopping-list/useShoppingWeek', () => ({
+  useShoppingWeek: mocks.useShoppingWeek,
 }))
 
 // The week picker and add form are exercised elsewhere; keep this focused on
@@ -31,7 +37,8 @@ function entry(overrides: Partial<ShoppingListEntry>): ShoppingListEntry {
   }
 }
 
-function renderPage(items: ShoppingListEntry[]) {
+function renderPage(items: ShoppingListEntry[], resolving = false) {
+  mocks.useShoppingWeek.mockReturnValue({ weekId: '2026-W28', resolving })
   mocks.useShoppingList.mockReturnValue({
     items,
     loading: false,
@@ -62,6 +69,21 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+})
+
+describe('ShoppingList week', () => {
+  it('reads the list of the week the week hook settles on', () => {
+    renderPage([entry({})])
+
+    expect(mocks.useShoppingList).toHaveBeenCalledWith('2026-W28')
+  })
+
+  it('waits rather than flashing an empty list while the week is undecided', () => {
+    renderPage([], true)
+
+    expect(screen.getByText('Loading…')).toBeTruthy()
+    expect(screen.queryByText(/No ingredients for the selected week/)).toBeNull()
+  })
 })
 
 describe('ShoppingList hide-checked toggle', () => {
