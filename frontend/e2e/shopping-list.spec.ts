@@ -1,7 +1,11 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 import { mockShoppingList, type MockShoppingListEntry } from './mock-api'
 import { swipeRowOpen } from './swipe'
+
+/** The raised week in the middle of the week strip. */
+const selectedWeek = (page: Page) =>
+  page.getByRole('group', { name: 'Select week' }).locator('button[aria-current="true"]')
 
 function entry(overrides: Partial<MockShoppingListEntry>): MockShoppingListEntry {
   return {
@@ -15,6 +19,24 @@ function entry(overrides: Partial<MockShoppingListEntry>): MockShoppingListEntry
     manual: false,
     ...overrides,
   }
+}
+
+/** Frozen instant: this week is 2026-W25, so the list defaults to 2026-W26. */
+const FROZEN_NOW = new Date(Date.UTC(2026, 5, 15, 12, 0, 0))
+
+/** Answers each week from `byWeek`, so the two candidate weeks can differ. */
+async function mockShoppingListByWeek(
+  page: Page,
+  byWeek: Record<string, MockShoppingListEntry[]>,
+) {
+  await page.route('**/api/shopping-lists**', async (route) => {
+    const week = new URL(route.request().url()).searchParams.get('week') ?? '2026-W26'
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ weekIdentifier: week, items: byWeek[week] ?? [] }),
+    })
+  })
 }
 
 const WEEK_ITEMS: MockShoppingListEntry[] = [
@@ -296,4 +318,40 @@ test('changing category moves the item to the other section', async ({ page }) =
   await expect
     .poll(() => requests.filter((r) => r.method === 'PATCH').map((r) => r.body))
     .toEqual([{ category: 'beverages' }])
+})
+test.describe('default week', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.clock.install({ time: FROZEN_NOW })
+  })
+
+  test('opens next week, the week being shopped for', async ({ page }) => {
+    await mockShoppingListByWeek(page, {
+      '2026-W25': [entry({ name: 'Bread' })],
+      '2026-W26': [entry({ name: 'Milk' })],
+    })
+
+    await page.goto('/shopping-list')
+
+    await expect(selectedWeek(page)).toContainText('Next week')
+    await expect(page.getByText('Milk')).toBeVisible()
+    await expect(page.getByText('Bread')).toBeHidden()
+  })
+
+  test('opens this week instead when next week is empty', async ({ page }) => {
+    await mockShoppingListByWeek(page, { '2026-W25': [entry({ name: 'Bread' })] })
+
+    await page.goto('/shopping-list')
+
+    await expect(selectedWeek(page)).toContainText('This week')
+    await expect(page.getByText('Bread')).toBeVisible()
+  })
+
+  test('honours the week in ?week= even when that list is empty', async ({ page }) => {
+    await mockShoppingListByWeek(page, { '2026-W25': [entry({ name: 'Bread' })] })
+
+    await page.goto('/shopping-list?week=2026-W30')
+
+    await expect(selectedWeek(page)).toHaveAccessibleName(/Week 30, 2026/)
+    await expect(page.getByText(/No ingredients for the selected week/)).toBeVisible()
+  })
 })

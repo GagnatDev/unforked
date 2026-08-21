@@ -8,7 +8,6 @@ import { usePersistedFlag } from '@/hooks/usePersistedFlag'
 import { groupItemsByCategory, hideCheckedItems } from '@/lib/shoppingCategories'
 import { formatIsoTimeOrDateTime } from '@/lib/format'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
-import { getNextWeekId } from '@/lib/utils'
 import { isWeekId } from '@/lib/week-id'
 import { AddItemForm } from './shopping-list/AddItemForm'
 import { CategorySection } from './shopping-list/CategorySection'
@@ -18,6 +17,7 @@ import {
   downloadFile,
 } from './shopping-list/exportShoppingList'
 import { useShoppingList } from './shopping-list/useShoppingList'
+import { useShoppingWeek } from './shopping-list/useShoppingWeek'
 
 const HIDE_CHECKED_KEY = 'shoppingList.hideChecked'
 
@@ -25,11 +25,12 @@ export default function ShoppingList() {
   const { t } = useTranslation()
   const locale = useLocale()
   // The viewed week lives in the URL (?week=) so push-notification deep links
-  // land on the right list (design #104 D5/D6); without a valid param the
-  // page defaults to the upcoming week as before.
+  // land on the right list (design #104 D5/D6); without a valid param the page
+  // picks the week itself — next week, or this week when next week is empty.
   const [searchParams, setSearchParams] = useSearchParams()
   const paramWeek = searchParams.get('week')
-  const weekId = isWeekId(paramWeek) ? paramWeek : getNextWeekId()
+  const pinnedWeek = isWeekId(paramWeek) ? paramWeek : null
+  const { weekId, resolving } = useShoppingWeek(pinnedWeek)
   const setWeekId = (week: string) => setSearchParams({ week }, { replace: true })
   const [hideChecked, setHideChecked] = usePersistedFlag(HIDE_CHECKED_KEY)
   const {
@@ -97,7 +98,7 @@ export default function ShoppingList() {
           <Button onClick={approve}>{t('shoppingList.goShopping')}</Button>
         </p>
       ) : null}
-      {loading && !items ? (
+      {resolving || (loading && !items) ? (
         <p>{t('shoppingList.loading')}</p>
       ) : error ? (
         <p className="text-destructive">{formatLoadErrorMessage(error, t)}</p>
