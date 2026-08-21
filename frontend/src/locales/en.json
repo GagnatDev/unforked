@@ -24,6 +24,12 @@
     "cancel": "Cancel",
     "selectWeek": "Select week"
   },
+  "weekPicker": {
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "previousWeek": "Previous week",
+    "weekNumber": "Week {{week}}"
+  },
   "errors": {
     "couldNotReachServer": "Could not reach the server. Check your connection and try again."
   },

@@ -24,6 +24,12 @@
     "cancel": "Avbryt",
     "selectWeek": "Velg uke"
   },
+  "weekPicker": {
+    "thisWeek": "Denne uken",
+    "nextWeek": "Neste uke",
+    "previousWeek": "Forrige uke",
+    "weekNumber": "Uke {{week}}"
+  },
   "errors": {
     "couldNotReachServer": "Kunne ikke nå serveren. Sjekk tilkoblingen og prøv igjen."
   },

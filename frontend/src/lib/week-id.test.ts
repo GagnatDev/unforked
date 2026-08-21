@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isWeekId, mondayOfWeekId, parseWeekId, weekIdFromDate } from './week-id'
+import { isWeekId, mondayOfWeekId, parseWeekId, shiftWeekId, weekIdFromDate } from './week-id'
 
 describe('parseWeekId', () => {
   it('reads year and week', () => {
@@ -37,5 +37,24 @@ describe('mondayOfWeekId', () => {
     expect(mondayOfWeekId('2025-W53')).toBeNull()
     // 2026 is a 53-week ISO year, so W53 is.
     expect(mondayOfWeekId('2026-W53')).not.toBeNull()
+  })
+})
+
+describe('shiftWeekId', () => {
+  it('steps forwards and backwards within a year', () => {
+    expect(shiftWeekId('2026-W13', 1)).toBe('2026-W14')
+    expect(shiftWeekId('2026-W13', -1)).toBe('2026-W12')
+    expect(shiftWeekId('2026-W13', 0)).toBe('2026-W13')
+  })
+
+  it('crosses the year boundary onto the right ISO week', () => {
+    // 2026 is a 53-week ISO year, 2025 a 52-week one.
+    expect(shiftWeekId('2026-W53', 1)).toBe('2027-W01')
+    expect(shiftWeekId('2026-W01', -1)).toBe('2025-W52')
+  })
+
+  it('returns null for anything that is not a week id', () => {
+    expect(shiftWeekId('next week', 1)).toBeNull()
+    expect(shiftWeekId('2025-W53', 1)).toBeNull()
   })
 })
