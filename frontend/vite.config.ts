@@ -5,8 +5,10 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Moved off the platform-default 8080 to avoid colliding with other homectl
+// apps' local backends.
 const apiProxyTarget =
-  process.env.VITE_E2E_API_PROXY ?? 'http://localhost:8080'
+  process.env.VITE_E2E_API_PROXY ?? 'http://localhost:8082'
 
 export default defineConfig({
   plugins: [
@@ -171,7 +173,9 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
   server: {
-    port: 3000,
+    // Moved off the platform-default 3000 to avoid colliding with other
+    // homectl apps' local frontends.
+    port: 3002,
     proxy: {
       '/api': {
         target: apiProxyTarget,

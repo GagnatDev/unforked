@@ -6,7 +6,10 @@ services:
       POSTGRES_PASSWORD: meals
       POSTGRES_DB: meals
     ports:
-      - "5432:5432"
+      # Host-side only: moved off the platform-default 5432 to avoid colliding
+      # with other homectl apps' local Postgres containers. Container-internal
+      # port (and DATABASE_URL's postgres:5432, below) is unchanged.
+      - "5632:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,13 +23,29 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
+      # Container-internal Postgres port is unchanged; only the host mapping
+      # above moved.
       - DATABASE_URL=postgresql://meals:meals@postgres:5432/meals
-      - PORT=8080
+      # Moved off the platform-default 8080 to avoid colliding with other
+      # homectl apps' local backends.
+      - PORT=8082
+      # Moved off the code default of 8081 (docs/aivo-integration.md) so this
+      # doesn't collide with aivo's local dev backend, which also uses 8081.
+      # Also moved off 8083, which collides with mygarden's local dev backend
+      # workspace-wide (see homectl-reference/docs/local-ports.md).
+      # Production/k8s keeps the 8081 default (see k8s/deployment.yml) since
+      # there's no host-port collision there.
+      - MACHINE_PORT=8086
       - SEED_TEST_DATA=true
       # No auth sidecar in compose: fall back to the fixed dev admin identity.
       - DISABLE_AUTH=true
     ports:
-      - "8080:8080"
+      - "8082:8082"
+      # Machine API (API-key-authenticated /machine/v1 routes, separate
+      # listener from the human API above). Published so another local app
+      # (e.g. aivo) can reach it for local integration testing — see README's
+      # "Testing the aivo↔unforked integration locally".
+      - "8086:8086"
     depends_on:
       postgres:
         condition: service_healthy
