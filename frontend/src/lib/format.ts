@@ -1,4 +1,6 @@
-import { parseWeekId } from '@/lib/week-id'
+import { addDays } from 'date-fns'
+
+import { mondayOfWeekId, parseWeekId } from '@/lib/week-id'
 
 /**
  * Locale-aware date and number formatting using the Intl API.
@@ -73,4 +75,19 @@ export function formatWeekId(weekId: string, locale: string): string {
     return `Uke ${week}, ${year}`
   }
   return `Week ${week}, ${year}`
+}
+
+/**
+ * Format the days a week covers, e.g. "Aug 24 – 30" (en) or "24.–30. aug."
+ * (nb) — and across a month boundary "Aug 31 – Sep 6". This is what people
+ * actually recognize a week by; the week number alone rarely is.
+ * Falls back to the raw id when it isn't a real ISO week.
+ */
+export function formatWeekRange(weekId: string, locale: string): string {
+  const monday = mondayOfWeekId(weekId)
+  if (!monday) return weekId
+  return new Intl.DateTimeFormat(locale, {
+    month: 'short',
+    day: 'numeric',
+  }).formatRange(monday, addDays(monday, 6))
 }

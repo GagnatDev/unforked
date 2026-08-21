@@ -19,3 +19,27 @@ export async function swipeRowOpen(page: Page, row: Locator): Promise<void> {
   }
   await page.mouse.up()
 }
+
+/**
+ * Swipe a component horizontally by `dx` px (negative goes left), from the
+ * centre of its box. Stepped like {@link swipeRowOpen} so an axis lock reads a
+ * horizontal gesture, and used for gestures that commit on release.
+ */
+export async function swipeHorizontally(
+  page: Page,
+  target: Locator,
+  dx: number,
+): Promise<void> {
+  const box = await target.boundingBox()
+  if (!box) throw new Error('cannot swipe an element that is not visible')
+
+  const startX = box.x + box.width / 2
+  const y = box.y + box.height / 2
+
+  await page.mouse.move(startX, y)
+  await page.mouse.down()
+  for (const fraction of [0.15, 0.5, 0.8, 1]) {
+    await page.mouse.move(startX + dx * fraction, y)
+  }
+  await page.mouse.up()
+}

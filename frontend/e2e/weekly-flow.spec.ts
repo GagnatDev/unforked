@@ -9,9 +9,6 @@ const backendOrigin =
 /** Frozen instant: calendar \"current\" week is 2026-W25; meal plan / shopping list default to next week (2026-W26). */
 const FROZEN_NOW = new Date(Date.UTC(2026, 5, 15, 12, 0, 0))
 
-/** June 15, 2026 is in ISO week 2026-W25 (used to switch week pickers from W26 → W25). */
-const JUNE_15_DAY_BUTTON = /June 15th, 2026/
-
 async function fulfillJson(route: Route, body: unknown) {
   await route.fulfill({
     status: 200,
@@ -56,14 +53,12 @@ test.describe('weekly flow (recipes → meal plan → shopping list → today)',
       page.getByRole('heading', { name: "This week's dinners" })
     ).toBeVisible()
 
-    // Open week picker and choose June 15, 2026 (week 2026-W25).
-    const trigger = page.getByRole('button', { name: /Week 26, 2026/ })
-    await expect(trigger).toBeVisible()
-    await trigger.click()
-
-    const weekDialog = page.getByRole('dialog', { name: /select week/i })
-    await expect(weekDialog).toBeVisible()
-    await weekDialog.getByRole('button', { name: JUNE_15_DAY_BUTTON }).click()
+    // Step one week back in the week strip, onto 2026-W25.
+    const weekStrip = page.getByRole('group', { name: 'Select week' })
+    await weekStrip.getByRole('button', { name: /^Previous week/ }).click()
+    await expect(weekStrip.locator('button[aria-current="true"]')).toHaveAccessibleName(
+      /Week 25, 2026/,
+    )
 
     // 2) Assign the seeded recipe to Monday; the page saves it on its own.
     const mondayRow = page.getByRole('row', { name: /^Monday\b/i })
@@ -86,13 +81,11 @@ test.describe('weekly flow (recipes → meal plan → shopping list → today)',
       await route.continue()
     })
 
-    const shoppingTrigger = page.getByRole('button', { name: /Week 26, 2026/ })
-    await expect(shoppingTrigger).toBeVisible()
-    await shoppingTrigger.click()
-
-    const shoppingWeekDialog = page.getByRole('dialog', { name: /select week/i })
-    await expect(shoppingWeekDialog).toBeVisible()
-    await shoppingWeekDialog.getByRole('button', { name: JUNE_15_DAY_BUTTON }).click()
+    const shoppingWeekStrip = page.getByRole('group', { name: 'Select week' })
+    await shoppingWeekStrip.getByRole('button', { name: /^Previous week/ }).click()
+    await expect(
+      shoppingWeekStrip.locator('button[aria-current="true"]'),
+    ).toHaveAccessibleName(/Week 25, 2026/)
 
     // Expect at least one request for week W25 and a visible pasta line item.
     await expect

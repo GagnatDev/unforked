@@ -1,4 +1,5 @@
 import {
+  addWeeks,
   getISOWeek,
   getISOWeekYear,
   setISOWeek,
@@ -37,4 +38,15 @@ export function mondayOfWeekId(weekId: string): Date | null {
   const d = startOfISOWeek(setISOWeek(setISOWeekYear(anchor, year), week))
   if (weekIdFromDate(d) !== weekId) return null
   return d
+}
+
+/**
+ * The week id `weeks` weeks after `weekId` (negative moves back), or null if
+ * `weekId` isn't a valid week id. Year and 52/53-week boundaries follow from
+ * the shifted Monday, so stepping past new year lands on the right ISO week.
+ */
+export function shiftWeekId(weekId: string, weeks: number): string | null {
+  const monday = mondayOfWeekId(weekId)
+  if (!monday) return null
+  return weekIdFromDate(addWeeks(monday, weeks))
 }

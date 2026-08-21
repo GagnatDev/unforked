@@ -4,7 +4,10 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // ES2021.Intl on top of an ES2020 target: only for `Intl.DateTimeFormat`'s
+    // `formatRange` (week strips), which every browser we target has had for
+    // years — no other ES2021 runtime features are assumed.
+    "lib": ["ES2020", "ES2021.Intl", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
