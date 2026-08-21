@@ -158,14 +158,23 @@ export function SwipeToDelete({
       className={cn('relative overflow-hidden rounded-lg', className)}
       data-swipe-state={isOpen ? 'open' : 'closed'}
     >
+      {/*
+        The row slides *over* this panel rather than hiding it, so a row that is
+        itself translucent (a checked shopping item dims in place) lets the red
+        bleed through while closed. Fade the panel out instead of trusting the
+        row to cover it — opacity, so the keyboard path above still finds it.
+      */}
       <button
         type="button"
         aria-label={deleteLabel}
         onClick={onDelete}
         onFocus={open}
         onBlur={close}
-        style={{ width: ACTION_WIDTH }}
-        className="absolute inset-y-0 right-0 flex items-center justify-center bg-destructive text-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        style={{ width: ACTION_WIDTH, opacity: isOpen ? 1 : 0 }}
+        className={cn(
+          'absolute inset-y-0 right-0 flex items-center justify-center bg-destructive text-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+          !dragging && 'transition-opacity duration-200',
+        )}
       >
         <Trash2Icon className="size-5" aria-hidden="true" />
       </button>
