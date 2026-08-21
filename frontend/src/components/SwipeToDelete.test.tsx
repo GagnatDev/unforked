@@ -52,6 +52,23 @@ describe('SwipeToDelete', () => {
     expect(offsetOf(row())).toBe(0)
   })
 
+  it('keeps the trash panel transparent until the row opens', () => {
+    renderRow()
+
+    // The row slides *over* the panel, so a row that dims itself (a checked
+    // shopping item) would show the red through it if the panel were painted.
+    const trash = screen.getByRole('button', { name: 'Delete Lasagne' })
+    expect(trash.style.opacity).toBe('0')
+
+    swipe(200, 100)
+    expect(trash.style.opacity).toBe('1')
+
+    // The click that ends the swipe is swallowed; the follow-up tap closes.
+    fireEvent.click(screen.getByText('Lasagne'))
+    fireEvent.click(screen.getByText('Lasagne'))
+    expect(trash.style.opacity).toBe('0')
+  })
+
   it('opens the trash panel on a leftward swipe', () => {
     renderRow()
 
@@ -123,9 +140,11 @@ describe('SwipeToDelete', () => {
     const trash = screen.getByRole('button', { name: 'Delete Lasagne' })
     fireEvent.focus(trash)
     expect(offsetOf(row())).toBeGreaterThan(0)
+    expect(trash.style.opacity).toBe('1')
 
     fireEvent.blur(trash)
     expect(offsetOf(row())).toBe(0)
+    expect(trash.style.opacity).toBe('0')
   })
 
   it('renders no delete affordance when disabled', () => {
