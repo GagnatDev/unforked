@@ -31,4 +31,14 @@ export const logger = pino({
     : {}),
 });
 
-export const httpLogger = pinoHttp({ logger });
+// Kubernetes probes hit /health every few seconds, which drowns the log in
+// noise. Stay silent for successful probes, but keep failures visible.
+export const httpLogger = pinoHttp({
+  logger,
+  customLogLevel: (req, res, err) => {
+    if (err || res.statusCode >= 500) return "error";
+    if (res.statusCode >= 400) return "warn";
+    if (req.url === "/health") return "silent";
+    return "info";
+  },
+});
