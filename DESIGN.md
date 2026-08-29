@@ -94,9 +94,18 @@ has got (`3/10` plus a progress bar) and the trip itself — *I'm going shopping
 or who is out and since when, with *Done*. Progress and the shared trip are one
 fact, so they are one object.
 
+## Forms
+
+Fields are grouped into sheets by what they are about, not by input type: the
+recipe form is *details*, *ingredients*, *steps* — three sheets, one job each.
+Field labels are small and quiet; the field itself carries the weight, at 44px
+minimum so it can be hit with one thumb. Long forms keep their save action
+sticky, floating above the tab bar rather than under it, with no bar behind
+it — the button alone floats, so nothing is hidden by a slab of chrome.
+
 ## Scope
 
-The direction landed on the theme (all screens inherit it), the navigation, the
-shopping list and Today. The weekly menu, recipe form and settings screens
-inherit the tokens but keep their existing structure; restructuring them is
-follow-up work, not a change of direction.
+The direction covers the theme (all screens inherit it), the navigation, the
+shopping list, Today, the weekly menu and the recipe form. The settings screens
+(profile, family, API keys) inherit the tokens but keep their existing
+structure; restyling them is follow-up work, not a change of direction.

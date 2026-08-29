@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { XIcon } from 'lucide-react'
+import { PlusIcon, XIcon } from 'lucide-react'
 import { AutoGrowTextarea } from '@/components/AutoGrowTextarea'
 import { Button } from '@/components/ui/button'
 
@@ -14,12 +14,12 @@ export function StepListEditor({ steps, onAdd, onUpdate, onRemove }: Props) {
   const { t } = useTranslation()
 
   return (
-    <>
-      <h3>{t('recipeForm.steps')}</h3>
+    <section className="rounded-2xl bg-card p-4 text-card-foreground">
+      <h3 className="mb-2 text-base font-semibold">{t('recipeForm.steps')}</h3>
       {steps.map((step, i) => (
         <div key={i} className="mb-3">
           <div className="mb-1 flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-muted-foreground">
+            <span className="text-sm font-semibold text-muted-foreground">
               {t('recipeForm.stepLabel', { position: i + 1 })}
             </span>
             <Button
@@ -38,13 +38,19 @@ export function StepListEditor({ steps, onAdd, onUpdate, onRemove }: Props) {
             value={step}
             onChange={(e) => onUpdate(i, e.target.value)}
             rows={2}
-            className="w-full"
+            className="w-full rounded-xl"
           />
         </div>
       ))}
-      <Button type="button" variant="secondary" size="sm" onClick={onAdd}>
+      <Button
+        type="button"
+        variant="secondary"
+        className="mt-1 h-10 rounded-full px-4"
+        onClick={onAdd}
+      >
+        <PlusIcon data-icon="inline-start" />
         {t('recipeForm.addStep')}
       </Button>
-    </>
+    </section>
   )
 }

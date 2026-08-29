@@ -93,14 +93,14 @@ export function RecipePhotoSection({ recipeId, photo, onPhotoChange, alt }: Reci
   }
 
   return (
-    <div className="mb-4">
-      <p className="mb-2 block font-medium">{t('recipeForm.photo')}</p>
+    <div>
+      <p className="mb-1.5 block text-sm font-medium">{t('recipeForm.photo')}</p>
       {photo && (
         <img
           src={recipePhotoUrl(recipeId, 'full', photo.key)}
           crossOrigin="anonymous"
           alt={alt}
-          className="mb-2 w-full max-w-md rounded-lg border border-border object-cover"
+          className="mb-2 w-full max-w-md rounded-xl object-cover"
         />
       )}
       {/* `capture` opens the camera directly on phones; the plain input opens the gallery/file picker. */}

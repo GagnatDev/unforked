@@ -36,7 +36,7 @@ export function RecipeSourceAttribution({
   if (!sourceUrlRaw && !sourceNameRaw) return null
 
   const body = (
-    <div className="space-y-1.5 border-l-2 border-border/60 pl-3 text-sm text-muted-foreground">
+    <div className="space-y-1.5 border-l border-border pl-3 text-sm text-muted-foreground">
       {sourceNameRaw && (
         <p className="leading-snug">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
