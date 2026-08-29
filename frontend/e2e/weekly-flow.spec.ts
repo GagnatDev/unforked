@@ -98,9 +98,9 @@ test.describe('weekly flow (recipes → meal plan → shopping list → today)',
     await expect(pastaLine).toBeVisible()
 
     // 4) Visit Today and ensure it reflects the planned meal for the current day/week.
+    // The planned recipe is the page heading — Today shows the meal, not the word.
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible()
-    await expect(page.getByText(recipeName)).toBeVisible()
+    await expect(page.getByRole('heading', { name: recipeName })).toBeVisible()
     await expect(page.getByText('Ingredients')).toBeVisible()
     await expect(page.getByText('Steps')).toBeVisible()
 

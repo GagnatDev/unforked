@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next'
 import { CheckboxField } from '@/components/CheckboxField'
 
 type TodayMealCardProps = {
-  recipeName: string
   plannedPeople: number | null | undefined
   servings: number
   keepAwake: boolean
@@ -10,8 +9,12 @@ type TodayMealCardProps = {
   wakeLockSupported: boolean
 }
 
+/**
+ * The facts you check before starting to cook — how many are eating, what the
+ * recipe yields — and the one setting that matters with busy hands. The recipe
+ * name is the page heading, so it is not repeated here.
+ */
 export function TodayMealCard({
-  recipeName,
   plannedPeople,
   servings,
   keepAwake,
@@ -21,20 +24,23 @@ export function TodayMealCard({
   const { t } = useTranslation()
 
   return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3 text-card-foreground">
-      <div>
-        <div className="text-lg font-semibold">{recipeName}</div>
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+    <div className="space-y-3">
+      {(plannedPeople != null || servings > 0) && (
+        <div className="flex flex-wrap gap-2">
           {plannedPeople != null && (
-            <span>
+            <span className="rounded-full bg-card px-3.5 py-1.5 text-sm font-medium">
               {t('mealPlan.people')}: {plannedPeople}
             </span>
           )}
-          {servings > 0 && <span>{t('recipes.serves', { count: servings })}</span>}
+          {servings > 0 && (
+            <span className="rounded-full bg-card px-3.5 py-1.5 text-sm font-medium text-muted-foreground">
+              {t('recipes.serves', { count: servings })}
+            </span>
+          )}
         </div>
-      </div>
+      )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-card px-4 py-3.5 text-card-foreground">
         <CheckboxField
           label={t('today.keepAwake')}
           checked={keepAwake}

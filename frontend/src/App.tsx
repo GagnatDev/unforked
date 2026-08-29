@@ -1,7 +1,8 @@
 import { lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { AppNav } from '@/components/AppNav'
+import { BottomNav } from '@/components/BottomNav'
+import { TopBar } from '@/components/TopBar'
 import { RequireAuth } from '@/components/RequireAuth'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePWA } from '@/hooks/usePWA'
@@ -34,8 +35,10 @@ function AppLayout({
   }
 
   return (
-    <div className="max-w-[900px] mx-auto p-6">
-      <AppNav onLogout={handleLogout} />
+    // Room at the bottom for the floating tab bar, so the last row of a list
+    // is never parked underneath it.
+    <div className="mx-auto max-w-[900px] px-4 pt-4 pb-32 sm:px-6">
+      <TopBar onLogout={handleLogout} />
       {/* Focused-window pushes surface in-page (design #104 D6/phase 5). */}
       <PushToaster />
       {canInstall && <PWAInstallBanner onInstall={onInstall} />}
@@ -61,6 +64,7 @@ function AppLayout({
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      <BottomNav />
     </div>
   )
 }

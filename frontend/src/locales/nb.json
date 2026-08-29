@@ -158,7 +158,7 @@
     },
     "progress": "{{checked}}/{{total}}",
     "goShopping": "Jeg går og handler",
-    "approvedBanner": "🛒 {{email}} handler — startet {{time}}",
+    "approvedBanner": "{{email}} handler — startet {{time}}",
     "done": "Ferdig",
     "addItem": "Legg til vare",
     "addItemPlaceholder": "F.eks. tannkrem",
@@ -174,7 +174,10 @@
     "itemCheckboxAria": "Merk {{name}} som handlet",
     "hideChecked": "Skjul avhukede varer",
     "allCheckedHidden": "Alle varer er avhuket. Skru av Skjul avhukede varer for å se dem igjen.",
-    "updateFailed": "Kunne ikke lagre endringen. Prøv igjen."
+    "updateFailed": "Kunne ikke lagre endringen. Prøv igjen.",
+    "inCart": "I handlekurven",
+    "itemCount_one": "{{count}} vare",
+    "itemCount_other": "{{count}} varer"
   },
   "notifications": {
     "title": "Varsler",

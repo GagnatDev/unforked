@@ -12,7 +12,8 @@ type CategorySectionProps = {
 }
 
 /**
- * One store section: header with picked/total progress, then its item rows.
+ * One store section as a single card: header with picked/total progress, then
+ * its item rows.
  * Progress counts the whole group even when `group.items` has been filtered
  * (see `hideCheckedItems`), so it doesn't shrink as rows are hidden.
  */
@@ -26,9 +27,14 @@ export function CategorySection({
   const { t } = useTranslation()
 
   return (
-    <section className="space-y-2" aria-label={t(`shoppingList.categories.${group.category}`)}>
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold">{t(`shoppingList.categories.${group.category}`)}</h2>
+    <section
+      className="rounded-2xl bg-card p-1.5 text-card-foreground"
+      aria-label={t(`shoppingList.categories.${group.category}`)}
+    >
+      <div className="flex items-baseline justify-between gap-3 px-3 pt-2.5 pb-1.5">
+        <h2 className="text-base font-semibold">
+          {t(`shoppingList.categories.${group.category}`)}
+        </h2>
         <span className="text-sm tabular-nums text-muted-foreground">
           {t('shoppingList.progress', {
             checked: group.checkedCount,
@@ -36,7 +42,7 @@ export function CategorySection({
           })}
         </span>
       </div>
-      <ul className="m-0 list-none space-y-2 p-0">
+      <ul className="m-0 list-none p-0">
         {group.items.map((item) => (
           <ShoppingItemRow
             key={item.id}

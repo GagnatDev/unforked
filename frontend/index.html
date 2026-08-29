@@ -8,8 +8,8 @@
     <!-- PWA meta -->
     <meta name="application-name" content="Meal Planning" />
     <meta name="description" content="Plan your weekly meals, manage recipes and shopping lists" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#18181b" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f1f0ec" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#131714" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -28,6 +28,20 @@
     </script>
   </head>
   <body>
+    <!--
+      DIRECTION: Warm kitchen (chosen from four; see DESIGN.md).
+      THESIS: A shared kitchen record, not a card feed. Refuses the stock
+      neutral admin shell and the top nav bar that puts navigation out of reach.
+      OWN-WORLD: Warm off-white ground, white sheets at 22px radius, one forest
+      green (mint after dark) that appears only where something can be done,
+      and a dark tab bar that reads as furniture the page scrolls under.
+      STORY: You see how far the list has got and who is in the shop, tick
+      one-handed in the aisle, and cook from a screen whose heading is dinner.
+      FIRST VIEWPORT: Wordmark, page heading, week; then the green status card
+      carrying progress and the trip; then category sheets. Tabs under the thumb.
+      FORM: Bottom tab navigation, four destinations, no centre action button.
+      FINISH: unreviewed and undocumented is unfinished.
+    -->
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

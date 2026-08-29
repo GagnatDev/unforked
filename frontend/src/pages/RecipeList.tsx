@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
+import { PlusIcon } from 'lucide-react'
 import { recipePhotoUrl } from '@/api'
+import { buttonVariants } from '@/components/ui/button'
 import { SwipeToDelete } from '@/components/SwipeToDelete'
 import { Input } from '@/components/ui/input'
 import { listLocalRecipes } from '@/local/db'
@@ -10,6 +12,7 @@ import { pullRecipes } from '@/local/sync'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
+import { cn } from '@/lib/utils'
 
 export default function RecipeList() {
   const { t } = useTranslation()
@@ -54,14 +57,25 @@ export default function RecipeList() {
 
   return (
     <div>
-      <h1>{t('recipes.title')}</h1>
+      {/* "New recipe" lives here rather than in the tab bar: capturing a recipe
+          is a rare, sit-down action that belongs to the library itself. */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="mb-0">{t('recipes.title')}</h1>
+        <Link
+          to="/recipes/new"
+          className={cn(buttonVariants({ size: 'lg' }), 'h-11 gap-1.5 rounded-full px-4 no-underline hover:no-underline')}
+        >
+          <PlusIcon className="size-4" />
+          {t('nav.newRecipe')}
+        </Link>
+      </div>
       <p className="mb-4">
         <Input
           type="search"
           placeholder={t('recipes.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-64"
+          className="h-11 w-full rounded-full sm:w-72"
         />
       </p>
       {loading ? (
@@ -75,7 +89,7 @@ export default function RecipeList() {
                   onDelete={() => void handleDelete(r.id)}
                   deleteLabel={t('recipes.deleteRecipe', { name: r.doc.name })}
                 >
-                  <div className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card px-3 py-3 text-card-foreground">
+                  <div className="flex min-w-0 items-center gap-3 rounded-2xl bg-card px-4 py-3 text-card-foreground">
                     {r.doc.photo && (
                       <Link
                         to={`/recipes/${r.id}/edit`}
@@ -88,7 +102,7 @@ export default function RecipeList() {
                           crossOrigin="anonymous"
                           loading="lazy"
                           alt=""
-                          className="h-12 w-12 rounded-md border border-border object-cover"
+                          className="h-12 w-12 rounded-xl object-cover"
                         />
                       </Link>
                     )}

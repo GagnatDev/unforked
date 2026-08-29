@@ -28,9 +28,14 @@ export function AddItemForm({ onAdd, adding }: AddItemFormProps) {
         onChange={(e) => setName(e.target.value)}
         placeholder={t('shoppingList.addItemPlaceholder')}
         aria-label={t('shoppingList.addItem')}
-        className="h-11 flex-1"
+        className="h-11 flex-1 rounded-full bg-card"
       />
-      <Button type="submit" size="lg" className="h-11" disabled={adding || !name.trim()}>
+      <Button
+        type="submit"
+        size="lg"
+        className="h-11 rounded-full px-4"
+        disabled={adding || !name.trim()}
+      >
         <PlusIcon data-icon="inline-start" />
         {t('shoppingList.addItem')}
       </Button>

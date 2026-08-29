@@ -109,11 +109,11 @@ export default function Today() {
     return (
       <div className="space-y-4">
         <div>
-          <h1 className="text-xl font-semibold">{t('today.title')}</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm font-semibold text-primary">
             {t(`mealPlan.days.${dayKey}`)} ·{' '}
             {weekNumber != null ? t('today.week', { week: weekNumber }) : weekId}
           </p>
+          <h1 className="mb-0">{t('today.title')}</h1>
         </div>
         <p>{t('today.noMealPlanned')}</p>
         <p>
@@ -129,17 +129,16 @@ export default function Today() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
+      <header className="space-y-3">
         <div>
-          <h1 className="text-xl font-semibold">{t('today.title')}</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm font-semibold text-primary">
             {t(`mealPlan.days.${dayKey}`)} ·{' '}
             {weekNumber != null ? t('today.week', { week: weekNumber }) : weekId}
           </p>
+          <h1 className="mb-0 text-pretty">{recipe.doc.name}</h1>
         </div>
 
         <TodayMealCard
-          recipeName={recipe.doc.name}
           plannedPeople={plannedPeople}
           servings={recipe.doc.servings}
           keepAwake={keepAwake}
