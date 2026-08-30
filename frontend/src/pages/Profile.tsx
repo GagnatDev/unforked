@@ -33,17 +33,19 @@ export default function Profile() {
   const themeItems = THEMES.map((value) => ({ value, label: t(`theme.${value}`) }))
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold">{t('profile.title')}</h1>
-        {user && <p className="text-sm text-muted-foreground">{user.email}</p>}
+    <div className="space-y-4">
+      <header>
+        <h1 className="mb-0">{t('profile.title')}</h1>
+        {user && <p className="mt-1 mb-0 text-sm text-muted-foreground">{user.email}</p>}
       </header>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-medium">{t('profile.preferences')}</h2>
-        <div className="grid max-w-md gap-4 sm:grid-cols-2">
+      {/* One sheet per job: how the app speaks and looks, then notifications,
+          then the two places settings continue. */}
+      <section className="space-y-4 rounded-2xl bg-card p-4 text-card-foreground">
+        <h2 className="text-base font-semibold">{t('profile.preferences')}</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="profile-language" className="mb-1 block text-sm font-medium">
+            <label htmlFor="profile-language" className="mb-1.5 block text-sm font-medium">
               {t('profile.language')}
             </label>
             <Select
@@ -53,7 +55,7 @@ export default function Profile() {
                 if (code === 'en' || code === 'nb') void i18n.changeLanguage(code)
               }}
             >
-              <SelectTrigger id="profile-language" className="w-full">
+              <SelectTrigger id="profile-language" className="h-11 w-full rounded-xl">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -69,7 +71,7 @@ export default function Profile() {
           </div>
 
           <div>
-            <label htmlFor="profile-theme" className="mb-1 block text-sm font-medium">
+            <label htmlFor="profile-theme" className="mb-1.5 block text-sm font-medium">
               {t('profile.theme')}
             </label>
             <Select
@@ -79,7 +81,7 @@ export default function Profile() {
                 if (v === 'light' || v === 'dark' || v === 'system') setTheme(v as Theme)
               }}
             >
-              <SelectTrigger id="profile-theme" className="w-full">
+              <SelectTrigger id="profile-theme" className="h-11 w-full rounded-xl">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -98,37 +100,32 @@ export default function Profile() {
 
       <NotificationSettings />
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-medium">{t('profile.manage')}</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Link
-            to="/family"
-            className="rounded-lg border border-border p-4 transition-colors hover:bg-muted/50"
-          >
-            <span className="flex items-center gap-2 font-medium">
-              <UsersIcon className="size-4 text-muted-foreground" />
-              {t('family.title')}
-              <ChevronRightIcon className="ml-auto size-4 text-muted-foreground" />
-            </span>
-            <span className="mt-1 block text-sm text-muted-foreground">
-              {t('profile.familyHint')}
-            </span>
-          </Link>
-
-          <Link
-            to="/api-keys"
-            className="rounded-lg border border-border p-4 transition-colors hover:bg-muted/50"
-          >
-            <span className="flex items-center gap-2 font-medium">
-              <KeyRoundIcon className="size-4 text-muted-foreground" />
-              {t('apiKeys.title')}
-              <ChevronRightIcon className="ml-auto size-4 text-muted-foreground" />
-            </span>
-            <span className="mt-1 block text-sm text-muted-foreground">
-              {t('profile.apiKeysHint')}
-            </span>
-          </Link>
-        </div>
+      {/* Rows, not cards: these are two doors out of this page, and a row makes
+          the destination and its one-line reason read in a single sweep. */}
+      <section className="rounded-2xl bg-card p-1.5 text-card-foreground">
+        <h2 className="px-3 pt-2.5 pb-1.5 text-base font-semibold">{t('profile.manage')}</h2>
+        <Link
+          to="/family"
+          className="flex min-h-14 items-center gap-3 rounded-xl px-3 py-2.5 text-card-foreground no-underline transition-colors hover:bg-accent hover:text-accent-foreground hover:no-underline"
+        >
+          <UsersIcon className="size-5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">{t('family.title')}</span>
+            <span className="block text-sm text-muted-foreground">{t('profile.familyHint')}</span>
+          </span>
+          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
+        <Link
+          to="/api-keys"
+          className="flex min-h-14 items-center gap-3 rounded-xl px-3 py-2.5 text-card-foreground no-underline transition-colors hover:bg-accent hover:text-accent-foreground hover:no-underline"
+        >
+          <KeyRoundIcon className="size-5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">{t('apiKeys.title')}</span>
+            <span className="block text-sm text-muted-foreground">{t('profile.apiKeysHint')}</span>
+          </span>
+          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
       </section>
     </div>
   )

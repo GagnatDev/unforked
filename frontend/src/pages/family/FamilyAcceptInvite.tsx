@@ -18,17 +18,23 @@ export function FamilyAcceptInvite({
   const { t } = useTranslation()
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-medium">{t('family.acceptInviteTitle')}</h2>
-      <p className="text-sm text-muted-foreground">{t('family.acceptInviteHint')}</p>
-      <form onSubmit={onAcceptInvite} className="max-w-md space-y-2">
+    <section className="space-y-3 rounded-2xl bg-card p-4 text-card-foreground">
+      <div>
+        <h2 className="text-base font-semibold">{t('family.acceptInviteTitle')}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t('family.acceptInviteHint')}</p>
+      </div>
+      <form onSubmit={onAcceptInvite} className="flex flex-col gap-2 sm:flex-row">
         <Input
           value={token}
           onChange={(e) => onTokenChange(e.target.value)}
           placeholder={t('family.inviteTokenPlaceholder')}
-          className="font-mono text-sm"
+          className="h-11 flex-1 rounded-xl font-mono text-sm"
         />
-        <Button type="submit" disabled={busy || !token.trim()}>
+        <Button
+          type="submit"
+          disabled={busy || !token.trim()}
+          className="h-11 shrink-0 rounded-full px-5"
+        >
           {busy ? t('common.loading') : t('family.joinFamily')}
         </Button>
       </form>

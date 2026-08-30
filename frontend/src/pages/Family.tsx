@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/api'
+import { BackLink } from '@/components/BackLink'
 import { useAsync } from '@/hooks/useAsync'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
 import { useAuth } from '@/contexts/AuthContext'
@@ -99,15 +100,18 @@ export default function Family() {
   }
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-xl font-semibold">{t('family.title')}</h1>
+    <div className="space-y-4">
+      <header>
+        <BackLink to="/profile" label={t('nav.profile')} />
+        <h1 className="mt-1 mb-0">{t('family.title')}</h1>
+      </header>
       {loadError && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="rounded-2xl bg-card px-4 py-3 text-sm text-destructive" role="alert">
           {formatLoadErrorMessage(loadError, t)}
         </p>
       )}
       {error && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="rounded-2xl bg-card px-4 py-3 text-sm text-destructive" role="alert">
           {formatLoadErrorMessage(error, t)}
         </p>
       )}
