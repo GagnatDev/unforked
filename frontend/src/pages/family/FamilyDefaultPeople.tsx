@@ -13,12 +13,14 @@ export function FamilyDefaultPeople({ value, saving, onChange, onSave }: FamilyD
   const { t } = useTranslation()
 
   return (
-    <section className="space-y-2">
-      <h2 className="text-lg font-medium">{t('family.defaultMealPlanning')}</h2>
-      <p className="text-sm text-muted-foreground">{t('family.defaultMealPlanningHint')}</p>
-      <div className="flex max-w-xs flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <label htmlFor="family-default-people" className="mb-1 block text-sm font-medium">
+    <section className="space-y-3 rounded-2xl bg-card p-4 text-card-foreground">
+      <div>
+        <h2 className="text-base font-semibold">{t('family.defaultMealPlanning')}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t('family.defaultMealPlanningHint')}</p>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label htmlFor="family-default-people" className="mb-1.5 block text-sm font-medium">
             {t('family.defaultPeople')}
           </label>
           <Input
@@ -26,11 +28,18 @@ export function FamilyDefaultPeople({ value, saving, onChange, onSave }: FamilyD
             type="number"
             min={1}
             max={50}
+            inputMode="numeric"
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            className="h-11 w-24 rounded-xl tabular-nums"
           />
         </div>
-        <Button type="button" onClick={onSave} disabled={saving}>
+        <Button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="h-11 rounded-full px-5"
+        >
           {saving ? t('common.loading') : t('family.save')}
         </Button>
       </div>

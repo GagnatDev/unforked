@@ -36,12 +36,17 @@ export default function JoinFamily() {
   }
 
   return (
-    <div className="mx-auto max-w-sm space-y-6 pt-12">
-      <h1 className="text-xl font-semibold">{t('family.acceptInviteTitle')}</h1>
-      <p className="text-sm text-muted-foreground">{t('family.acceptInviteHint')}</p>
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+    <div className="mx-auto max-w-sm space-y-4 pt-8">
+      <header>
+        <h1 className="mb-0">{t('family.acceptInviteTitle')}</h1>
+      </header>
+      <form
+        onSubmit={(e) => void handleSubmit(e)}
+        className="space-y-3 rounded-2xl bg-card p-4 text-card-foreground"
+      >
+        <p className="text-sm text-muted-foreground">{t('family.acceptInviteHint')}</p>
         <div>
-          <label htmlFor="invite-token" className="mb-1 block text-sm font-medium">
+          <label htmlFor="invite-token" className="mb-1.5 block text-sm font-medium">
             {t('family.inviteToken')}
           </label>
           <Input
@@ -49,7 +54,7 @@ export default function JoinFamily() {
             value={token}
             onChange={(e) => setToken(e.target.value)}
             required
-            className="font-mono text-sm"
+            className="h-11 w-full rounded-xl font-mono text-sm"
           />
         </div>
         {error && (
@@ -57,7 +62,11 @@ export default function JoinFamily() {
             {error}
           </p>
         )}
-        <Button type="submit" disabled={submitting || !token.trim()} className="w-full">
+        <Button
+          type="submit"
+          disabled={submitting || !token.trim()}
+          className="h-11 w-full rounded-full px-5"
+        >
           {submitting ? t('common.loading') : t('family.joinFamily')}
         </Button>
       </form>

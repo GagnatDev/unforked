@@ -75,6 +75,12 @@ off, which is not an add.
 `components/TopBar.tsx` keeps only what must be true everywhere: the wordmark,
 offline and pending-sync indicators, and the menu (profile, log out).
 
+Settings sits off the tab bar: Profile is reached from that menu, and Family
+and API keys from rows on Profile. Installed as a PWA there is no browser back
+button, so each of those pages carries its own way back (`components/BackLink.tsx`)
+above the heading — quiet, muted, never green, because returning is furniture
+rather than an action.
+
 ## State
 
 No state is encoded in colour alone — a requirement from PRODUCT.md, and simply
@@ -97,7 +103,9 @@ fact, so they are one object.
 ## Forms
 
 Fields are grouped into sheets by what they are about, not by input type: the
-recipe form is *details*, *ingredients*, *steps* — three sheets, one job each.
+recipe form is *details*, *ingredients*, *steps* — three sheets, one job each;
+settings is *preferences*, *notifications*, *manage*, and family is *defaults*,
+*members*, *invite*, *join*.
 Field labels are small and quiet; the field itself carries the weight, at 44px
 minimum so it can be hit with one thumb. Long forms keep their save action
 sticky, floating above the tab bar rather than under it, with no bar behind
@@ -105,7 +113,15 @@ it — the button alone floats, so nothing is hidden by a slab of chrome.
 
 ## Scope
 
-The direction covers the theme (all screens inherit it), the navigation, the
-shopping list, Today, the weekly menu and the recipe form. The settings screens
-(profile, family, API keys) inherit the tokens but keep their existing
-structure; restyling them is follow-up work, not a change of direction.
+The direction covers every screen the app ships: the theme, the navigation, the
+shopping list, Today, the weekly menu, the recipe form, and the settings screens
+(profile, family, API keys, and the invitation page invite links land on).
+
+Settings adds two shapes the rest of the app did not need. **Rows that lead
+somewhere** — a muted icon, the destination, one line of why, a chevron —
+grouped in a single sheet rather than given a card each, because they are doors
+out of a page, not content. And **the result panel**: a tinted (`bg-accent`)
+well inside the sheet whose form produced it, for the two things that exist for
+one moment and have to leave with you — a fresh invite link, and the plaintext
+of a new API key. Tint marks what has just happened, the same way a ticked
+shopping row does.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BellIcon } from 'lucide-react'
+import { BellIcon, CheckIcon } from 'lucide-react'
 import { api } from '@/api'
 import { Button } from '@/components/ui/button'
 import { mapAsyncCatchError } from '@/lib/loadErrors'
@@ -114,69 +114,77 @@ export function NotificationSettings() {
   if (state === 'loading') return null
 
   return (
-    <section className="space-y-2" aria-labelledby="notification-settings-title">
-      <h2 id="notification-settings-title" className="text-lg font-medium">
-        {t('notifications.title')}
-      </h2>
-      <div className="max-w-md rounded-lg border border-border p-4">
-        <p className="flex items-center gap-2 font-medium">
-          <BellIcon className="size-4 text-muted-foreground" />
-          {t('notifications.cardTitle')}
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">{t('notifications.description')}</p>
+    <section
+      className="space-y-3 rounded-2xl bg-card p-4 text-card-foreground"
+      aria-labelledby="notification-settings-title"
+    >
+      <div className="flex items-start gap-3">
+        <BellIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+        <div className="min-w-0">
+          <h2 id="notification-settings-title" className="text-base font-semibold">
+            {t('notifications.cardTitle')}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t('notifications.description')}</p>
+        </div>
+      </div>
 
-        {state === 'ios-install' && (
-          <p className="mt-3 text-sm text-muted-foreground">{t('notifications.iosInstallHint')}</p>
-        )}
-        {state === 'denied' && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            {t('notifications.permissionDenied')}
+      {state === 'ios-install' && (
+        <p className="text-sm text-muted-foreground">{t('notifications.iosInstallHint')}</p>
+      )}
+      {state === 'denied' && (
+        <p className="text-sm text-muted-foreground">{t('notifications.permissionDenied')}</p>
+      )}
+      {state === 'unavailable' && (
+        <p className="text-sm text-muted-foreground">{t('notifications.unavailable')}</p>
+      )}
+
+      {state === 'disabled' && (
+        <Button className="h-11 rounded-full px-4" disabled={busy} onClick={() => void enable()}>
+          {t('notifications.enable')}
+        </Button>
+      )}
+
+      {state === 'enabled' && (
+        <div className="space-y-3">
+          {/* Green marks the done state, as everywhere else in the app. */}
+          <p className="flex items-center gap-2 text-sm font-medium text-primary" role="status">
+            <CheckIcon className="size-4 shrink-0" />
+            {t('notifications.enabled')}
           </p>
-        )}
-        {state === 'unavailable' && (
-          <p className="mt-3 text-sm text-muted-foreground">{t('notifications.unavailable')}</p>
-        )}
-
-        {state === 'disabled' && (
-          <div className="mt-3">
-            <Button size="sm" disabled={busy} onClick={() => void enable()}>
-              {t('notifications.enable')}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              className="h-11 rounded-full px-4"
+              disabled={busy}
+              onClick={() => void sendTest()}
+            >
+              {t('notifications.test')}
+            </Button>
+            <Button
+              variant="ghost"
+              className="h-11 rounded-full px-4"
+              disabled={busy}
+              onClick={() => void disable()}
+            >
+              {t('notifications.disable')}
             </Button>
           </div>
-        )}
-
-        {state === 'enabled' && (
-          <div className="mt-3 space-y-3">
-            <p className="text-sm" role="status">
-              {t('notifications.enabled')}
-            </p>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => void sendTest()}>
-                {t('notifications.test')}
-              </Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => void disable()}>
-                {t('notifications.disable')}
-              </Button>
+          {testStatus && <p className="text-sm text-muted-foreground">{testStatus}</p>}
+          {received && (
+            <div className="rounded-xl bg-accent p-3 text-sm text-accent-foreground">
+              <p className="text-xs">{t('notifications.receivedInPage')}</p>
+              <p className="mt-1 font-semibold">{received.title}</p>
+              <p>{received.body}</p>
             </div>
-            {testStatus && <p className="text-sm text-muted-foreground">{testStatus}</p>}
-            {received && (
-              <div className="rounded-md border border-border bg-muted/60 p-3 text-sm">
-                <p className="text-xs text-muted-foreground">
-                  {t('notifications.receivedInPage')}
-                </p>
-                <p className="mt-1 font-medium">{received.title}</p>
-                <p className="text-muted-foreground">{received.body}</p>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
-        {error && (
-          <p className="mt-3 text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
     </section>
   )
 }
