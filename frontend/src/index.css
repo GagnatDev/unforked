@@ -1,7 +1,7 @@
 @import 'tailwindcss' source(none);
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/geist';
+@import '@fontsource-variable/figtree';
 
 @source '../index.html';
 @source './**/*.{js,ts,jsx,tsx}';
@@ -9,80 +9,94 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Warm kitchen: a warm off-white ground, white sheets, and one forest green
+     that only ever appears where something can be done. */
+  --background: oklch(0.9548 0.0054 95.1);
+  --foreground: oklch(0.2324 0.0173 155.6);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.2324 0.0173 155.6);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.878 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --link: var(--chart-4);
-  --link-hover: var(--chart-3);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.2324 0.0173 155.6);
+  --primary: oklch(0.4421 0.0705 159.3);
+  --primary-foreground: oklch(0.9798 0.0045 134.8);
+  --secondary: oklch(0.9309 0.0083 91.5);
+  --secondary-foreground: oklch(0.2324 0.0173 155.6);
+  --muted: oklch(0.9798 0.0045 134.8);
+  --muted-foreground: oklch(0.5131 0.0220 157.4);
+  --accent: oklch(0.9730 0.0051 145.5);
+  --accent-foreground: oklch(0.3554 0.0570 159.2);
+  --destructive: oklch(0.52 0.19 27);
+  --border: oklch(0.8956 0.0094 106.6);
+  --input: oklch(0.8548 0.0137 152.6);
+  --ring: oklch(0.4421 0.0705 159.3);
+  --chart-1: oklch(0.8354 0.0789 156.3);
+  --chart-2: oklch(0.7908 0.0436 161.4);
+  --chart-3: oklch(0.4421 0.0705 159.3);
+  --chart-4: oklch(0.3554 0.0570 159.2);
+  --chart-5: oklch(0.3019 0.0416 167.5);
+  --radius: 1rem;
+  --link: oklch(0.4421 0.0705 159.3);
+  --link-hover: oklch(0.3554 0.0570 159.2);
+  /* The bottom tab bar is its own dark surface in both themes: it has to read
+     as furniture the page scrolls under, not as another card. */
+  --nav: oklch(0.3019 0.0416 167.5);
+  --nav-foreground: oklch(1 0 0);
+  --nav-muted-foreground: oklch(0.7908 0.0436 161.4);
+  --nav-accent: oklch(0.8354 0.0789 156.3);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.2324 0.0173 155.6);
+  --sidebar-primary: oklch(0.4421 0.0705 159.3);
+  --sidebar-primary-foreground: oklch(0.9798 0.0045 134.8);
+  --sidebar-accent: oklch(0.9730 0.0051 145.5);
+  --sidebar-accent-foreground: oklch(0.3554 0.0570 159.2);
+  --sidebar-border: oklch(0.8956 0.0094 106.6);
+  --sidebar-ring: oklch(0.4421 0.0705 159.3);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0.00 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.708 0 0);
-  --link: oklch(0.7 0.2 264);
-  --link-hover: oklch(0.8 0.18 264);
+  /* Evening kitchen: the same world with the lights down. Mint carries the
+     action colour here, because forest green goes muddy on a dark ground. */
+  --background: oklch(0.1991 0.0085 153.1);
+  --foreground: oklch(0.9484 0.0074 132.4);
+  --card: oklch(0.2402 0.0116 156.2);
+  --card-foreground: oklch(0.9484 0.0074 132.4);
+  --popover: oklch(0.2402 0.0116 156.2);
+  --popover-foreground: oklch(0.9484 0.0074 132.4);
+  --primary: oklch(0.8354 0.0789 156.3);
+  --primary-foreground: oklch(0.2397 0.0327 160.8);
+  --secondary: oklch(0.2763 0.0134 154.4);
+  --secondary-foreground: oklch(0.9484 0.0074 132.4);
+  --muted: oklch(0.2763 0.0134 154.4);
+  --muted-foreground: oklch(0.7165 0.0177 156.8);
+  --accent: oklch(0.3200 0.0180 156.0);
+  --accent-foreground: oklch(0.9484 0.0074 132.4);
+  --destructive: oklch(0.70 0.17 24);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.8354 0.0789 156.3);
+  --chart-1: oklch(0.8354 0.0789 156.3);
+  --chart-2: oklch(0.7908 0.0436 161.4);
+  --chart-3: oklch(0.4421 0.0705 159.3);
+  --chart-4: oklch(0.3554 0.0570 159.2);
+  --chart-5: oklch(0.3019 0.0416 167.5);
+  --nav: oklch(0.2763 0.0134 154.4);
+  --nav-foreground: oklch(0.9484 0.0074 132.4);
+  --nav-muted-foreground: oklch(0.7165 0.0177 156.8);
+  --nav-accent: oklch(0.8354 0.0789 156.3);
+  --sidebar: oklch(0.2402 0.0116 156.2);
+  --sidebar-foreground: oklch(0.9484 0.0074 132.4);
+  --sidebar-primary: oklch(0.8354 0.0789 156.3);
+  --sidebar-primary-foreground: oklch(0.2397 0.0327 160.8);
+  --sidebar-accent: oklch(0.3200 0.0180 156.0);
+  --sidebar-accent-foreground: oklch(0.9484 0.0074 132.4);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.8354 0.0789 156.3);
+  --link: oklch(0.8354 0.0789 156.3);
+  --link-hover: oklch(0.7908 0.0436 161.4);
 }
 
 .theme {
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme inline {
@@ -108,6 +122,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-link: var(--link);
+  --color-nav: var(--nav);
+  --color-nav-foreground: var(--nav-foreground);
+  --color-nav-muted-foreground: var(--nav-muted-foreground);
+  --color-nav-accent: var(--nav-accent);
   --color-link-hover: var(--link-hover);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -122,9 +140,11 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 6px);
+  --radius-lg: calc(var(--radius) - 4px);
+  --radius-xl: var(--radius);
+  --radius-2xl: calc(var(--radius) + 6px);
 }
 
 #root {

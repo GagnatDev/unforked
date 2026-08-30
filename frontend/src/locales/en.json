@@ -158,7 +158,7 @@
     },
     "progress": "{{checked}}/{{total}}",
     "goShopping": "I'm going shopping",
-    "approvedBanner": "🛒 {{email}} is shopping — started {{time}}",
+    "approvedBanner": "{{email}} is shopping — started {{time}}",
     "done": "Done",
     "addItem": "Add item",
     "addItemPlaceholder": "e.g. toothpaste",
@@ -174,7 +174,10 @@
     "itemCheckboxAria": "Mark {{name}} as in cart",
     "hideChecked": "Hide checked items",
     "allCheckedHidden": "All items are checked. Turn off Hide checked items to see them again.",
-    "updateFailed": "Could not save the change. Try again."
+    "updateFailed": "Could not save the change. Try again.",
+    "inCart": "In the cart",
+    "itemCount_one": "{{count}} item",
+    "itemCount_other": "{{count}} items"
   },
   "notifications": {
     "title": "Notifications",

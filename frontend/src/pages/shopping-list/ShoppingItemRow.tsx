@@ -59,8 +59,11 @@ export function ShoppingItemRow({
       >
         <div
           className={cn(
-            'flex min-h-12 items-center gap-1 rounded-lg border border-border bg-card pl-3 pr-1 text-card-foreground',
-            item.checked && 'opacity-70'
+            'flex min-h-13 items-center gap-1 rounded-xl bg-card pl-3 pr-1 text-card-foreground',
+            // Checked rows tint and strike through rather than fading out: a
+            // dimmed row is hard to read in a bright aisle, and opacity alone
+            // is not a state cue.
+            item.checked && 'bg-muted'
           )}
         >
           <button
@@ -87,13 +90,13 @@ export function ShoppingItemRow({
               checked={item.checked}
               readOnly
               tabIndex={-1}
-              className="h-5 w-5 shrink-0"
+              className="h-5 w-5 shrink-0 accent-[var(--primary)]"
               aria-label={t('shoppingList.itemCheckboxAria', { name: item.name })}
             />
             <span
               className={cn(
                 'flex-1 font-medium',
-                item.checked && 'text-muted-foreground line-through'
+                item.checked && 'text-muted-foreground line-through decoration-1'
               )}
             >
               {item.name}

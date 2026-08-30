@@ -189,8 +189,8 @@ export default function MealPlan() {
 
   return (
     <div>
-      <h1>{t('mealPlan.title')}</h1>
-      <div className="mb-4">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <h1 className="mb-0">{t('mealPlan.title')}</h1>
         <WeekPicker value={weekId} onChange={setWeekId} locale={locale} />
       </div>
       {loading ? (
@@ -207,22 +207,24 @@ export default function MealPlan() {
             setDayPeople={setDayPeople}
             onSwapDays={swapDays}
           />
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
-            {/* A plain span, not a <label>: the dropdown trigger is a button,
-                which `for=` cannot label — it carries the same text as its
-                aria-label instead. */}
-            <span className="text-sm text-muted-foreground">
-              {t('mealPlan.defaultPeople')}
-            </span>
-            <MealPlanPeopleSelect
-              id="meal-plan-default-people"
-              value={plan?.defaultPersons ?? null}
-              onValueChange={setDefaultPeople}
-              ariaLabel={t('mealPlan.defaultPeople')}
-              emptyLabel={t('mealPlan.peopleUnset')}
-              className="h-8 w-28"
-            />
-            <p className="w-full text-xs text-muted-foreground">
+          {/* The week's default sits in its own sheet under the days: it
+              governs every row above it rather than belonging to any one. */}
+          <div className="mt-4 rounded-2xl bg-card p-4 text-card-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              {/* A plain span, not a <label>: the dropdown trigger is a button,
+                  which `for=` cannot label — it carries the same text as its
+                  aria-label instead. */}
+              <span className="font-medium">{t('mealPlan.defaultPeople')}</span>
+              <MealPlanPeopleSelect
+                id="meal-plan-default-people"
+                value={plan?.defaultPersons ?? null}
+                onValueChange={setDefaultPeople}
+                ariaLabel={t('mealPlan.defaultPeople')}
+                emptyLabel={t('mealPlan.peopleUnset')}
+                className="h-11 w-28 rounded-xl"
+              />
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
               {t('mealPlan.defaultPeopleHint')}
             </p>
           </div>

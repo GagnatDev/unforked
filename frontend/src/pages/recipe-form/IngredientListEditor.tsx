@@ -4,7 +4,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { GripVerticalIcon, XIcon } from 'lucide-react'
+import { GripVerticalIcon, PlusIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -121,8 +121,8 @@ export function IngredientListEditor({
   })
 
   return (
-    <>
-      <h3>{t('recipeForm.ingredients')}</h3>
+    <section className="rounded-2xl bg-card p-4 text-card-foreground">
+      <h3 className="mb-2 text-base font-semibold">{t('recipeForm.ingredients')}</h3>
       {ingredients.length >= 2 && (
         <p className="mb-2 min-h-4 text-xs text-muted-foreground" aria-live="polite">
           {armedIndex != null
@@ -170,7 +170,7 @@ export function IngredientListEditor({
               autoCapitalize="none"
               value={ing.name}
               onChange={(e) => onUpdate(i, { name: e.target.value })}
-              className="min-w-0 flex-1"
+              className="h-11 min-w-0 flex-1 rounded-xl"
             />
             <Input
               placeholder={t('recipeForm.placeholderQty')}
@@ -178,7 +178,7 @@ export function IngredientListEditor({
               autoCapitalize="none"
               value={ing.quantity}
               onChange={(e) => onUpdate(i, { quantity: e.target.value })}
-              className="w-14 shrink-0 sm:w-20"
+              className="h-11 w-16 shrink-0 rounded-xl px-2.5 sm:w-20"
             />
             <Input
               placeholder={t('recipeForm.placeholderUnit')}
@@ -186,7 +186,7 @@ export function IngredientListEditor({
               autoCapitalize="none"
               value={ing.unit}
               onChange={(e) => onUpdate(i, { unit: e.target.value })}
-              className="w-14 shrink-0 sm:w-20"
+              className="h-11 w-16 shrink-0 rounded-xl px-2.5 sm:w-20"
             />
             <Button
               type="button"
@@ -204,9 +204,15 @@ export function IngredientListEditor({
           </div>
         )
       })}
-      <Button type="button" variant="secondary" size="sm" onClick={onAdd}>
+      <Button
+        type="button"
+        variant="secondary"
+        className="mt-1 h-10 rounded-full px-4"
+        onClick={onAdd}
+      >
+        <PlusIcon data-icon="inline-start" />
         {t('recipeForm.addIngredient')}
       </Button>
-    </>
+    </section>
   )
 }

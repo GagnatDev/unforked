@@ -68,14 +68,21 @@ export default function RecipeForm() {
 
   return (
     <div>
-      <h1>{id ? t('recipeForm.editRecipe') : t('recipeForm.newRecipe')}</h1>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="mb-0">{id ? t('recipeForm.editRecipe') : t('recipeForm.newRecipe')}</h1>
+        {!id && (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 rounded-full px-4"
+            onClick={() => setImportOpen(true)}
+          >
+            {t('recipeForm.importFromUrl')}
+          </Button>
+        )}
+      </div>
       {!id && (
         <>
-          <div className="mb-3">
-            <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-              {t('recipeForm.importFromUrl')}
-            </Button>
-          </div>
           <RecipeImportUrlDialog
             open={importOpen}
             onOpenChange={setImportOpen}
@@ -87,8 +94,8 @@ export default function RecipeForm() {
         </>
       )}
       {!id && importWarnings.length > 0 && (
-        <div className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          <p className="mb-1 font-medium text-foreground/80">{t('recipeForm.importNotes')}</p>
+        <div className="mb-4 rounded-2xl bg-card px-4 py-3 text-sm text-muted-foreground">
+          <p className="mb-1 font-semibold text-foreground">{t('recipeForm.importNotes')}</p>
           <ul className="mb-2 list-disc pl-5">
             {importWarnings.map((w, i) => (
               <li key={i}>{w}</li>
@@ -99,67 +106,70 @@ export default function RecipeForm() {
           </Button>
         </div>
       )}
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label className="mb-2 block font-medium">
-            {t('recipeForm.name')} <Input
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* What the recipe is, in one sheet; what it is made of and how to cook
+            it get a sheet each below. */}
+        <section className="space-y-4 rounded-2xl bg-card p-4 text-card-foreground">
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">{t('recipeForm.name')}</span>
+            <Input
               required
               autoCapitalize="none"
               value={doc.name}
               onChange={(e) => update({ name: e.target.value })}
-              className="mt-1 w-full"
+              className="h-11 w-full rounded-xl"
             />
           </label>
-        </div>
-        <div className="mb-4">
-          <label className="mb-2 block font-medium">
-            {t('recipeForm.description')}{' '}
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">
+              {t('recipeForm.description')}
+            </span>
             <AutoGrowTextarea
               value={doc.description}
               onChange={(e) => update({ description: e.target.value })}
               rows={2}
-              className="mt-1 w-full"
+              className="w-full rounded-xl"
             />
           </label>
-        </div>
-        <RecipeSourceAttribution
-          sourceUrl={doc.sourceUrl}
-          sourceName={doc.sourceName}
-          collapsible
-        />
-        {id && (
-          <RecipePhotoSection
-            recipeId={id}
-            photo={doc.photo}
-            onPhotoChange={(photo) => update({ photo })}
-            alt={doc.name}
+          <RecipeSourceAttribution
+            sourceUrl={doc.sourceUrl}
+            sourceName={doc.sourceName}
+            collapsible
+            className="mb-0"
           />
-        )}
-        <div className="mb-4">
-          <label className="mb-2 block font-medium">
-            {t('recipeForm.servings')} <Input
+          {id && (
+            <RecipePhotoSection
+              recipeId={id}
+              photo={doc.photo}
+              onPhotoChange={(photo) => update({ photo })}
+              alt={doc.name}
+            />
+          )}
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">{t('recipeForm.servings')}</span>
+            <Input
               type="number"
               min={1}
               inputMode="numeric"
               value={doc.servings}
               onChange={(e) => update({ servings: Number(e.target.value) || 1 })}
-              className="mt-1 w-20"
+              className="h-11 w-24 rounded-xl"
             />
           </label>
-        </div>
-        <div className="mb-4">
-          <label htmlFor={tagsFieldId} className="mb-2 block font-medium">
-            {t('recipeForm.tagsLabel')}
-          </label>
-          <RecipeTagsInput
-            key={id ?? 'new'}
-            ref={tagsInputRef}
-            id={tagsFieldId}
-            tags={doc.tags}
-            onChange={(tags) => update({ tags })}
-            excludeRecipeId={id}
-          />
-        </div>
+          <div>
+            <label htmlFor={tagsFieldId} className="mb-1.5 block text-sm font-medium">
+              {t('recipeForm.tagsLabel')}
+            </label>
+            <RecipeTagsInput
+              key={id ?? 'new'}
+              ref={tagsInputRef}
+              id={tagsFieldId}
+              tags={doc.tags}
+              onChange={(tags) => update({ tags })}
+              excludeRecipeId={id}
+            />
+          </div>
+        </section>
 
         <IngredientListEditor
           ingredients={doc.ingredients}
@@ -176,13 +186,19 @@ export default function RecipeForm() {
           onRemove={removeStep}
         />
 
-        <div className="sticky bottom-0 z-10 -mx-6 mt-6 border-t border-border bg-background/90 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm">
-          {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
-          <div className="flex items-center justify-end">
-            <Button type="submit" disabled={saving} className="flex-1 sm:flex-none">
-              {saving ? t('recipeForm.saving') : id ? t('recipeForm.update') : t('recipeForm.create')}
-            </Button>
-          </div>
+        {/* Sticky save, parked above the tab bar rather than under it, so a
+            long form never hides the one action that finishes it. */}
+        <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-10 flex flex-col items-stretch gap-2 sm:items-end">
+          {error && (
+            <p className="rounded-xl bg-card px-3 py-2 text-sm text-destructive">{error}</p>
+          )}
+          <Button
+            type="submit"
+            disabled={saving}
+            className="h-12 rounded-full px-6 shadow-[0_8px_22px_-8px_oklch(0.23_0.02_156/0.55)]"
+          >
+            {saving ? t('recipeForm.saving') : id ? t('recipeForm.update') : t('recipeForm.create')}
+          </Button>
         </div>
       </form>
     </div>

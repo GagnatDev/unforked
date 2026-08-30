@@ -151,28 +151,28 @@ export function MealPlanWeekAssignments({
             ? t('mealPlan.swapHint')
             : ''}
       </p>
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <div className="divide-y divide-border md:hidden">
+      <div className="overflow-hidden rounded-2xl bg-card text-card-foreground">
+        <div className="divide-y divide-border/60 md:hidden">
           {DAYS.map((day) => (
-            <div key={day} data-swap-day={day} className={cn('p-3', rowHighlight(day))}>
+            <div key={day} data-swap-day={day} className={cn('p-4', rowHighlight(day))}>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-foreground">
+                <span className="font-semibold text-foreground">
                   {t(`mealPlan.days.${day}`)}
                 </span>
                 {swapHandle(day)}
               </div>
-              <div className="mt-1">
+              <div className="mt-2">
                 <MealPlanRecipeSelect
                   day={day}
                   byDay={byDay}
                   recipes={recipes}
                   setAssignment={setAssignment}
-                  className="w-full"
+                  className="h-11 w-full rounded-xl"
                   idSuffix="mobile"
                 />
               </div>
               {byDay[day]?.recipeId && (
-                <div className="mt-2 flex items-center justify-between gap-3">
+                <div className="mt-3 flex items-center justify-between gap-3">
                   {/* A plain span, not a <label>: the dropdown trigger is a
                       button, which `for=` cannot label — it carries its own
                       per-day aria-label instead. */}
@@ -185,7 +185,7 @@ export function MealPlanWeekAssignments({
                     byDay={byDay}
                     defaultPersons={defaultPersons}
                     setDayPeople={setDayPeople}
-                    className="w-32 shrink-0"
+                    className="h-11 w-32 shrink-0 rounded-xl"
                   />
                 </div>
               )}
@@ -194,10 +194,16 @@ export function MealPlanWeekAssignments({
         </div>
         <table className="hidden w-full table-fixed border-collapse text-foreground md:table">
           <thead>
-            <tr className="border-b-2 border-border">
-              <th className="w-44 p-3 text-left">{t('mealPlan.day')}</th>
-              <th className="p-3 text-left">{t('mealPlan.recipe')}</th>
-              <th className="w-40 p-3 text-left">{t('mealPlan.people')}</th>
+            <tr className="border-b border-border/60">
+              <th className="w-44 px-4 pt-4 pb-2 text-left text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                {t('mealPlan.day')}
+              </th>
+              <th className="px-4 pt-4 pb-2 text-left text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                {t('mealPlan.recipe')}
+              </th>
+              <th className="w-40 px-4 pt-4 pb-2 text-left text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                {t('mealPlan.people')}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -205,31 +211,31 @@ export function MealPlanWeekAssignments({
               <tr
                 key={day}
                 data-swap-day={day}
-                className={cn('border-b border-border', rowHighlight(day))}
+                className={cn('not-last:border-b not-last:border-border/60', rowHighlight(day))}
               >
-                <td className="p-3">
+                <td className="px-4 py-2.5">
                   <div className="flex items-center justify-between gap-1.5">
-                    <span>{t(`mealPlan.days.${day}`)}</span>
+                    <span className="font-medium">{t(`mealPlan.days.${day}`)}</span>
                     {swapHandle(day)}
                   </div>
                 </td>
-                <td className="p-3">
+                <td className="px-4 py-2.5">
                   <MealPlanRecipeSelect
                     day={day}
                     byDay={byDay}
                     recipes={recipes}
                     setAssignment={setAssignment}
-                    className="w-full"
+                    className="h-10 w-full rounded-xl"
                     idSuffix="desktop"
                   />
                 </td>
-                <td className="p-3">
+                <td className="px-4 py-2.5">
                   <MealPlanDayPeopleSelect
                     day={day}
                     byDay={byDay}
                     defaultPersons={defaultPersons}
                     setDayPeople={setDayPeople}
-                    className="w-full min-w-0"
+                    className="h-10 w-full min-w-0 rounded-xl"
                   />
                 </td>
               </tr>

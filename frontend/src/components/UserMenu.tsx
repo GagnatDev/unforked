@@ -6,7 +6,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -20,15 +19,13 @@ type UserMenuProps = {
 }
 
 /**
- * Hamburger menu with the profile link (settings live there) and logout.
- * On narrow screens it also absorbs the primary navigation, which is hidden
- * inline below the `sm` breakpoint — the whole menu collapses into this single
- * button so mobile shows just one hamburger.
+ * Menu for the things that are neither a destination nor an action on the
+ * current screen: profile (settings live there) and logout. The four
+ * destinations are tabs, and the recipe actions live on the recipe library, so
+ * nothing is duplicated here.
  */
 export function UserMenu({ onLogout }: UserMenuProps) {
   const { t } = useTranslation()
-
-  const recipesMatch = useMatch({ path: '/recipes', end: false })
 
   const profileMatch = useMatch({ path: '/profile', end: true })
   const familyMatch = useMatch({ path: '/family', end: true })
@@ -48,22 +45,6 @@ export function UserMenu({ onLogout }: UserMenuProps) {
         <MenuIcon className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
-        {/* Recipes navigation: only shown while the inline nav is collapsed.
-            Today, Weekly menu and Shopping list live as quick-access icons on
-            the nav bar instead, so they are no longer duplicated here. */}
-        <DropdownMenuGroup className="sm:hidden">
-          <DropdownMenuLabel className={cn(recipesMatch && 'text-foreground')}>
-            {t('nav.recipesMenu')}
-          </DropdownMenuLabel>
-          <DropdownMenuItem render={<Link to="/recipes" />}>
-            {t('nav.allRecipes')}
-          </DropdownMenuItem>
-          <DropdownMenuItem render={<Link to="/recipes/new" />}>
-            {t('nav.newRecipe')}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator className="sm:hidden" />
-
         <DropdownMenuGroup>
           <DropdownMenuItem
             render={<Link to="/profile" />}
