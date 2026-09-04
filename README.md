@@ -105,7 +105,8 @@ All `/api` routes read the sidecar identity headers (or the dev fallback).
 - `GET|PATCH /api/family`, `POST /api/family/invites`, `POST /api/family/invites/accept`
 - `GET/POST /api/recipes`, `GET /api/recipes/tags`, `GET/PUT/DELETE /api/recipes/:id`, `POST /api/recipes/import`
 - `GET/PUT /api/meal-plans/current?week=YYYY-Wnn`
-- `GET /api/shopping-lists?week=YYYY-Wnn`
+- `GET /api/shopping-lists?week=YYYY-Wnn`, `POST/PATCH/DELETE /api/shopping-lists/items[/:id]`
+- `POST /api/shopping-lists/status` (`open` / `ready` / `approved`), `POST /api/shopping-lists/trips`, `DELETE /api/shopping-lists/trips/:id`
 - `GET /health`
 
 ## Local integration testing

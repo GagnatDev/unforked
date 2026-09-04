@@ -96,9 +96,11 @@ what survives a bright aisle:
 ## Signature moment
 
 The shopping list's **status card**: one green sheet carrying how far the list
-has got (`3/10` plus a progress bar) and the trip itself — *I'm going shopping*,
-or who is out and since when, with *Done*. Progress and the shared trip are one
-fact, so they are one object.
+has got (`3/10` plus a progress bar) and the trip itself — *Ready to shop* or
+*I'm going shopping*, or who is out (or finished the list) and since when, with
+*Shopping done*. Progress and the shared trip are one fact, so they are one
+object. Finished trips drop below the list as *Bought this week*: a quiet
+record, ticks only, never green.
 
 ## Forms
 
