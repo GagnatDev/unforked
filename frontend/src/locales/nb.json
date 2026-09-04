@@ -158,8 +158,12 @@
     },
     "progress": "{{checked}}/{{total}}",
     "goShopping": "Jeg går og handler",
+    "readyToShop": "Klar til handling",
+    "readyBanner": "Klar til handling — {{email}} gjorde listen ferdig {{time}}",
+    "shoppingDone": "Ferdig handlet",
+    "cancelTrip": "Avbryt handleturen",
+    "backToEditing": "Tilbake til redigering",
     "approvedBanner": "{{email}} handler — startet {{time}}",
-    "done": "Ferdig",
     "addItem": "Legg til vare",
     "addItemPlaceholder": "F.eks. tannkrem",
     "changeCategoryAria": "Endre kategori for {{name}}",
@@ -176,8 +180,21 @@
     "allCheckedHidden": "Alle varer er avhuket. Skru av Skjul avhukede varer for å se dem igjen.",
     "updateFailed": "Kunne ikke lagre endringen. Prøv igjen.",
     "inCart": "I handlekurven",
-    "itemCount_one": "{{count}} vare",
-    "itemCount_other": "{{count}} varer"
+    "itemCount_one": "{{count}} å handle",
+    "itemCount_other": "{{count}} å handle",
+    "boughtThisWeek_one": "{{count}} handlet denne uken",
+    "boughtThisWeek_other": "{{count}} handlet denne uken",
+    "allBought": "Alt på listen er handlet. Planlegg flere middager under <1>Ukemeny</1>, eller legg til en vare under for en rask ekstratur.",
+    "trips": {
+      "title": "Handlet denne uken",
+      "trip": "Handletur {{n}}",
+      "summary": "{{email}} · {{time}}",
+      "itemCount_one": "{{count}} vare",
+      "itemCount_other": "{{count}} varer",
+      "toggleAria": "Vis varene fra handletur {{n}}",
+      "undo": "Legg tilbake på listen",
+      "undoAria": "Legg varene fra handletur {{n}} tilbake på listen"
+    }
   },
   "notifications": {
     "title": "Varsler",

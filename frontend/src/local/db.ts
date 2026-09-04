@@ -32,7 +32,7 @@ type SyncMetaRecord = { key: string; value: unknown }
 // --- durable mutation outbox (offline-first spec A3) ---
 
 /** Domain entities a queued mutation can target. */
-export type OutboxEntity = 'recipe' | 'mealPlan' | 'shoppingItem' | 'shoppingStatus'
+export type OutboxEntity = 'recipe' | 'mealPlan' | 'shoppingItem' | 'shoppingStatus' | 'shoppingTrip'
 export type OutboxOpType = 'create' | 'update' | 'delete'
 
 /** Fields a shopping-list item PATCH may carry. */
@@ -86,10 +86,30 @@ export interface ShoppingItemDeletePayload {
  */
 export interface ShoppingStatusPayload {
   weekId: string
-  status: 'approved' | 'open'
+  status: 'approved' | 'ready' | 'open'
   approvedBy?: string
   approvedByEmail?: string
   approvedAt?: string
+  readyBy?: string
+  readyByEmail?: string
+  readyAt?: string
+}
+
+/**
+ * "Shopping done" op payload (`create`): the op `key` is the client-minted
+ * trip id. Only who/when is carried — the archived items are recomputed from
+ * whatever is checked when the op is applied (locally, on a pull-merge replay,
+ * and on the server), so a completion always archives the checked state the
+ * preceding item ops in the queue produced. `delete` (undo) carries just the week.
+ */
+export interface ShoppingTripCompletePayload {
+  weekId: string
+  completedAt: string
+  completedBy: string
+  completedByEmail: string
+}
+export interface ShoppingTripUndoPayload {
+  weekId: string
 }
 
 /**
@@ -102,12 +122,13 @@ export interface OutboxOp {
   opId: string
   entity: OutboxEntity
   type: OutboxOpType
-  /** Entity identity: recipe id, weekIdentifier (mealPlan/shoppingStatus), or shopping item id. */
+  /** Entity identity: recipe id, weekIdentifier (mealPlan/shoppingStatus), shopping item id, or trip id. */
   key: string
   /**
    * Op-specific payload. Recipe ops carry the `RecipeDoc`; meal-plan ops a
    * `MealPlanOpPayload`; shopping-item ops one of the `ShoppingItem*Payload`s;
-   * status ops a `ShoppingStatusPayload`. Omitted for recipe deletes.
+   * status ops a `ShoppingStatusPayload`; trip ops a `ShoppingTrip*Payload`.
+   * Omitted for recipe deletes.
    */
   payload?: unknown
   /**

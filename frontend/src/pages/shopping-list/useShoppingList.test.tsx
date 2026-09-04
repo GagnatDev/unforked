@@ -197,3 +197,80 @@ describe('useShoppingList', () => {
     expect(ops[0].payload).toEqual({ weekId: week, status: 'open' })
   })
 })
+
+describe('useShoppingList — ready state and trips', () => {
+  it('marks ready optimistically with the signed-in user and queues a status op', async () => {
+    mocks.get.mockResolvedValue({ weekIdentifier: week, items: [entry({})], version: 2 })
+    const { result } = await renderLoaded()
+
+    act(() => result.current.markReady())
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    expect(result.current.readyByEmail).toBe('ann@example.com')
+    expect(new Date(result.current.readyAt!).getTime()).not.toBeNaN()
+
+    const ops = await listOutboxOps()
+    expect(ops).toHaveLength(1)
+    expect(ops[0]).toMatchObject({ entity: 'shoppingStatus', key: week, baseVersion: 2 })
+    expect(ops[0].payload).toMatchObject({ weekId: week, status: 'ready', readyBy: 'user-1' })
+  })
+
+  it('completes a trip optimistically: checked items move to history, the rest stays, and a trip op is queued', async () => {
+    mocks.get.mockResolvedValue({
+      weekIdentifier: week,
+      items: [entry({ id: 'milk', checked: true }), entry({ id: 'bread', name: 'Bread' })],
+      version: 5,
+      status: 'approved',
+      approvedBy: 'user-1',
+      approvedByEmail: 'ann@example.com',
+      approvedAt: '2026-07-06T17:12:00.000Z',
+    })
+    const { result } = await renderLoaded()
+    await waitFor(() => expect(result.current.status).toBe('approved'))
+
+    act(() => result.current.completeTrip())
+    await waitFor(() => expect(result.current.trips).toHaveLength(1))
+    expect(result.current.items?.map((i) => i.id)).toEqual(['bread'])
+    expect(result.current.trips[0]).toMatchObject({
+      completedBy: 'user-1',
+      completedByEmail: 'ann@example.com',
+      items: [expect.objectContaining({ id: 'milk' })],
+    })
+    expect(result.current.status).toBe('open')
+    expect(result.current.approvedByEmail).toBeNull()
+
+    const ops = await listOutboxOps()
+    expect(ops).toHaveLength(1)
+    expect(ops[0]).toMatchObject({
+      entity: 'shoppingTrip',
+      type: 'create',
+      key: result.current.trips[0].id,
+      baseVersion: 5,
+    })
+    expect(ops[0].payload).toMatchObject({ weekId: week, completedBy: 'user-1' })
+  })
+
+  it('undoes a trip optimistically and queues a delete op', async () => {
+    mocks.get.mockResolvedValue({
+      weekIdentifier: week,
+      items: [],
+      trips: [
+        {
+          id: 'trip-1',
+          completedAt: '2026-07-06T17:12:00.000Z',
+          completedBy: 'user-2',
+          completedByEmail: 'bo@example.com',
+          items: [entry({ id: 'milk', checked: true })],
+        },
+      ],
+    })
+    const { result } = await renderLoaded()
+    await waitFor(() => expect(result.current.trips).toHaveLength(1))
+
+    act(() => result.current.undoTrip('trip-1'))
+    await waitFor(() => expect(result.current.trips).toHaveLength(0))
+    expect(result.current.items?.map((i) => [i.id, i.checked])).toEqual([['milk', true]])
+
+    const ops = await listOutboxOps()
+    expect(ops[0]).toMatchObject({ entity: 'shoppingTrip', type: 'delete', key: 'trip-1' })
+  })
+})

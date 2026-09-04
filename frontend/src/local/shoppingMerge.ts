@@ -6,7 +6,15 @@ import type {
   ShoppingItemDeletePayload,
   ShoppingItemUpdatePayload,
   ShoppingStatusPayload,
+  ShoppingTripCompletePayload,
 } from './db'
+import {
+  approveShoppingDoc,
+  clearShoppingStatus,
+  completeShoppingTripInDoc,
+  markShoppingDocReady,
+  undoShoppingTripInDoc,
+} from './shoppingDoc'
 
 /**
  * Client-side shopping-list merge (offline-first spec A5 / resolved decision 3).
@@ -32,21 +40,47 @@ export function applyShoppingOps(
     : null
 
   for (const op of ops) {
-    if (op.entity !== 'shoppingItem' && op.entity !== 'shoppingStatus') continue
+    if (op.entity !== 'shoppingItem' && op.entity !== 'shoppingStatus' && op.entity !== 'shoppingTrip') {
+      continue
+    }
     const forWeek = (op.payload as { weekId?: string } | undefined)?.weekId
     if (forWeek !== weekId) continue
 
     if (op.entity === 'shoppingStatus') {
       if (!doc) continue
-      // Re-apply our pending approve/reopen intent on top of the server's doc
-      // (design #104 D4), exactly like item ops: an offline approval must not
-      // be blinked away by a background pull before the op drains.
-      const { status, approvedBy, approvedByEmail, approvedAt } = op.payload as ShoppingStatusPayload
-      if (status === 'approved') {
-        doc = { ...doc, status, approvedBy, approvedByEmail, approvedAt }
+      // Re-apply our pending approve/ready/reopen intent on top of the server's
+      // doc (design #104 D4), exactly like item ops: an offline approval must
+      // not be blinked away by a background pull before the op drains.
+      const p = op.payload as ShoppingStatusPayload
+      if (p.status === 'approved') {
+        doc = approveShoppingDoc(
+          doc,
+          { id: p.approvedBy ?? '', email: p.approvedByEmail ?? '' },
+          p.approvedAt ?? '',
+        )
+      } else if (p.status === 'ready') {
+        doc = markShoppingDocReady(doc, { id: p.readyBy ?? '', email: p.readyByEmail ?? '' }, p.readyAt ?? '')
       } else {
-        const { status: _s, approvedBy: _b, approvedByEmail: _e, approvedAt: _a, ...open } = doc
-        doc = open
+        doc = clearShoppingStatus(doc)
+      }
+      continue
+    }
+
+    if (op.entity === 'shoppingTrip') {
+      if (!doc) continue
+      // A pending "Shopping done" archives whatever the preceding item ops
+      // left checked on the server's doc — the same rule the server applies
+      // when the op drains — so the trip never blinks back into the open list.
+      if (op.type === 'create') {
+        const p = op.payload as ShoppingTripCompletePayload
+        doc = completeShoppingTripInDoc(doc, {
+          id: op.key,
+          completedAt: p.completedAt,
+          completedBy: p.completedBy,
+          completedByEmail: p.completedByEmail,
+        })
+      } else if (op.type === 'delete') {
+        doc = undoShoppingTripInDoc(doc, op.key)
       }
       continue
     }
