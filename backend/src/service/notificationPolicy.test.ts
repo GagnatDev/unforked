@@ -122,7 +122,10 @@ async function toggleItem(identity: TestIdentity, itemId: string): Promise<void>
     .expect(200);
 }
 
-async function setStatus(identity: TestIdentity, status: "approved" | "open"): Promise<void> {
+async function setStatus(
+  identity: TestIdentity,
+  status: "approved" | "ready" | "open",
+): Promise<void> {
   await withAuth(request(app).post(`/api/shopping-lists/status?week=${week}`), identity)
     .send({ status })
     .expect(200);
@@ -169,6 +172,57 @@ describe("notification policy engine (D6 matrix)", () => {
     expect(push.title).toBe("🛒 admin@example.com is going shopping");
     expect(push.url).toBe(`/shopping-list?week=${week}`);
     expect(push.tag).toContain(week);
+  });
+
+  it("marking the list ready announces to every other member, never the marker", async () => {
+    await subscribe(admin, "admin-en");
+    await subscribe(partner, "partner-nb", "nb");
+    await addItem(admin, "Milk");
+    await setStatus(admin, "ready");
+
+    await poll(() => sent.length >= 1, "ready announcement");
+    await sleep(QUIET_MS);
+    expect(sentTo("admin-en")).toHaveLength(0);
+    expect(sentTo("partner-nb")).toHaveLength(1);
+    expect(sentTo("partner-nb")[0].payload.title).toMatch(/^Handlelisten er klar \(uke \d+\)$/);
+    expect(sentTo("partner-nb")[0].payload.url).toBe(`/shopping-list?week=${week}`);
+  });
+
+  it("a ready list does not push item changes — only a claimed trip does", async () => {
+    await subscribe(admin, "admin-en");
+    await subscribe(partner, "partner-en");
+    await addItem(admin, "Milk");
+    await setStatus(admin, "ready");
+    await poll(() => sent.length >= 1, "ready announcement");
+    sent.length = 0;
+    const itemId = await addItem(partner, "Bread");
+    await toggleItem(admin, itemId);
+    await sleep(QUIET_MS);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("'Shopping done' announces to every other member with the item count, never the shopper", async () => {
+    await subscribe(admin, "admin-en");
+    await subscribe(partner, "partner-en");
+    await subscribe(third, "third-nb", "nb");
+    const milk = await addItem(admin, "Milk");
+    const bread = await addItem(admin, "Bread");
+    await setStatus(partner, "approved");
+    await poll(() => sent.length >= 2, "approval announcements");
+    sent.length = 0;
+    await toggleItem(partner, milk);
+    await toggleItem(partner, bread);
+    await withAuth(request(app).post(`/api/shopping-lists/trips?week=${week}`), partner)
+      .send({})
+      .expect(201);
+
+    await poll(() => sent.length >= 2, "completion announcements");
+    await sleep(QUIET_MS);
+    expect(sentTo("partner-en")).toHaveLength(0);
+    expect(sentTo("admin-en")).toHaveLength(1);
+    expect(sentTo("admin-en")[0].payload.title).toBe("✅ partner@example.com finished shopping");
+    expect(sentTo("admin-en")[0].payload.body).toMatch(/^2 items bought for week \d+\.$/);
+    expect(sentTo("third-nb")[0].payload.body).toMatch(/^2 varer handlet for uke \d+\.$/);
   });
 
   it("while approved, another member's burst coalesces into one push to the approver", async () => {

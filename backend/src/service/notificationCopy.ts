@@ -25,6 +25,8 @@ export interface NotificationCopy {
  */
 export type NotificationEntry =
   | { kind: "approved"; actorLabel?: string }
+  | { kind: "ready"; actorLabel?: string }
+  | { kind: "completed"; actorLabel?: string; itemCount: number }
   | { kind: "reopened"; actorLabel?: string }
   | { kind: "items"; actorLabel?: string; itemsAdded?: number };
 
@@ -103,6 +105,26 @@ export function composeShoppingListNotification(
       locale === "nb"
         ? `Handlelisten for ${week} ble godkjent.`
         : `The shopping list for ${week} was approved.`;
+    return { title, body: [announcement, ...itemLines].join("\n") };
+  }
+  if (status?.kind === "ready") {
+    const actor = actorName(status.actorLabel, locale);
+    const title =
+      locale === "nb" ? `Handlelisten er klar (${week})` : `Shopping list is ready (${week})`;
+    const announcement =
+      locale === "nb"
+        ? `${actor} har gjort handlelisten klar — hvem som helst kan handle den.`
+        : `${actor} marked the shopping list ready — anyone can go shopping.`;
+    return { title, body: [announcement, ...itemLines].join("\n") };
+  }
+  if (status?.kind === "completed") {
+    const actor = actorName(status.actorLabel, locale);
+    const n = status.itemCount;
+    const title = locale === "nb" ? `✅ ${actor} er ferdig med å handle` : `✅ ${actor} finished shopping`;
+    const announcement =
+      locale === "nb"
+        ? `${n} ${n === 1 ? "vare" : "varer"} handlet for ${week}.`
+        : `${n} ${n === 1 ? "item" : "items"} bought for ${week}.`;
     return { title, body: [announcement, ...itemLines].join("\n") };
   }
   if (status?.kind === "reopened") {

@@ -795,3 +795,395 @@ describe("change-event emission (design #104 D1)", () => {
     }
   });
 });
+
+describe("POST /api/shopping-lists/trips — shopping a week in several rounds", () => {
+  async function setChecked(itemId: string, checked = true, identity = token): Promise<void> {
+    await withAuth(request(app).patch(`/api/shopping-lists/items/${itemId}?week=${week}`), identity)
+      .send({ checked })
+      .expect(200);
+  }
+
+  async function completeTrip(
+    body: { id?: string; completedAt?: string; baseVersion?: number } = {},
+    identity = token,
+  ): Promise<request.Response> {
+    return withAuth(request(app).post(`/api/shopping-lists/trips?week=${week}`), identity).send(body);
+  }
+
+  async function addManual(name: string): Promise<ShoppingListEntry> {
+    const res = await withAuth(request(app).post(`/api/shopping-lists/items?week=${week}`), token)
+      .send({ name })
+      .expect(201);
+    return res.body as ShoppingListEntry;
+  }
+
+  function names(res: request.Response): string[] {
+    return (res.body.items as ShoppingListEntry[]).map((i) => i.name.toLowerCase()).sort();
+  }
+
+  it("supports plan two days → shop → plan two more → shop again → ad-hoc top-up", async () => {
+    const bolognese = await createRecipe({
+      name: "Bolognese",
+      ingredients: [
+        { name: "onion", quantity: "2", unit: "" },
+        { name: "minced beef", quantity: "500", unit: "g" },
+      ],
+      servings: 4,
+    });
+    const soup = await createRecipe({
+      name: "Soup",
+      ingredients: [
+        { name: "onion", quantity: "3", unit: "" },
+        { name: "carrot", quantity: "4", unit: "" },
+      ],
+      servings: 4,
+    });
+
+    // Day 1: only Monday and Tuesday are planned; a couple of extras are added.
+    await setPlan([
+      { day: "monday", recipeId: bolognese, recipeName: "Bolognese" },
+      { day: "tuesday", recipeId: soup, recipeName: "Soup" },
+    ]);
+    const coffee = await addManual("Coffee");
+    const toothpaste = await addManual("Toothpaste");
+    let list = await getList();
+    expect(names(list)).toEqual(["carrot", "coffee", "minced beef", "onion", "toothpaste"]);
+    expect(findItem(list, "onion").quantity).toBe("5");
+
+    // Shop right away: everything except toothpaste (out of stock) goes in the cart.
+    for (const item of list.body.items as ShoppingListEntry[]) {
+      if (item.id !== toothpaste.id) await setChecked(item.id);
+    }
+    const trip1 = await completeTrip({ baseVersion: list.body.version + 4 });
+    expect(trip1.status).toBe(201);
+    expect(trip1.body.trips).toHaveLength(1);
+    expect(trip1.body.trips[0]).toMatchObject({
+      completedByEmail: token.email,
+      items: expect.arrayContaining([expect.objectContaining({ id: coffee.id, checked: true })]),
+    });
+    expect(trip1.body.trips[0].items).toHaveLength(4);
+    expect(new Date(trip1.body.trips[0].completedAt).getTime()).not.toBeNaN();
+    // Only the unbought extra remains open; bought recipe items don't come back on read.
+    list = await getList();
+    expect(names(list)).toEqual(["toothpaste"]);
+    expect(list.body.trips).toHaveLength(1);
+
+    // Day 2: two more dinners later in the week — Bolognese again on Saturday,
+    // so onion and beef reappear, but only Saturday's share.
+    await setPlan([
+      { day: "monday", recipeId: bolognese, recipeName: "Bolognese" },
+      { day: "tuesday", recipeId: soup, recipeName: "Soup" },
+      { day: "thursday", recipeId: soup, recipeName: "Soup" },
+      { day: "saturday", recipeId: bolognese, recipeName: "Bolognese" },
+    ]);
+    list = await getList();
+    expect(names(list)).toEqual(["carrot", "minced beef", "onion", "toothpaste"]);
+    expect(findItem(list, "onion")).toMatchObject({ quantity: "5", recipeIds: [soup, bolognese] });
+    expect(findItem(list, "onion").sources).toEqual([
+      { day: "thursday", recipeId: soup },
+      { day: "saturday", recipeId: bolognese },
+    ]);
+    expect(findItem(list, "minced beef")).toMatchObject({ quantity: "500", unit: "g" });
+
+    // Shop again a day later: this time everything.
+    for (const item of list.body.items as ShoppingListEntry[]) await setChecked(item.id);
+    const trip2 = await completeTrip();
+    expect(trip2.status).toBe(201);
+    expect(trip2.body.trips).toHaveLength(2);
+    list = await getList();
+    expect(list.body.items).toEqual([]);
+    expect(list.body.trips).toHaveLength(2);
+
+    // Ad hoc: forgot a few things — add, shop, done. Three rounds in one week.
+    const batteries = await addManual("Batteries");
+    const bread = await addManual("Bread");
+    await setChecked(batteries.id);
+    await setChecked(bread.id);
+    const trip3 = await completeTrip();
+    expect(trip3.status).toBe(201);
+    expect(trip3.body.trips).toHaveLength(3);
+    expect(trip3.body.trips[2].items.map((i: ShoppingListEntry) => i.name).sort()).toEqual([
+      "Batteries",
+      "Bread",
+    ]);
+    expect((await getList()).body.items).toEqual([]);
+  });
+
+  it("swapping a day's recipe after shopping brings only the new recipe's ingredients back", async () => {
+    const bolognese = await createRecipe({
+      name: "Bolognese",
+      ingredients: [{ name: "onion", quantity: "2", unit: "" }],
+      servings: 4,
+    });
+    const tacos = await createRecipe({
+      name: "Tacos",
+      ingredients: [
+        { name: "onion", quantity: "1", unit: "" },
+        { name: "tortillas", quantity: "8", unit: "" },
+      ],
+      servings: 4,
+    });
+    await setPlan([{ day: "monday", recipeId: bolognese, recipeName: "Bolognese" }]);
+    const onion = findItem(await getList(), "onion");
+    await setChecked(onion.id);
+    await completeTrip().then((r) => expect(r.status).toBe(201));
+
+    await setPlan([{ day: "monday", recipeId: tacos, recipeName: "Tacos" }]);
+    const list = await getList();
+    expect(names(list)).toEqual(["onion", "tortillas"]);
+    expect(findItem(list, "onion")).toMatchObject({ quantity: "1", checked: false });
+  });
+
+  it("ends the claimed trip: status fields are cleared and the version bumps", async () => {
+    const id = await createRecipe({
+      name: "R",
+      ingredients: [{ name: "milk", quantity: "1", unit: "l" }],
+      servings: 4,
+    });
+    await setPlan([{ day: "monday", recipeId: id, recipeName: "R" }]);
+    const milk = findItem(await getList(), "milk");
+    await withAuth(request(app).post(`/api/shopping-lists/status?week=${week}`), token)
+      .send({ status: "approved", baseVersion: 0 })
+      .expect(200);
+    await setChecked(milk.id);
+
+    const res = await completeTrip({ baseVersion: 2 });
+    expect(res.status).toBe(201);
+    expect(res.body.version).toBe(3);
+    expect(res.body.status).toBeUndefined();
+    expect(res.body.approvedBy).toBeUndefined();
+    expect(res.body.approvedByEmail).toBeUndefined();
+    expect(res.body.approvedAt).toBeUndefined();
+    expect(res.body.items).toEqual([]);
+  });
+
+  it("with nothing checked, 'done' on a claimed list just ends the trip (200, no history entry)", async () => {
+    const id = await createRecipe({
+      name: "R",
+      ingredients: [{ name: "milk", quantity: "1", unit: "l" }],
+      servings: 4,
+    });
+    await setPlan([{ day: "monday", recipeId: id, recipeName: "R" }]);
+    await getList();
+    await withAuth(request(app).post(`/api/shopping-lists/status?week=${week}`), token)
+      .send({ status: "approved" })
+      .expect(200);
+
+    const res = await completeTrip();
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBeUndefined();
+    expect(res.body.trips).toBeUndefined();
+    expect(res.body.version).toBe(2);
+  });
+
+  it("with nothing checked on an open list it is a no-op (no version bump)", async () => {
+    await addManual("Coffee");
+    const res = await completeTrip();
+    expect(res.status).toBe(200);
+    expect(res.body.trips).toBeUndefined();
+    expect(res.body.version).toBe(0);
+  });
+
+  it("honours a client-minted trip id and completion time, and replays idempotently", async () => {
+    const coffee = await addManual("Coffee");
+    await setChecked(coffee.id);
+    const tripId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const completedAt = "2026-03-03T17:30:00.000Z";
+
+    const first = await completeTrip({ id: tripId, completedAt });
+    expect(first.status).toBe(201);
+    expect(first.body.trips[0]).toMatchObject({ id: tripId, completedAt });
+    expect(first.body.version).toBe(2);
+
+    // The replay (e.g. an outbox flush after a reload) archives nothing more.
+    const bread = await addManual("Bread");
+    await setChecked(bread.id);
+    const replay = await completeTrip({ id: tripId });
+    expect(replay.status).toBe(200);
+    expect(replay.body.trips).toHaveLength(1);
+    expect(replay.body.items.map((i: ShoppingListEntry) => i.id)).toEqual([bread.id]);
+  });
+
+  it("409s a stale baseVersion with the current doc and archives nothing", async () => {
+    const coffee = await addManual("Coffee");
+    await setChecked(coffee.id);
+    const res = await completeTrip({ baseVersion: 0 });
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: "conflict", version: 1, weekIdentifier: week });
+    expect((await getList()).body.trips).toBeUndefined();
+  });
+
+  it("404s when the week has no list, 400s a malformed id or time", async () => {
+    expect((await completeTrip()).status).toBe(404);
+    await addManual("Coffee");
+    expect((await completeTrip({ id: "nope" })).status).toBe(400);
+    expect((await completeTrip({ completedAt: "yesterday" })).status).toBe(400);
+  });
+
+  it("any family member can complete, and the trip names who did", async () => {
+    const coffee = await addManual("Coffee");
+    await setChecked(coffee.id);
+    const partner: TestIdentity = { id: "hs-partner", email: "partner@example.com", role: "user" };
+    await setupAdmin(app, partner);
+    const invite = await withAuth(request(app).post("/api/family/invites"), token).send({
+      email: partner.email,
+    });
+    await withAuth(request(app).post("/api/family/invites/accept"), partner)
+      .send({ token: invite.body.token })
+      .expect(200);
+
+    const res = await completeTrip({}, partner);
+    expect(res.status).toBe(201);
+    expect(res.body.trips[0]).toMatchObject({ completedByEmail: partner.email });
+    expect((await getList()).body.trips[0].completedByEmail).toBe(partner.email);
+  });
+
+  describe("DELETE /api/shopping-lists/trips/:id — undo", () => {
+    it("moves the trip's items back onto the open list, still checked, and regenerates their plan share", async () => {
+      const bolognese = await createRecipe({
+        name: "Bolognese",
+        ingredients: [{ name: "onion", quantity: "2", unit: "" }],
+        servings: 4,
+      });
+      await setPlan([{ day: "monday", recipeId: bolognese, recipeName: "Bolognese" }]);
+      const onion = findItem(await getList(), "onion");
+      const coffee = await addManual("Coffee");
+      await setChecked(onion.id);
+      await setChecked(coffee.id);
+      const done = await completeTrip();
+      const tripId = done.body.trips[0].id as string;
+      expect((await getList()).body.items).toEqual([]);
+
+      const undo = await withAuth(
+        request(app).delete(`/api/shopping-lists/trips/${tripId}?week=${week}`),
+        token,
+      );
+      expect(undo.status).toBe(200);
+      expect(undo.body.trips).toBeUndefined();
+      expect(undo.body.version).toBe(done.body.version + 1);
+
+      const list = await getList();
+      expect(names(list)).toEqual(["coffee", "onion"]);
+      expect(findItem(list, "onion")).toMatchObject({ id: onion.id, checked: true, quantity: "2" });
+      expect(findItem(list, "coffee")).toMatchObject({ id: coffee.id, checked: true, manual: true });
+    });
+
+    it("404s for an unknown trip", async () => {
+      await addManual("Coffee");
+      const res = await withAuth(
+        request(app).delete(
+          `/api/shopping-lists/trips/00000000-0000-4000-8000-000000000000?week=${week}`,
+        ),
+        token,
+      );
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("events", () => {
+    it("a completed trip emits shopping-list.status; undo emits shopping-list.changed; no-ops stay silent", async () => {
+      const coffee = await addManual("Coffee");
+      const me = await withAuth(request(app).get("/api/auth/me"), token);
+      const events: ShoppingListEvent[] = [];
+      const stop = subscribeFamily(me.body.familyId as string, (evt) => events.push(evt));
+      try {
+        await completeTrip().then((r) => expect(r.status).toBe(200)); // nothing checked → no-op
+        expect(events).toEqual([]);
+
+        await setChecked(coffee.id);
+        events.length = 0;
+        const done = await completeTrip();
+        expect(events).toHaveLength(1);
+        expect(events[0]).toMatchObject({
+          type: "shopping-list.status",
+          week,
+          version: done.body.version,
+          actor: { kind: "user", label: token.email },
+        });
+
+        await withAuth(
+          request(app).delete(`/api/shopping-lists/trips/${done.body.trips[0].id}?week=${week}`),
+          token,
+        ).expect(200);
+        expect(events).toHaveLength(2);
+        expect(events[1]).toMatchObject({ type: "shopping-list.changed", week });
+      } finally {
+        stop();
+      }
+    });
+  });
+});
+
+describe("POST /api/shopping-lists/status — ready", () => {
+  async function listWithItem(): Promise<void> {
+    await withAuth(request(app).post(`/api/shopping-lists/items?week=${week}`), token)
+      .send({ name: "Coffee" })
+      .expect(201);
+  }
+
+  async function setStatus(
+    body: { status: string; baseVersion?: number },
+    identity = token,
+  ): Promise<request.Response> {
+    return withAuth(request(app).post(`/api/shopping-lists/status?week=${week}`), identity).send(
+      body,
+    );
+  }
+
+  it("marks an open list ready, recording who + when, and bumps the version", async () => {
+    await listWithItem();
+    const res = await setStatus({ status: "ready", baseVersion: 0 });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "ready", readyByEmail: token.email, version: 1 });
+    expect(res.body.readyBy).toBeTypeOf("string");
+    expect(new Date(res.body.readyAt).getTime()).not.toBeNaN();
+    expect((await getList()).body).toMatchObject({ status: "ready", readyByEmail: token.email });
+  });
+
+  it("marking ready twice is a no-op; approving a ready list clears the ready fields", async () => {
+    await listWithItem();
+    await setStatus({ status: "ready" }).then((r) => expect(r.status).toBe(200));
+    const again = await setStatus({ status: "ready" });
+    expect(again.status).toBe(200);
+    expect(again.body.version).toBe(1);
+
+    const approved = await setStatus({ status: "approved", baseVersion: 1 });
+    expect(approved.status).toBe(200);
+    expect(approved.body).toMatchObject({ status: "approved", approvedByEmail: token.email, version: 2 });
+    expect(approved.body.readyBy).toBeUndefined();
+    expect(approved.body.readyByEmail).toBeUndefined();
+    expect(approved.body.readyAt).toBeUndefined();
+  });
+
+  it("marking ready while someone is shopping is a satisfied intent, not a conflict", async () => {
+    await listWithItem();
+    await setStatus({ status: "approved" }).then((r) => expect(r.status).toBe(200));
+    const res = await setStatus({ status: "ready" });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "approved", version: 1 });
+  });
+
+  it("reopening a ready list clears the ready fields", async () => {
+    await listWithItem();
+    await setStatus({ status: "ready" }).then((r) => expect(r.status).toBe(200));
+    const res = await setStatus({ status: "open", baseVersion: 1 });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBeUndefined();
+    expect(res.body.readyBy).toBeUndefined();
+    expect(res.body.version).toBe(2);
+  });
+
+  it("emits shopping-list.status for a ready transition", async () => {
+    await listWithItem();
+    const me = await withAuth(request(app).get("/api/auth/me"), token);
+    const events: ShoppingListEvent[] = [];
+    const stop = subscribeFamily(me.body.familyId as string, (evt) => events.push(evt));
+    try {
+      await setStatus({ status: "ready" }).then((r) => expect(r.status).toBe(200));
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ type: "shopping-list.status", week, version: 1 });
+    } finally {
+      stop();
+    }
+  });
+});

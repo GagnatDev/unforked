@@ -8,6 +8,8 @@ import {
 import { currentWeekIdentifier } from "../domain/weekIdentifier.js";
 import { publishShoppingListEvent, type ChangeActor } from "../service/changeEvents.js";
 import { getSyncedShoppingList } from "../service/shoppingListRead.js";
+import { clearStatusFields } from "../service/shoppingListSync.js";
+import { completeShoppingTrip, undoShoppingTrip } from "../service/shoppingListTrips.js";
 import { addManualItems } from "../service/shoppingListWrite.js";
 import { requireUuidParam, validateBody } from "../middleware/validate.js";
 import { IngredientCategoryRepository } from "../storage/ingredientCategoryRepository.js";
@@ -35,8 +37,15 @@ const patchItemSchema = z
   );
 
 const statusSchema = z.object({
-  status: z.enum(["approved", "open"]),
+  status: z.enum(["approved", "ready", "open"]),
   // Same optimistic-concurrency contract as item writes (design #104 D4).
+  baseVersion: z.number().int().nonnegative().optional(),
+});
+
+const completeTripSchema = z.object({
+  // Client-minted trip id + completion time (offline-first "Shopping done").
+  id: z.string().uuid().optional(),
+  completedAt: z.string().datetime({ offset: true }).optional(),
   baseVersion: z.number().int().nonnegative().optional(),
 });
 
@@ -160,11 +169,17 @@ export function shoppingListRoutes(db: Db): Router {
     res.status(201).json(created);
   });
 
-  // Approved / "shopping now" state (design #104 D4). Approving marks the week
-  // as being shopped and records who + when; reopening ("done" / cancel) is
-  // allowed to any family member. A genuine transition bumps the version so
-  // stale writers 409 with the current doc, exactly like item writes — and
-  // approving an already-approved list 409s too (someone beat you to the trip).
+  // Trip state of the open list (design #104 D4, extended with `ready`).
+  //   open ──"ready"──▶ ready ──"approved"──▶ approved ──"open"──▶ open
+  //     └────────────"approved"────────────────▲   (or "Shopping done",
+  //                                                 see /trips below)
+  // Marking ready says "I've finished adding — anyone can shop this"; approving
+  // claims the trip ("I'm going shopping") and records who + when; reopening
+  // (cancel / back to editing) is allowed to any family member. A genuine
+  // transition bumps the version so stale writers 409 with the current doc,
+  // exactly like item writes — and approving an already-approved list 409s
+  // too (someone beat you to the trip). Marking ready while someone is already
+  // shopping is a satisfied intent (no-op), not a conflict.
   router.post("/shopping-lists/status", validateBody(statusSchema), async (req, res) => {
     const { user, familyId } = await requireUserAndFamily(users, req);
     const weekId = resolveWeek(req.query.week);
@@ -180,14 +195,26 @@ export function shoppingListRoutes(db: Db): Router {
       // The pre-write approver: a reopen notification targets whoever's trip
       // just ended, which the post-write doc no longer records (D6).
       const previousApprovedBy = row.doc.approvedBy;
+      const now = new Date().toISOString();
       if (status === "approved") {
         if (current === "approved") {
           return { status: "conflict" as const, doc: row.doc, version: row.version };
         }
+        clearStatusFields(row.doc);
         row.doc.status = "approved";
         row.doc.approvedBy = user.id;
         row.doc.approvedByEmail = user.email;
-        row.doc.approvedAt = new Date().toISOString();
+        row.doc.approvedAt = now;
+      } else if (status === "ready") {
+        if (current !== "open") {
+          // Already ready, or someone is already out shopping it: the intent
+          // is satisfied (e.g. an offline "ready" replayed late). No write.
+          return { status: "noop" as const, doc: row.doc, version: row.version };
+        }
+        row.doc.status = "ready";
+        row.doc.readyBy = user.id;
+        row.doc.readyByEmail = user.email;
+        row.doc.readyAt = now;
       } else {
         if (current === "open") {
           // Reopening an open list is a satisfied intent (e.g. an offline
@@ -195,11 +222,8 @@ export function shoppingListRoutes(db: Db): Router {
           // no version bump, no event.
           return { status: "noop" as const, doc: row.doc, version: row.version };
         }
-        // Absent = open (back-compat), so clear all four fields.
-        delete row.doc.status;
-        delete row.doc.approvedBy;
-        delete row.doc.approvedByEmail;
-        delete row.doc.approvedAt;
+        // Absent = open (back-compat), so clear every status field.
+        clearStatusFields(row.doc);
       }
       await shoppingLists.updateDoc(trx, row.id, row.doc, { bumpVersion: true });
       return {
@@ -229,9 +253,76 @@ export function shoppingListRoutes(db: Db): Router {
         },
         status === "approved"
           ? { status: "approved", approvedBy: user.id }
-          : { status: "open", previousApprovedBy: outcome.previousApprovedBy },
+          : status === "ready"
+            ? { status: "ready" }
+            : { status: "open", previousApprovedBy: outcome.previousApprovedBy },
       );
     }
+    res.json({ ...outcome.doc, version: outcome.version });
+  });
+
+  // "Shopping done": archive the checked items as a completed trip and return
+  // the open list (what is still to buy) to open. Lets a week be shopped in
+  // several rounds instead of one list per week — see service/shoppingListTrips.
+  router.post("/shopping-lists/trips", validateBody(completeTripSchema), async (req, res) => {
+    const { user, familyId } = await requireUserAndFamily(users, req);
+    const weekId = resolveWeek(req.query.week);
+    const body = req.body as z.infer<typeof completeTripSchema>;
+
+    const outcome = await completeShoppingTrip(db, familyId, weekId, body, user);
+    if (outcome.status === "notFound") {
+      res.status(404).json({ error: "Shopping list not found" });
+      return;
+    }
+    if (outcome.status === "conflict") {
+      res.status(409).json({ error: "conflict", version: outcome.version, ...outcome.doc });
+      return;
+    }
+    if (outcome.status === "ok") {
+      publishShoppingListEvent(
+        {
+          type: "shopping-list.status",
+          familyId,
+          week: weekId,
+          version: outcome.version,
+          actor: userActor(user),
+        },
+        {
+          status: "open",
+          previousApprovedBy: outcome.previousApprovedBy,
+          tripCompleted: { itemCount: outcome.trip?.items.length ?? 0 },
+        },
+      );
+    }
+    res.status(outcome.status === "ok" && outcome.trip ? 201 : 200).json({
+      ...outcome.doc,
+      version: outcome.version,
+    });
+  });
+
+  // Undo a "Shopping done": the trip's items come back onto the open list
+  // (still checked) and the trip leaves the history.
+  router.delete("/shopping-lists/trips/:id", async (req, res) => {
+    const { user, familyId } = await requireUserAndFamily(users, req);
+    const weekId = resolveWeek(req.query.week);
+    const tripId = requireUuidParam(req.params.id, res);
+    if (!tripId) return;
+
+    const outcome = await undoShoppingTrip(db, familyId, weekId, tripId);
+    if (outcome.status === "notFound") {
+      res.status(404).json({ error: "Shopping trip not found" });
+      return;
+    }
+    publishShoppingListEvent(
+      {
+        type: "shopping-list.changed",
+        familyId,
+        week: weekId,
+        version: outcome.version,
+        actor: userActor(user),
+      },
+      { status: outcome.doc.status ?? "open", approvedBy: outcome.doc.approvedBy },
+    );
     res.json({ ...outcome.doc, version: outcome.version });
   });
 

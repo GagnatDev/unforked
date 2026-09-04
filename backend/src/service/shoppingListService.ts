@@ -1,5 +1,7 @@
+import { boughtSourceKey, shoppingItemKey } from "../domain/shoppingItemKey.js";
 import type {
   DayAssignment,
+  ItemSource,
   MealPlanDoc,
   RecipeDoc,
   ShoppingListItem,
@@ -12,8 +14,17 @@ export interface RecipeEntry {
 }
 
 type Contribution =
-  | { kind: "inFamily"; baseAmount: number; recipeId: string }
-  | { kind: "raw"; quantity: string; recipeId: string };
+  | { kind: "inFamily"; baseAmount: number; source: ItemSource }
+  | { kind: "raw"; quantity: string; source: ItemSource };
+
+export interface AggregateOptions {
+  /**
+   * Contributions already bought on a completed trip, as `boughtSourceKey`s
+   * (see `domain/shoppingItemKey.ts`). They are left out of the aggregate so
+   * the open list only shows what is still to buy.
+   */
+  bought?: ReadonlySet<string>;
+}
 
 /**
  * Aggregate ingredients across meal-plan assignments. Same-name ingredients merge
@@ -23,13 +34,16 @@ type Contribution =
 export function buildAggregatedShoppingItems(
   plan: MealPlanDoc,
   recipeById: Map<string, RecipeEntry>,
+  options: AggregateOptions = {},
 ): ShoppingListItem[] {
   const aggregated = new Map<string, Contribution[]>();
+  const bought = options.bought;
 
   for (const assignment of plan.assignments) {
     const entry = recipeById.get(assignment.recipeId);
     if (!entry) continue;
     const scale = scaleForAssignment(plan, assignment, entry.doc);
+    const source: ItemSource = { day: assignment.day, recipeId: entry.id };
 
     for (const ing of entry.doc.ingredients) {
       const name = ing.name.toLowerCase().trim();
@@ -38,15 +52,23 @@ export function buildAggregatedShoppingItems(
       const parsed = parseQuantity(scaledQty);
       const key = known && parsed !== null ? `${name}|${known.family}` : `${name}|${ing.unit}`;
 
+      if (
+        bought?.has(
+          boughtSourceKey(shoppingItemKey({ name: ing.name, quantity: scaledQty, unit: ing.unit }), source),
+        )
+      ) {
+        continue;
+      }
+
       let list = aggregated.get(key);
       if (!list) {
         list = [];
         aggregated.set(key, list);
       }
       if (known && parsed !== null) {
-        list.push({ kind: "inFamily", baseAmount: parsed * known.toBase, recipeId: entry.id });
+        list.push({ kind: "inFamily", baseAmount: parsed * known.toBase, source });
       } else {
-        list.push({ kind: "raw", quantity: scaledQty, recipeId: entry.id });
+        list.push({ kind: "raw", quantity: scaledQty, source });
       }
     }
   }
@@ -57,21 +79,34 @@ export function buildAggregatedShoppingItems(
     const nameLower = key.slice(0, sep);
     const second = key.slice(sep + 1);
     const displayName = nameLower.charAt(0).toUpperCase() + nameLower.slice(1);
-    const recipeIds = [...new Set(contribs.map((c) => c.recipeId))];
+    const recipeIds = [...new Set(contribs.map((c) => c.source.recipeId))];
+    const sources = distinctSources(contribs.map((c) => c.source));
 
     if (second === "volume" || second === "weight") {
       const sum = contribs.reduce((acc, c) => (c.kind === "inFamily" ? acc + c.baseAmount : acc), 0);
       const [displayVal, unit] = bestDisplayUnit(sum, second as UnitFamily);
-      items.push({ name: displayName, quantity: formatQuantity(displayVal), unit, recipeIds });
+      items.push({ name: displayName, quantity: formatQuantity(displayVal), unit, recipeIds, sources });
     } else {
       const quantities = contribs
         .filter((c): c is Extract<Contribution, { kind: "raw" }> => c.kind === "raw")
         .map((c) => c.quantity)
         .filter((q) => q.trim() !== "");
-      items.push({ name: displayName, quantity: summarizeQuantities(quantities), unit: second, recipeIds });
+      items.push({
+        name: displayName,
+        quantity: summarizeQuantities(quantities),
+        unit: second,
+        recipeIds,
+        sources,
+      });
     }
   }
   return items.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+function distinctSources(sources: ItemSource[]): ItemSource[] {
+  const byKey = new Map<string, ItemSource>();
+  for (const s of sources) byKey.set(`${s.day}\u0000${s.recipeId}`, s);
+  return [...byKey.values()];
 }
 
 /**
