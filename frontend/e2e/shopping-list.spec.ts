@@ -248,7 +248,11 @@ test('recipe items offer no edit control', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Edit Milk' })).toHaveCount(0)
 })
 
-test('approving shows the persistent banner and reopening clears it (design #104 D4)', async ({
+/** Status values POSTed to `/status`, in order, as the outbox drains. */
+const statusWrites = (requests: { url: string; body: unknown }[]) =>
+  requests.filter((r) => r.url.includes('/status')).map((r) => (r.body as { status: string }).status)
+
+test('approving shows the persistent banner and cancelling clears it (design #104 D4)', async ({
   page,
 }) => {
   const { requests } = await mockShoppingList(page, '2026-W13', WEEK_ITEMS)
@@ -264,26 +268,20 @@ test('approving shows the persistent banner and reopening clears it (design #104
   await expect(banner).toContainText('dev@local.test is shopping')
   await expect(page.getByRole('button', { name: "I'm going shopping" })).toHaveCount(0)
   // The status write drains through the outbox in the background.
-  await expect
-    .poll(() =>
-      requests.filter((r) => r.url.includes('/status')).map((r) => (r.body as { status: string }).status),
-    )
-    .toEqual(['approved'])
+  await expect.poll(() => statusWrites(requests)).toEqual(['approved'])
 
   // Items stay fully usable while the list is approved.
   const milkCheckbox = page.getByRole('checkbox', { name: 'Mark Milk as in cart' })
   await milkCheckbox.click()
   await expect(milkCheckbox).toBeChecked()
 
-  // Done: the banner goes, the action returns, and the reopen syncs.
-  await page.getByRole('button', { name: 'Done' }).click()
+  // Cancel: the banner goes, the action returns, nothing is archived.
+  await page.getByRole('button', { name: 'Cancel trip' }).click()
   await expect(banner).toHaveCount(0)
   await expect(page.getByRole('button', { name: "I'm going shopping" })).toBeVisible()
-  await expect
-    .poll(() =>
-      requests.filter((r) => r.url.includes('/status')).map((r) => (r.body as { status: string }).status),
-    )
-    .toEqual(['approved', 'open'])
+  await expect(milkCheckbox).toBeChecked()
+  await expect(page.getByRole('region', { name: 'Bought this week' })).toHaveCount(0)
+  await expect.poll(() => statusWrites(requests)).toEqual(['approved', 'open'])
 })
 
 test('a list already approved by someone else shows their banner on load', async ({ page }) => {
@@ -300,7 +298,180 @@ test('a list already approved by someone else shows their banner on load', async
   await expect(banner).toBeVisible()
   await expect(banner).toContainText('partner@example.com is shopping')
   await expect(page.getByRole('button', { name: "I'm going shopping" })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Shopping done' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cancel trip' })).toBeVisible()
+})
+
+test.describe('shopping a week in several trips', () => {
+  test('marking the list ready shows who finished it, and can be taken back', async ({ page }) => {
+    const { requests } = await mockShoppingList(page, '2026-W13', [
+      entry({ id: '11111111-1111-4111-8111-111111111111', name: 'Milk' }),
+      entry({ id: '33333333-3333-4333-8333-333333333333', name: 'Tomatoes', category: 'produce' }),
+    ])
+
+    await page.goto('/shopping-list')
+    await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Ready to shop' }).click()
+    const banner = page.getByRole('status').filter({ hasText: 'finished the list' })
+    await expect(banner).toBeVisible()
+    await expect(banner).toContainText('Ready to shop — dev@local.test finished the list')
+    // The shopper can still claim it; the planner can still take it back.
+    await expect(page.getByRole('button', { name: "I'm going shopping" })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Ready to shop' })).toHaveCount(0)
+    await expect.poll(() => statusWrites(requests)).toEqual(['ready'])
+
+    await page.getByRole('button', { name: 'Back to editing' }).click()
+    await expect(banner).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Ready to shop' })).toBeVisible()
+    await expect.poll(() => statusWrites(requests)).toEqual(['ready', 'open'])
+  })
+
+  test('a list someone else marked ready shows their banner on load', async ({ page }) => {
+    await mockShoppingList(page, '2026-W13', WEEK_ITEMS, {
+      status: 'ready',
+      readyBy: '99999999-9999-4999-8999-999999999999',
+      readyByEmail: 'partner@example.com',
+      readyAt: new Date().toISOString(),
+    })
+
+    await page.goto('/shopping-list')
+
+    const banner = page.getByRole('status').filter({ hasText: 'finished the list' })
+    await expect(banner).toBeVisible()
+    await expect(banner).toContainText('partner@example.com finished the list')
+    await expect(page.getByRole('button', { name: "I'm going shopping" })).toBeVisible()
+  })
+
+  test('shopping done archives the checked items as a trip and leaves the rest to buy', async ({
+    page,
+  }) => {
+    const { requests } = await mockShoppingList(page, '2026-W13', WEEK_ITEMS)
+
+    await page.goto('/shopping-list')
+    await expect(page.getByText('4 to buy')).toBeVisible()
+
+    await page.getByRole('button', { name: "I'm going shopping" }).click()
+    await page.getByRole('checkbox', { name: 'Mark Milk as in cart' }).click()
+    await page.getByRole('button', { name: 'Shopping done' }).click()
+
+    // Milk and the pre-checked Butter are bought; Tomatoes and Chicken stay open.
+    await expect(page.getByText('2 to buy · 2 bought this week')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Dairy & eggs' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Fruit & vegetables' }).getByText('Tomatoes')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Meat' }).getByText('Chicken breast')).toBeVisible()
+    // The claim is released, so the next round starts from a clean card.
+    await expect(page.getByRole('status').filter({ hasText: 'is shopping' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: "I'm going shopping" })).toBeVisible()
+
+    const history = page.getByRole('region', { name: 'Bought this week' })
+    await expect(history).toBeVisible()
+    await expect(history.getByText('Trip 1')).toBeVisible()
+    await expect(history.getByText('dev@local.test', { exact: false })).toBeVisible()
+    await history.getByLabel('Show items bought on trip 1').click()
+    await expect(history.getByText('Milk')).toBeVisible()
+    await expect(history.getByText('Butter')).toBeVisible()
+
+    // Offline-first: the client mints the trip id and POSTs it in the background.
+    await expect.poll(() => requests.filter((r) => r.url.includes('/trips')).length).toBe(1)
+    const posted = requests.find((r) => r.url.includes('/trips'))!
+    expect(posted.method).toBe('POST')
+    expect((posted.body as { id: string }).id).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  test('a quick top-up: shopping done needs no claim once something is in the cart', async ({
+    page,
+  }) => {
+    const { requests } = await mockShoppingList(page, '2026-W13', [
+      entry({ id: '11111111-1111-4111-8111-111111111111', name: 'Milk' }),
+      entry({ id: '33333333-3333-4333-8333-333333333333', name: 'Tomatoes', category: 'produce' }),
+    ])
+
+    await page.goto('/shopping-list')
+    // Nothing ticked yet: the secondary action is about finishing the plan.
+    await expect(page.getByRole('button', { name: 'Ready to shop' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Shopping done' })).toHaveCount(0)
+
+    await page.getByRole('checkbox', { name: 'Mark Tomatoes as in cart' }).click()
+    await expect(page.getByRole('button', { name: 'Shopping done' })).toBeVisible()
+    await page.getByRole('button', { name: 'Shopping done' }).click()
+
+    await expect(page.getByText('1 to buy · 1 bought this week')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Bought this week' }).getByText('Trip 1')).toBeVisible()
+    await expect.poll(() => requests.filter((r) => r.url.includes('/trips')).length).toBe(1)
+    expect(statusWrites(requests)).toEqual([])
+  })
+
+  test('undoing a trip puts its items back on the list, still checked', async ({ page }) => {
+    const bought = [
+      entry({ id: '11111111-1111-4111-8111-111111111111', name: 'Milk', checked: true }),
+      entry({
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'Butter',
+        quantity: '250',
+        unit: 'g',
+        checked: true,
+      }),
+    ]
+    const { requests } = await mockShoppingList(
+      page,
+      '2026-W13',
+      [entry({ id: '33333333-3333-4333-8333-333333333333', name: 'Tomatoes', category: 'produce' })],
+      {
+        trips: [
+          {
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            completedAt: new Date().toISOString(),
+            completedBy: '99999999-9999-4999-8999-999999999999',
+            completedByEmail: 'partner@example.com',
+            items: bought,
+          },
+        ],
+      },
+    )
+
+    await page.goto('/shopping-list')
+    await expect(page.getByText('1 to buy · 2 bought this week')).toBeVisible()
+
+    const history = page.getByRole('region', { name: 'Bought this week' })
+    await expect(history.getByText('partner@example.com', { exact: false })).toBeVisible()
+    await history.getByLabel('Show items bought on trip 1').click()
+    await history.getByRole('button', { name: 'Put the items from trip 1 back on the list' }).click()
+
+    await expect(history).toHaveCount(0)
+    await expect(page.getByText('3 to buy')).toBeVisible()
+    const dairy = page.getByRole('region', { name: 'Dairy & eggs' })
+    await expect(dairy.getByRole('listitem')).toHaveCount(2)
+    await expect(page.getByRole('checkbox', { name: 'Mark Milk as in cart' })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: 'Mark Butter as in cart' })).toBeChecked()
+    await expect
+      .poll(() => requests.filter((r) => r.url.includes('/trips')).map((r) => r.method))
+      .toEqual(['DELETE'])
+  })
+
+  test('when everything has been bought, the empty state says so instead of "nothing planned"', async ({
+    page,
+  }) => {
+    await mockShoppingList(page, '2026-W13', [], {
+      trips: [
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          completedAt: new Date().toISOString(),
+          completedBy: '00000000-0000-4000-8000-000000000001',
+          completedByEmail: 'dev@local.test',
+          items: [entry({ name: 'Milk', checked: true })],
+        },
+      ],
+    })
+
+    await page.goto('/shopping-list')
+
+    await expect(page.getByText(/Everything on the list has been bought/)).toBeVisible()
+    await expect(page.getByText(/No ingredients for the selected week/)).toHaveCount(0)
+    await expect(page.getByText('1 bought this week')).toBeVisible()
+    // A forgotten item can still be added for an ad-hoc top-up trip.
+    await expect(page.getByLabel('Add item')).toBeVisible()
+  })
 })
 
 test('changing category moves the item to the other section', async ({ page }) => {
