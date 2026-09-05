@@ -1,3 +1,4 @@
+import { AUTH_FETCH_TIMEOUT_MS, fetchWithTimeout } from '@/lib/fetchTimeout'
 import { requestReauth } from '@/lib/reauth'
 import { getCurrentWeekId, getNextWeekId } from '@/lib/utils'
 
@@ -183,11 +184,15 @@ async function probeAuth(): Promise<void> {
   probing = true
   consecutiveFailures = 0
   try {
-    const res = await fetch(`${base}/api/auth/me`)
+    const res = await fetchWithTimeout(
+      `${base}/api/auth/me`,
+      undefined,
+      AUTH_FETCH_TIMEOUT_MS,
+    )
     if (res.status === 401) void requestReauth()
   } catch {
-    // Network unreachable — offline does nothing; recovery is the stream's
-    // own retries plus the existing online/focus pulls.
+    // Network unreachable / timeout — offline does nothing; recovery is the
+    // stream's own retries plus the existing online/focus pulls.
   } finally {
     probing = false
   }

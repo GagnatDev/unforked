@@ -430,7 +430,9 @@ describe('failure discipline', () => {
     es.fail()
 
     await vi.waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/auth/me')
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }))
       expect(requestReauthMock).toHaveBeenCalled()
     })
     // The classifier owns any navigation; one more error must not re-probe yet.
@@ -447,7 +449,12 @@ describe('failure discipline', () => {
     es.fail()
     es.fail()
 
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/me'))
+    await vi.waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/auth/me',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      ),
+    )
     expect(requestReauthMock).not.toHaveBeenCalled()
   })
 

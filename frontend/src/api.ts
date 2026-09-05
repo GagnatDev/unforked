@@ -1,3 +1,4 @@
+import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from '@/lib/fetchTimeout'
 import { requestReauth } from '@/lib/reauth'
 import type {
   ApiKey,
@@ -68,13 +69,17 @@ export async function uploadPhotoBlob(
  * fires only when genuinely online, and is deferred when unsynced work is
  * queued rather than yanking the user mid-edit (offline-first spec A7). A
  * network error (offline) throws below without ever reaching that path.
+ *
+ * Requests are bounded by {@link DEFAULT_FETCH_TIMEOUT_MS} so a hanging
+ * cellular link cannot leave background pulls (and page "loading" gates that
+ * wait on `pullError`) spinning forever.
  */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options?.headers as Record<string, string>),
   }
-  const res = await fetch(`${base}${path}`, { ...options, headers })
+  const res = await fetchWithTimeout(`${base}${path}`, { ...options, headers }, DEFAULT_FETCH_TIMEOUT_MS)
   if (!res.ok) {
     if (res.status === 401) void requestReauth()
     const text = await res.text()
