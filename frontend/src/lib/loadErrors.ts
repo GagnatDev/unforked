@@ -4,11 +4,19 @@ import type { TFunction } from 'i18next'
 export const COULD_NOT_REACH_SERVER_I18N_KEY = 'errors.couldNotReachServer' as const
 
 function isLikelyFetchNetworkFailure(e: unknown): boolean {
-  if (!(e instanceof TypeError)) return false
-  const m = e.message
-  if (m === 'Failed to fetch') return true
-  if (m === 'NetworkError when attempting to fetch resource.') return true
-  if (m === 'Load failed') return true
+  if (e instanceof TypeError) {
+    const m = e.message
+    if (m === 'Failed to fetch') return true
+    if (m === 'NetworkError when attempting to fetch resource.') return true
+    if (m === 'Load failed') return true
+    return false
+  }
+  // AbortSignal.timeout() / hanging-link budgets surface as TimeoutError in
+  // modern engines; treat them like transport failure for UI/error mapping.
+  if (typeof e === 'object' && e !== null && 'name' in e) {
+    const name = (e as { name: string }).name
+    if (name === 'TimeoutError') return true
+  }
   return false
 }
 

@@ -8,6 +8,12 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import {
+  clearCachedIdentity,
+  readCachedIdentity,
+  writeCachedIdentity,
+} from '@/lib/authIdentity'
+import { AUTH_FETCH_TIMEOUT_MS, fetchWithTimeout } from '@/lib/fetchTimeout'
 import { markAuthenticated, navigateForLogin, onSessionLost } from '@/lib/session'
 import {
   clearDeferredReauth,
@@ -43,21 +49,40 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 const base = import.meta.env.VITE_API_URL ?? ''
 
+function initialCachedUser(): UserInfo | null {
+  const cached = readCachedIdentity()
+  // A previously confirmed identity counts as an established session so a cold
+  // start that later sees a 401 with queued work defers re-auth (A7) instead of
+  // immediately unregistering the SW on a flaky link.
+  if (cached) setSessionEstablished(true)
+  return cached
+}
+
 /**
  * Loads the identity resolved by the backend from the auth sidecar's headers.
  * The SPA is auth-agnostic: no token, no login form — the sidecar redirects
  * unauthenticated top-level navigations to central login, and 401s on XHRs are
  * answered with a full page load so that redirect can happen.
+ *
+ * On poor cellular, `/api/auth/me` can hang while `navigator.onLine` stays true.
+ * We bound that fetch and hydrate from the last cached identity so RequireAuth
+ * can mount the shell and IndexedDB-backed pages without waiting on the network.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserInfo | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<UserInfo | null>(initialCachedUser)
+  // Cached identity → show the shell immediately and revalidate in the
+  // background. No cache → wait for `/me` (with timeout) before deciding.
+  const [loading, setLoading] = useState(() => readCachedIdentity() === null)
   const [reloading, setReloading] = useState(false)
   const [reauthPending, setReauthPending] = useState(isReauthDeferred)
 
   const loadUser = useCallback(async (): Promise<void> => {
     try {
-      const res = await fetch(`${base}/api/auth/me`)
+      const res = await fetchWithTimeout(
+        `${base}/api/auth/me`,
+        undefined,
+        AUTH_FETCH_TIMEOUT_MS,
+      )
       if (res.ok) {
         // A confirmed identity means the session is healthy again: clear the
         // re-auth loop counters and any deferred re-auth so a later expiry
@@ -67,7 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearDeferredReauth()
         setReloading(false)
         setSessionEstablished(true)
-        setUser((await res.json()) as UserInfo)
+        const next = (await res.json()) as UserInfo
+        writeCachedIdentity(next)
+        setUser(next)
         return
       }
       if (res.status === 401) {
@@ -82,14 +109,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
         if (disposition === 'deferred' || disposition === 'offline') return
+        clearCachedIdentity()
         setUser(null)
         return
       }
+      clearCachedIdentity()
       setUser(null)
     } catch {
-      // A thrown fetch is a network error (offline / sidecar unreachable), never
-      // a session loss — do not blank the identity or navigate. Keeping the last
-      // identity is what lets offline reads keep working (offline-first A7).
+      // A thrown fetch is a network error / timeout (offline / sidecar
+      // unreachable), never a session loss — do not blank the identity or
+      // navigate. Prefer the in-memory user, then the durable cache, so offline
+      // reads keep working after a cold start (offline-first A7).
+      setUser((current) => current ?? readCachedIdentity())
     }
   }, [])
 
@@ -106,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setReloading(false)
         setSessionEstablished(false)
         clearDeferredReauth()
+        clearCachedIdentity()
         setUser(null)
       }),
     []
@@ -156,11 +188,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // follow-up navigation lets it redirect to login again. It must bypass the
     // service worker cache, or the sidecar never sees the navigation.
     try {
-      await fetch(`${base}/auth/logout`, { method: 'POST' })
+      await fetchWithTimeout(`${base}/auth/logout`, { method: 'POST' }, AUTH_FETCH_TIMEOUT_MS)
     } catch {
       // Ignore — navigating away is the important part.
     }
     setSessionEstablished(false)
+    clearCachedIdentity()
+    setUser(null)
     await navigateForLogin()
   }, [])
 
