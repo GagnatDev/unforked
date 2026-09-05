@@ -45,11 +45,17 @@ export type ShoppingListEventInput = Omit<ShoppingListEvent, "id" | "ts">;
  */
 export interface ShoppingListEventContext {
   /** List status after the write ("open" when the doc carries no status). */
-  status: "open" | "approved";
+  status: "open" | "ready" | "approved";
   /** doc.approvedBy while the list is approved (post-write). */
   approvedBy?: string;
   /** The approver whose trip a reopen transition ended (pre-write value). */
   previousApprovedBy?: string;
+  /**
+   * Set on `shopping-list.status` events whose post-write status is `open`
+   * because a trip was completed ("Shopping done"), as opposed to a plain
+   * reopen/cancel. Carries how many items the trip archived.
+   */
+  tripCompleted?: { itemCount: number };
   /** How many items this change appended (manual adds; feeds batched copy). */
   itemsAdded?: number;
 }

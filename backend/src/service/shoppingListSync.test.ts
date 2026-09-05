@@ -5,7 +5,7 @@ import type {
   ShoppingListEntry,
   ShoppingListItem,
 } from "../domain/types.js";
-import { createManualEntry, syncShoppingListDoc } from "./shoppingListSync.js";
+import { clearStatusFields, createManualEntry, syncShoppingListDoc } from "./shoppingListSync.js";
 
 const NO_OVERRIDES = new Map<string, ShoppingCategory>();
 
@@ -202,5 +202,69 @@ describe("createManualEntry", () => {
       NO_OVERRIDES,
     );
     expect(created.category).toBe("household");
+  });
+});
+
+describe("syncShoppingListDoc — trips and ready state", () => {
+  it("carries completed trips and the ready fields verbatim across a sync", () => {
+    const previous: PersistedShoppingListDoc = {
+      ...doc([entry()]),
+      status: "ready",
+      readyBy: "user-1",
+      readyByEmail: "ann@example.com",
+      readyAt: "2026-07-06T17:12:00.000Z",
+      trips: [
+        {
+          id: "trip-1",
+          completedAt: "2026-07-05T10:00:00.000Z",
+          completedBy: "user-2",
+          completedByEmail: "bo@example.com",
+          items: [entry({ id: "bought", name: "Carrot", checked: true })],
+        },
+      ],
+    };
+    const result = syncShoppingListDoc(previous, [aggregateItem()], NO_OVERRIDES, "2026-W28");
+    expect(result).toMatchObject({
+      status: "ready",
+      readyBy: "user-1",
+      readyByEmail: "ann@example.com",
+      readyAt: "2026-07-06T17:12:00.000Z",
+    });
+    expect(result.trips).toEqual(previous.trips);
+    expect(result.items.map((i) => i.id)).toEqual(["existing-id"]);
+  });
+
+  it("adds no trips field when the previous doc has none", () => {
+    const result = syncShoppingListDoc(doc([entry()]), [aggregateItem()], NO_OVERRIDES, "2026-W28");
+    expect("trips" in result).toBe(false);
+  });
+
+  it("copies the aggregate's sources onto matched and new entries", () => {
+    const sources = [{ day: "monday", recipeId: "r1" }];
+    const result = syncShoppingListDoc(
+      doc([entry()]),
+      [aggregateItem({ sources }), aggregateItem({ name: "Carrot", sources })],
+      NO_OVERRIDES,
+      "2026-W28",
+    );
+    expect(result.items.map((i) => i.sources)).toEqual([sources, sources]);
+  });
+});
+
+describe("clearStatusFields", () => {
+  it("strips every status field, leaving items and trips untouched", () => {
+    const d: PersistedShoppingListDoc = {
+      ...doc([entry()]),
+      status: "approved",
+      approvedBy: "u",
+      approvedByEmail: "u@example.com",
+      approvedAt: "t",
+      readyBy: "u",
+      readyByEmail: "u@example.com",
+      readyAt: "t",
+      trips: [],
+    };
+    clearStatusFields(d);
+    expect(d).toEqual({ weekIdentifier: "2026-W28", items: [entry()], trips: [] });
   });
 });

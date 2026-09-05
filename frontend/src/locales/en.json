@@ -158,8 +158,12 @@
     },
     "progress": "{{checked}}/{{total}}",
     "goShopping": "I'm going shopping",
+    "readyToShop": "Ready to shop",
+    "readyBanner": "Ready to shop — {{email}} finished the list {{time}}",
+    "shoppingDone": "Shopping done",
+    "cancelTrip": "Cancel trip",
+    "backToEditing": "Back to editing",
     "approvedBanner": "{{email}} is shopping — started {{time}}",
-    "done": "Done",
     "addItem": "Add item",
     "addItemPlaceholder": "e.g. toothpaste",
     "changeCategoryAria": "Change category for {{name}}",
@@ -176,8 +180,21 @@
     "allCheckedHidden": "All items are checked. Turn off Hide checked items to see them again.",
     "updateFailed": "Could not save the change. Try again.",
     "inCart": "In the cart",
-    "itemCount_one": "{{count}} item",
-    "itemCount_other": "{{count}} items"
+    "itemCount_one": "{{count}} to buy",
+    "itemCount_other": "{{count}} to buy",
+    "boughtThisWeek_one": "{{count}} bought this week",
+    "boughtThisWeek_other": "{{count}} bought this week",
+    "allBought": "Everything on the list has been bought. Plan more dinners in <1>Weekly menu</1>, or add an item below for a quick top-up trip.",
+    "trips": {
+      "title": "Bought this week",
+      "trip": "Trip {{n}}",
+      "summary": "{{email}} · {{time}}",
+      "itemCount_one": "{{count}} item",
+      "itemCount_other": "{{count}} items",
+      "toggleAria": "Show items bought on trip {{n}}",
+      "undo": "Put back on the list",
+      "undoAria": "Put the items from trip {{n}} back on the list"
+    }
   },
   "notifications": {
     "title": "Notifications",

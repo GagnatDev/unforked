@@ -10,6 +10,7 @@ import {
   type ShoppingItemCreatePayload,
   type ShoppingItemUpdatePayload,
   type ShoppingStatusPayload,
+  type ShoppingTripCompletePayload,
 } from './db'
 import { isLeader, onBecomeLeader, postCrossTab, startLeaderElection, subscribeCrossTab } from './crossTab'
 import { noteShoppingFlush } from './liveEvents'
@@ -322,13 +323,80 @@ async function sendShoppingStatusOp(op: OutboxOp): Promise<SendResult> {
     if (res.status === 404) return { ok: true }
     if (res.status === 409) {
       const conflict = (await res.json().catch(() => null)) as
-        | { version?: number; status?: 'open' | 'approved' }
+        | { version?: number; status?: 'open' | 'ready' | 'approved' }
         | null
       if (conflict?.version === undefined) break
       shoppingVersions.set(weekId, conflict.version)
       // The server is already in our target state: intent satisfied. No write
       // of ours happened, so nothing is noted for the echo gate.
       if ((conflict.status ?? 'open') === status) return { ok: true }
+      baseVersion = conflict.version
+      continue
+    }
+    return classifyFailure(res.status, await res.text().catch(() => ''))
+  }
+  return { ok: false, retry: 'key', message: 'conflict' }
+}
+
+// --- shopping-trip ops ("Shopping done" / undo) ---
+
+/**
+ * Push a "Shopping done" (POST, idempotent on the client-minted trip id) or an
+ * undo (DELETE) under the same optimistic-concurrency contract as status ops.
+ * On a `409` the server returns its current doc + version: if our trip id is
+ * already in its history the intent is satisfied; otherwise we retry against
+ * the fresh version (the server archives whatever is checked *now*, which is
+ * what the queue's earlier item ops produced). A `404` means the week has no
+ * list (nothing to complete) or the trip is already gone (undo satisfied).
+ */
+async function sendShoppingTripOp(op: OutboxOp): Promise<SendResult> {
+  const { weekId } = op.payload as { weekId: string }
+  if (op.type === 'delete') {
+    let res: Response
+    try {
+      res = await fetch(`${base}/api/shopping-lists/trips/${op.key}${weekQuery(weekId)}`, {
+        method: 'DELETE',
+        headers: headers(op),
+      })
+    } catch {
+      return { ok: false, retry: 'queue', message: 'network unreachable' }
+    }
+    if (res.ok) {
+      const server = (await res.json().catch(() => null)) as { version?: number } | null
+      if (server?.version !== undefined) shoppingVersions.set(weekId, server.version)
+      noteShoppingFlush(weekId, server?.version)
+      return { ok: true }
+    }
+    if (res.status === 404) return { ok: true }
+    return classifyFailure(res.status, await res.text().catch(() => ''))
+  }
+
+  const { completedAt } = op.payload as ShoppingTripCompletePayload
+  const url = `${base}/api/shopping-lists/trips${weekQuery(weekId)}`
+  let baseVersion = shoppingVersions.get(weekId) ?? op.baseVersion
+
+  for (let attempt = 0; attempt <= MAX_CONFLICT_RETRIES; attempt++) {
+    const body = { id: op.key, completedAt, ...(baseVersion === undefined ? {} : { baseVersion }) }
+    let res: Response
+    try {
+      res = await fetch(url, { method: 'POST', headers: headers(op), body: JSON.stringify(body) })
+    } catch {
+      return { ok: false, retry: 'queue', message: 'network unreachable' }
+    }
+    if (res.ok) {
+      const server = (await res.json().catch(() => null)) as { version?: number } | null
+      if (server?.version !== undefined) shoppingVersions.set(weekId, server.version)
+      noteShoppingFlush(weekId, server?.version)
+      return { ok: true }
+    }
+    if (res.status === 404) return { ok: true }
+    if (res.status === 409) {
+      const conflict = (await res.json().catch(() => null)) as
+        | { version?: number; trips?: { id: string }[] }
+        | null
+      if (conflict?.version === undefined) break
+      shoppingVersions.set(weekId, conflict.version)
+      if (conflict.trips?.some((t) => t.id === op.key)) return { ok: true }
       baseVersion = conflict.version
       continue
     }
@@ -347,6 +415,8 @@ async function sendOp(op: OutboxOp): Promise<SendResult> {
       return sendShoppingItemOp(op)
     case 'shoppingStatus':
       return sendShoppingStatusOp(op)
+    case 'shoppingTrip':
+      return sendShoppingTripOp(op)
     default:
       return { ok: false, retry: 'park', message: `unsupported entity: ${op.entity as string}` }
   }

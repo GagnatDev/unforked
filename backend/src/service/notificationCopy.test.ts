@@ -40,6 +40,27 @@ describe("composeShoppingListNotification", () => {
     });
   });
 
+  it("renders the ready and completed announcements in both locales", () => {
+    const ready: NotificationEntry[] = [{ kind: "ready", actorLabel: "anna@example.com" }];
+    expect(composeShoppingListNotification(ready, WEEK, "en")).toEqual({
+      title: "Shopping list is ready (week 3)",
+      body: "anna@example.com marked the shopping list ready — anyone can go shopping.",
+    });
+    expect(composeShoppingListNotification(ready, WEEK, "nb").title).toBe(
+      "Handlelisten er klar (uke 3)",
+    );
+
+    const done: NotificationEntry[] = [{ kind: "completed", actorLabel: "bo@example.com", itemCount: 1 }];
+    expect(composeShoppingListNotification(done, WEEK, "en")).toEqual({
+      title: "✅ bo@example.com finished shopping",
+      body: "1 item bought for week 3.",
+    });
+    expect(composeShoppingListNotification(done, WEEK, "nb")).toEqual({
+      title: "✅ bo@example.com er ferdig med å handle",
+      body: "1 vare handlet for uke 3.",
+    });
+  });
+
   it("batches item adds per actor with plural handling (the 'Aivo added 3 items' shape)", () => {
     const entries: NotificationEntry[] = [
       { kind: "items", actorLabel: "Aivo", itemsAdded: 2 },

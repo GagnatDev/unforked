@@ -70,8 +70,12 @@ All domain data is family-scoped JSONB documents (`backend/src/db/schema.ts`,
   (`service/shoppingListSync.ts`): the fresh aggregate from
   `service/shoppingListService.ts` is reconciled with the stored entries so
   per-item state — `checked`, store `category`, manually added items —
-  survives plan edits. Per-family ingredient→category overrides live in a
-  separate `ingredient_categories` table.
+  survives plan edits. `items` is the *open* list (still to buy); completed
+  shopping rounds are archived on the same doc as `trips[]`, and the
+  aggregate leaves out the `(day, recipe)` contributions those trips already
+  bought (`domain/shoppingItemKey.ts`, `service/shoppingListTrips.ts`).
+  Per-family ingredient→category overrides live in a separate
+  `ingredient_categories` table.
 
 The existing authenticated API already answers two of the three use cases
 almost verbatim:
@@ -297,9 +301,10 @@ rows for empty weeks). *Mutating* the list from Discord ("cross off milk",
 "add batteries") is a genuine write and stays behind the future `write`
 scope (Phase 3).
 
-**Approved / "shopping now" state.** The weekly doc additionally carries an
-optional trip state (design issue #104 D4) that the machine GET returns
-verbatim alongside `items`:
+**Ready / "shopping now" state and completed trips.** The weekly doc
+additionally carries an optional list state (design issue #104 D4) and the
+week's completed shopping trips, which the machine GET returns verbatim
+alongside `items`:
 
 ```json
 {
@@ -308,18 +313,38 @@ verbatim alongside `items`:
   "status": "approved",
   "approvedBy": "3f2c…-user-uuid",
   "approvedByEmail": "ann@example.com",
-  "approvedAt": "2026-07-18T16:40:00.000Z"
+  "approvedAt": "2026-07-18T16:40:00.000Z",
+  "trips": [
+    {
+      "id": "9b1e…-trip-uuid",
+      "completedAt": "2026-07-16T17:05:00.000Z",
+      "completedBy": "77a0…-user-uuid",
+      "completedByEmail": "bo@example.com",
+      "items": [ … ]
+    }
+  ]
 }
 ```
 
-All four fields are **absent while the list is open** (absent = `open`;
-older docs never carry them) and are set/cleared together when a family
-member taps "I'm going shopping" / "Done" in the UI. For Aivo this means:
-if `status` is `"approved"`, someone (`approvedByEmail`) is at the store
-right now, so items added via the batch-add endpoint may already be behind
-the shopper's back — worth mentioning in the chat reply. The fields are
-read-only for machine callers today; there is no machine endpoint to
-approve or reopen a list.
+`status` is one of `open` / `ready` / `approved`; the field is **absent
+while the list is open** (absent = `open`; older docs never carry it).
+`ready` comes with `readyBy` / `readyByEmail` / `readyAt` ("Ready to shop":
+the planner considers the list complete), `approved` with `approvedBy` /
+`approvedByEmail` / `approvedAt` ("I'm going shopping": someone has claimed
+the trip). Each set is written and cleared together; "Cancel trip" / "Back
+to editing" return the list to `open`.
+
+`items` is what is **still to buy**. "Shopping done" moves the checked items
+into a new entry in `trips[]` (oldest first) and clears the status, so a
+week may be shopped in several rounds; recipes assigned later only add their
+still-unbought ingredients. For Aivo this means: `items` alone is the answer
+to *"what do we still need?"*, `trips[].items` is *"what did we already
+buy this week?"*, and if `status` is `"approved"`, someone
+(`approvedByEmail`) is at the store right now, so items added via the
+batch-add endpoint may already be behind the shopper's back — worth
+mentioning in the chat reply. The fields are read-only for machine callers
+today; there is no machine endpoint to change the status or complete a
+trip.
 
 ### 5.3 Fridge-ingredient suggestions — the new capability
 

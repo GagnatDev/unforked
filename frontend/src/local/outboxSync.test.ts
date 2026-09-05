@@ -638,3 +638,85 @@ describe('optimistic recipe mutations', () => {
     expect((ops[0].payload as { nextDoc: typeof nextDoc }).nextDoc).toEqual(nextDoc)
   })
 })
+
+describe('drainOutbox — shopping trips ("Shopping done" / undo)', () => {
+  function completeOp(overrides: Partial<OutboxOp> = {}): OutboxOp {
+    return op({
+      entity: 'shoppingTrip',
+      type: 'create',
+      key: 'trip-1',
+      payload: {
+        weekId: 'w',
+        completedAt: '2026-07-06T17:12:00.000Z',
+        completedBy: 'user-1',
+        completedByEmail: 'ann@example.com',
+      },
+      baseVersion: 2,
+      ...overrides,
+    })
+  }
+
+  it('POSTs the client-minted trip id and time with baseVersion, noting the returned version', async () => {
+    fetchMock.mockResolvedValue(res(201, '{"weekIdentifier":"w","items":[],"trips":[{"id":"trip-1"}],"version":3}'))
+    await appendOutboxOp(completeOp())
+
+    await drainOutbox()
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/shopping-lists/trips?week=w')
+    expect(init.method).toBe('POST')
+    // Who completed is the server's to record; only id, time and precondition travel.
+    expect(JSON.parse(init.body)).toEqual({
+      id: 'trip-1',
+      completedAt: '2026-07-06T17:12:00.000Z',
+      baseVersion: 2,
+    })
+    expect(await listOutboxOps()).toHaveLength(0)
+    expect(noteShoppingFlushMock).toHaveBeenCalledWith('w', 3)
+  })
+
+  it('retries a stale-version 409 against the fresh version, and stops when the trip is already there', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res(409, '{"error":"conflict","version":7,"weekIdentifier":"w","items":[]}'))
+      .mockResolvedValueOnce(
+        res(409, '{"error":"conflict","version":8,"weekIdentifier":"w","items":[],"trips":[{"id":"trip-1"}]}'),
+      )
+    await appendOutboxOp(completeOp())
+
+    await drainOutbox()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ baseVersion: 7 })
+    expect(await listOutboxOps()).toHaveLength(0)
+    expect(noteShoppingFlushMock).not.toHaveBeenCalled()
+  })
+
+  it('treats a 404 (no list row) as spent intent and keeps the op queued offline', async () => {
+    fetchMock.mockResolvedValue(res(404, '{"error":"Shopping list not found"}'))
+    await appendOutboxOp(completeOp())
+    await drainOutbox()
+    expect(await listOutboxOps()).toHaveLength(0)
+
+    fetchMock.mockRejectedValue(new TypeError('offline'))
+    await appendOutboxOp(completeOp({ key: 'trip-2' }))
+    await drainOutbox()
+    expect(await listOutboxOps()).toHaveLength(1)
+  })
+
+  it('DELETEs an undo by trip id and treats an already-gone trip as done', async () => {
+    fetchMock.mockResolvedValueOnce(res(200, '{"weekIdentifier":"w","items":[],"version":9}'))
+    await appendOutboxOp(op({ entity: 'shoppingTrip', type: 'delete', key: 'trip-1', payload: { weekId: 'w' } }))
+    await drainOutbox()
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/shopping-lists/trips/trip-1?week=w')
+    expect(init.method).toBe('DELETE')
+    expect(noteShoppingFlushMock).toHaveBeenCalledWith('w', 9)
+    expect(await listOutboxOps()).toHaveLength(0)
+
+    fetchMock.mockResolvedValueOnce(res(404, '{"error":"Shopping trip not found"}'))
+    await appendOutboxOp(op({ entity: 'shoppingTrip', type: 'delete', key: 'trip-9', payload: { weekId: 'w' } }))
+    await drainOutbox()
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
+})

@@ -16,6 +16,14 @@ import {
   type ShoppingItemPatch,
 } from './db'
 import { kickOutboxSync } from './outboxSync'
+import {
+  approveShoppingDoc,
+  clearShoppingStatus,
+  completeShoppingTripInDoc,
+  markShoppingDocReady,
+  type TripMeta,
+  undoShoppingTripInDoc,
+} from './shoppingDoc'
 
 /**
  * Optimistic domain mutations (offline-first spec A3/A4). Each write:
@@ -204,15 +212,7 @@ export async function approveShoppingList(
   const baseVersion = (await getLocalShoppingList(weekId))?.version
   const approvedAt = new Date().toISOString()
   await mutateLocalShoppingList(weekId, (doc) =>
-    doc
-      ? {
-          ...doc,
-          status: 'approved',
-          approvedBy: approver.id,
-          approvedByEmail: approver.email,
-          approvedAt,
-        }
-      : doc,
+    doc ? approveShoppingDoc(doc, approver, approvedAt) : doc,
   )
   await appendOutboxOp({
     opId: uuid(),
@@ -233,15 +233,43 @@ export async function approveShoppingList(
   kickOutboxSync()
 }
 
-/** Reopen a week's list ("done shopping" / cancel) — allowed to any member. */
+/**
+ * Mark a week's open list ready ("I've finished adding — anyone can shop
+ * this"). Same optimistic path as approval; the marker metadata is minted
+ * here so the card names them at once.
+ */
+export async function markShoppingListReady(
+  weekId: string,
+  marker: { id: string; email: string },
+): Promise<void> {
+  const baseVersion = (await getLocalShoppingList(weekId))?.version
+  const readyAt = new Date().toISOString()
+  await mutateLocalShoppingList(weekId, (doc) =>
+    doc ? markShoppingDocReady(doc, marker, readyAt) : doc,
+  )
+  await appendOutboxOp({
+    opId: uuid(),
+    entity: 'shoppingStatus',
+    type: 'update',
+    key: weekId,
+    payload: {
+      weekId,
+      status: 'ready',
+      readyBy: marker.id,
+      readyByEmail: marker.email,
+      readyAt,
+    },
+    baseVersion,
+    createdAt: Date.now(),
+    attempts: 0,
+  })
+  kickOutboxSync()
+}
+
+/** Reopen a week's list (cancel the trip / back to editing) — allowed to any member. */
 export async function reopenShoppingList(weekId: string): Promise<void> {
   const baseVersion = (await getLocalShoppingList(weekId))?.version
-  await mutateLocalShoppingList(weekId, (doc) => {
-    if (!doc) return doc
-    // Absent = open (back-compat): strip all four fields, mirroring the server.
-    const { status: _s, approvedBy: _b, approvedByEmail: _e, approvedAt: _a, ...open } = doc
-    return open
-  })
+  await mutateLocalShoppingList(weekId, (doc) => (doc ? clearShoppingStatus(doc) : doc))
   await appendOutboxOp({
     opId: uuid(),
     entity: 'shoppingStatus',
@@ -249,6 +277,61 @@ export async function reopenShoppingList(weekId: string): Promise<void> {
     key: weekId,
     payload: { weekId, status: 'open' },
     baseVersion,
+    createdAt: Date.now(),
+    attempts: 0,
+  })
+  kickOutboxSync()
+}
+
+// --- shopping trips ("Shopping done" / undo) ---
+
+/**
+ * "Shopping done": move the checked items into a completed trip and return
+ * the list to open, optimistically and offline (the shop is where the signal
+ * is worst). The trip id and time are minted here; the server archives
+ * whatever is checked when the op drains — which, ops being FIFO, is the same
+ * set our earlier check-off ops produced. Returns the new trip id.
+ */
+export async function completeShoppingTrip(
+  weekId: string,
+  shopper: { id: string; email: string },
+): Promise<string> {
+  const baseVersion = (await getLocalShoppingList(weekId))?.version
+  const meta: TripMeta = {
+    id: uuid(),
+    completedAt: new Date().toISOString(),
+    completedBy: shopper.id,
+    completedByEmail: shopper.email,
+  }
+  await mutateLocalShoppingList(weekId, (doc) => (doc ? completeShoppingTripInDoc(doc, meta) : doc))
+  await appendOutboxOp({
+    opId: uuid(),
+    entity: 'shoppingTrip',
+    type: 'create',
+    key: meta.id,
+    payload: {
+      weekId,
+      completedAt: meta.completedAt,
+      completedBy: meta.completedBy,
+      completedByEmail: meta.completedByEmail,
+    },
+    baseVersion,
+    createdAt: Date.now(),
+    attempts: 0,
+  })
+  kickOutboxSync()
+  return meta.id
+}
+
+/** Undo a "Shopping done": the trip's items come back onto the open list, still checked. */
+export async function undoShoppingTrip(weekId: string, tripId: string): Promise<void> {
+  await mutateLocalShoppingList(weekId, (doc) => (doc ? undoShoppingTripInDoc(doc, tripId) : doc))
+  await appendOutboxOp({
+    opId: uuid(),
+    entity: 'shoppingTrip',
+    type: 'delete',
+    key: tripId,
+    payload: { weekId },
     createdAt: Date.now(),
     attempts: 0,
   })

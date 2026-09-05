@@ -13,7 +13,9 @@ recurring scenes are: standing at the kitchen counter cooking tonight's dinner, 
 a grocery aisle one-handed with a phone. Desktop is used occasionally, mostly for the
 week's planning and for capturing recipes. Within the family, one person usually plans the
 week and any member may do the shopping; the shopping trip is claimed ("I'm going
-shopping") so the others can see it is underway.
+shopping") so the others can see it is underway. Planning is often piecemeal: a couple of
+dinners are decided and bought for, the rest of the week is planned a day or two later and
+shopped for separately, and forgotten items prompt a quick ad-hoc top-up run.
 
 ## Product Purpose
 
@@ -53,14 +55,23 @@ mechanism a recipe app or a note-taking list cannot copy.
   (produce, bakery, meat, fish, dairy, frozen, pantry, beverages, household, other),
   free-text extra items, per-item edit of name/quantity/unit, category re-assignment,
   check/uncheck with `checked/total` progress, hide-checked toggle, swipe to delete,
-  claim-the-trip ("I'm going shopping" → banner naming who and when → "Done"),
   TXT/CSV export, deep-linkable week via `?week=`.
+- **Shopping in several trips per week:** the week's list is the *open* list — what is
+  still to buy. The planner can mark it "Ready to shop" (banner naming who and when);
+  any member claims the trip ("I'm going shopping" → banner naming who and when); "Shopping
+  done" archives the checked items as a completed trip and leaves the rest open. Dinners
+  planned afterwards only add their still-unbought ingredients (a recipe bought for Monday
+  stays bought when Wednesday needs the same ingredient), and a forgotten item can be added
+  and bought in a quick top-up trip without claiming anything. Completed trips are listed
+  under the open list ("Bought this week") and can be undone, which puts their items back,
+  still checked. "Cancel trip" releases a claim without archiving.
 - **Recipes:** library with name search, photo, tags, servings, ingredients, numbered
   steps, source URL attribution, import-from-URL (best-effort, editable before saving),
   swipe to delete.
 - **Family:** up to five members, invite links, default number of people.
-- **Push notifications** for shopping-list changes while someone is shopping; on iOS only
-  after the app is added to the Home Screen.
+- **Push notifications** for shopping-list changes while someone is shopping, and when a
+  member marks the list ready or finishes a trip; on iOS only after the app is added to the
+  Home Screen.
 - **API keys** so trusted machine clients (e.g. `aivo`) can reach the same data.
 - Stack constraint: React 18 + Vite + Tailwind v4 + shadcn/Base UI components, i18next,
   lucide icons, Geist Variable. Redesign works within this component stack.

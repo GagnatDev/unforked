@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { boughtSourceKey, shoppingItemKey } from "../domain/shoppingItemKey.js";
 import type { DayAssignment, MealPlanDoc, RecipeDoc } from "../domain/types.js";
 import {
   buildAggregatedShoppingItems,
@@ -162,5 +163,81 @@ describe("buildAggregatedShoppingItems", () => {
   it("skips assignments whose recipe is missing", () => {
     const plan = planWith([{ day: "monday", recipeId: "missing", recipeName: "X" }]);
     expect(buildAggregatedShoppingItems(plan, new Map())).toEqual([]);
+  });
+});
+
+describe("buildAggregatedShoppingItems — sources and bought contributions", () => {
+  const idA = "00000000-0000-4000-8000-00000000000a";
+  const idB = "00000000-0000-4000-8000-00000000000b";
+  const bolognese = recipe("Bolognese", [
+    { name: "onion", quantity: "2", unit: "" },
+    { name: "minced beef", quantity: "500", unit: "g" },
+  ]);
+  const soup = recipe("Soup", [
+    { name: "onion", quantity: "3", unit: "" },
+    { name: "carrot", quantity: "4", unit: "" },
+  ]);
+  const map = new Map<string, RecipeEntry>([
+    [idA, { id: idA, doc: bolognese }],
+    [idB, { id: idB, doc: soup }],
+  ]);
+  const plan = planWith([
+    { day: "monday", recipeId: idA, recipeName: "Bolognese" },
+    { day: "wednesday", recipeId: idB, recipeName: "Soup" },
+    { day: "saturday", recipeId: idA, recipeName: "Bolognese" },
+  ]);
+
+  it("records the distinct (day, recipe) sources behind every item", () => {
+    const items = buildAggregatedShoppingItems(plan, map);
+    const onion = items.find((i) => i.name === "Onion")!;
+    expect(onion.quantity).toBe("7");
+    expect(onion.sources).toEqual([
+      { day: "monday", recipeId: idA },
+      { day: "wednesday", recipeId: idB },
+      { day: "saturday", recipeId: idA },
+    ]);
+    expect(items.find((i) => i.name === "Carrot")!.sources).toEqual([
+      { day: "wednesday", recipeId: idB },
+    ]);
+  });
+
+  it("leaves bought contributions out, keeping only the unbought share of a shared ingredient", () => {
+    // Monday's Bolognese was shopped on an earlier trip.
+    const bought = new Set([
+      boughtSourceKey("onion|", { day: "monday", recipeId: idA }),
+      boughtSourceKey("minced beef|weight", { day: "monday", recipeId: idA }),
+    ]);
+    const items = buildAggregatedShoppingItems(plan, map, { bought });
+    const onion = items.find((i) => i.name === "Onion")!;
+    // 3 (Wednesday soup) + 2 (Saturday bolognese, not yet bought).
+    expect(onion.quantity).toBe("5");
+    expect(onion.recipeIds).toEqual([idB, idA]);
+    // Saturday's beef is still to buy; Monday's is gone.
+    expect(items.find((i) => i.name === "Minced beef")).toMatchObject({
+      quantity: "500",
+      unit: "g",
+      sources: [{ day: "saturday", recipeId: idA }],
+    });
+  });
+
+  it("drops an item entirely once every contribution is bought", () => {
+    const bought = new Set([boughtSourceKey("carrot|", { day: "wednesday", recipeId: idB })]);
+    const items = buildAggregatedShoppingItems(plan, map, { bought });
+    expect(items.find((i) => i.name === "Carrot")).toBeUndefined();
+  });
+
+  it("matches bought keys across a unit-family display flip", () => {
+    // 2 × 500 g was displayed as "1 kg" on the archived item; the bought key
+    // is family-based so the gram-denominated contribution still matches.
+    const bought = new Set([
+      boughtSourceKey(shoppingItemKey({ name: "Minced beef", quantity: "1", unit: "kg" }), {
+        day: "monday",
+        recipeId: idA,
+      }),
+    ]);
+    const items = buildAggregatedShoppingItems(plan, map, { bought });
+    expect(items.find((i) => i.name === "Minced beef")!.sources).toEqual([
+      { day: "saturday", recipeId: idA },
+    ]);
   });
 });

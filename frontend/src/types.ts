@@ -48,11 +48,18 @@ export interface MealPlanDoc {
   assignments: DayAssignment[]
 }
 
+/** One planned (day, recipe) behind a recipe-derived item; recorded on archived trips. */
+export interface ItemSource {
+  day: string
+  recipeId: string
+}
+
 export interface ShoppingListItem {
   name: string
   quantity: string
   unit: string
   recipeIds: string[]
+  sources?: ItemSource[]
 }
 
 export interface ShoppingListDoc {
@@ -81,11 +88,28 @@ export interface ShoppingListEntry extends ShoppingListItem {
   manual: boolean
 }
 
-/** Trip state of a weekly list. Absent on the doc means "open" (back-compat). */
-export type ShoppingListStatus = 'open' | 'approved'
+/**
+ * State of the week's open list. Absent on the doc means "open" (back-compat).
+ * `ready` = the planner has finished adding, anyone can shop it; `approved` =
+ * someone claimed the trip and is shopping now.
+ */
+export type ShoppingListStatus = 'open' | 'ready' | 'approved'
+
+/**
+ * A completed shopping trip: what was checked when "Shopping done" was
+ * pressed, moved out of the open list. A week can hold any number of them.
+ */
+export interface ShoppingTrip {
+  id: string
+  completedAt: string
+  completedBy: string
+  completedByEmail: string
+  items: ShoppingListEntry[]
+}
 
 export interface PersistedShoppingListDoc {
   weekIdentifier: string
+  /** The open list: still to buy this week. */
   items: ShoppingListEntry[]
   /** Optimistic-concurrency version of the list row (offline-first A5). */
   version?: number
@@ -100,6 +124,12 @@ export interface PersistedShoppingListDoc {
   approvedByEmail?: string
   /** ISO timestamp of the approval. */
   approvedAt?: string
+  /** Who marked the list ready, and when; cleared on any other transition. */
+  readyBy?: string
+  readyByEmail?: string
+  readyAt?: string
+  /** Completed trips this week, oldest first. */
+  trips?: ShoppingTrip[]
 }
 
 /** A machine-API key as listed by GET /api/api-keys (never the secret itself). */

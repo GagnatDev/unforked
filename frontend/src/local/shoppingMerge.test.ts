@@ -153,3 +153,106 @@ describe('applyShoppingOps', () => {
     expect(merged?.status).toBeUndefined()
   })
 })
+
+describe('applyShoppingOps — ready state and trips', () => {
+  const tripOp = (overrides: Partial<OutboxOp> = {}) =>
+    op({
+      entity: 'shoppingTrip',
+      type: 'create',
+      key: 'trip-1',
+      payload: {
+        weekId: week,
+        completedAt: '2026-07-06T17:12:00.000Z',
+        completedBy: 'user-1',
+        completedByEmail: 'ann@example.com',
+      },
+      ...overrides,
+    })
+
+  it('re-applies an unsynced "ready" on top of the server doc', () => {
+    const merged = applyShoppingOps(
+      doc([entry({})]),
+      [
+        op({
+          entity: 'shoppingStatus',
+          key: week,
+          payload: { weekId: week, status: 'ready', readyBy: 'user-1', readyByEmail: 'ann@example.com', readyAt: 't' },
+        }),
+      ],
+      week,
+    )
+    expect(merged).toMatchObject({ status: 'ready', readyBy: 'user-1', readyByEmail: 'ann@example.com', readyAt: 't' })
+  })
+
+  it('re-applies a pending "Shopping done" over what the preceding item ops left checked', () => {
+    // Server still shows both unchecked: neither our check-off nor the
+    // completion has drained yet. Replaying in FIFO order archives exactly the
+    // item we ticked — the same result the server will produce.
+    const merged = applyShoppingOps(
+      doc([entry({ id: 'srv-1', checked: false }), entry({ id: 'srv-2', name: 'Bread', checked: false })]),
+      [
+        op({ type: 'update', key: 'srv-1', payload: { weekId: week, patch: { checked: true } } }),
+        tripOp(),
+      ],
+      week,
+    )
+    expect(merged?.items.map((i) => i.id)).toEqual(['srv-2'])
+    expect(merged?.trips).toEqual([
+      expect.objectContaining({
+        id: 'trip-1',
+        completedByEmail: 'ann@example.com',
+        items: [expect.objectContaining({ id: 'srv-1', checked: true })],
+      }),
+    ])
+  })
+
+  it('does not archive twice when the server already has the trip', () => {
+    const server: PersistedShoppingListDoc = {
+      ...doc([entry({ id: 'srv-2', name: 'Bread', checked: true })]),
+      trips: [
+        {
+          id: 'trip-1',
+          completedAt: 't',
+          completedBy: 'user-1',
+          completedByEmail: 'ann@example.com',
+          items: [entry({ id: 'srv-1', checked: true })],
+        },
+      ],
+    }
+    const merged = applyShoppingOps(server, [tripOp()], week)
+    expect(merged?.items.map((i) => i.id)).toEqual(['srv-2'])
+    expect(merged?.trips).toHaveLength(1)
+  })
+
+  it('re-applies a pending undo, putting the trip back on the list still checked', () => {
+    const server: PersistedShoppingListDoc = {
+      ...doc([]),
+      trips: [
+        {
+          id: 'trip-1',
+          completedAt: 't',
+          completedBy: 'user-1',
+          completedByEmail: 'ann@example.com',
+          items: [entry({ id: 'srv-1', checked: true })],
+        },
+      ],
+    }
+    const merged = applyShoppingOps(
+      server,
+      [op({ entity: 'shoppingTrip', type: 'delete', key: 'trip-1', payload: { weekId: week } })],
+      week,
+    )
+    expect(merged?.items.map((i) => [i.id, i.checked])).toEqual([['srv-1', true]])
+    expect(merged?.trips).toBeUndefined()
+  })
+
+  it('ignores trip ops for another week', () => {
+    const merged = applyShoppingOps(
+      doc([entry({ checked: true })]),
+      [tripOp({ payload: { weekId: 'other', completedAt: 't', completedBy: 'u', completedByEmail: 'e' } })],
+      week,
+    )
+    expect(merged?.items).toHaveLength(1)
+    expect(merged?.trips).toBeUndefined()
+  })
+})

@@ -4,17 +4,23 @@ import { getLocalShoppingList } from '@/local/db'
 import {
   addShoppingItem,
   approveShoppingList,
+  completeShoppingTrip,
   deleteShoppingItem,
+  markShoppingListReady,
   patchShoppingItem,
   reopenShoppingList,
+  undoShoppingTrip,
 } from '@/local/mutations'
 import { pullShoppingList } from '@/local/sync'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
-import type { ShoppingCategory, ShoppingListEntry, ShoppingListStatus } from '@/types'
+import type { ShoppingCategory, ShoppingListEntry, ShoppingListStatus, ShoppingTrip } from '@/types'
 
 export type UseShoppingListResult = {
+  /** The open list: what is still to buy this week. */
   items: ShoppingListEntry[] | null
+  /** Completed trips this week, oldest first. */
+  trips: ShoppingTrip[]
   loading: boolean
   error: string | null
   adding: boolean
@@ -23,6 +29,8 @@ export type UseShoppingListResult = {
   approvedBy: string | null
   approvedByEmail: string | null
   approvedAt: string | null
+  readyByEmail: string | null
+  readyAt: string | null
   toggleChecked: (id: string) => void
   changeCategory: (id: string, category: ShoppingCategory) => void
   editItem: (id: string, patch: { name?: string; quantity?: string; unit?: string }) => void
@@ -30,8 +38,14 @@ export type UseShoppingListResult = {
   deleteItem: (id: string) => void
   /** Mark the week as being shopped ("I'm going shopping"). */
   approve: () => void
-  /** Clear the approved state ("Done" / cancel) — allowed to any member. */
+  /** Say the list is complete and can be shopped by anyone ("Ready to shop"). */
+  markReady: () => void
+  /** Clear the approved / ready state (cancel the trip, back to editing) — allowed to any member. */
   reopen: () => void
+  /** "Shopping done": archive the checked items as a trip; the rest stays open. */
+  completeTrip: () => void
+  /** Put a completed trip's items back on the open list. */
+  undoTrip: (tripId: string) => void
 }
 
 /**
@@ -111,12 +125,28 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
     if (user) void approveShoppingList(weekId, { id: user.id, email: user.email })
   }, [user, weekId])
 
+  const markReady = useCallback(() => {
+    if (user) void markShoppingListReady(weekId, { id: user.id, email: user.email })
+  }, [user, weekId])
+
   const reopen = useCallback(() => {
     void reopenShoppingList(weekId)
   }, [weekId])
 
+  const completeTrip = useCallback(() => {
+    if (user) void completeShoppingTrip(weekId, { id: user.id, email: user.email })
+  }, [user, weekId])
+
+  const undoTrip = useCallback(
+    (tripId: string) => {
+      void undoShoppingTrip(weekId, tripId)
+    },
+    [weekId],
+  )
+
   return {
     items,
+    trips: doc?.trips ?? EMPTY_TRIPS,
     loading,
     error,
     adding,
@@ -124,12 +154,19 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
     approvedBy: doc?.approvedBy ?? null,
     approvedByEmail: doc?.approvedByEmail ?? null,
     approvedAt: doc?.approvedAt ?? null,
+    readyByEmail: doc?.readyByEmail ?? null,
+    readyAt: doc?.readyAt ?? null,
     toggleChecked,
     changeCategory,
     editItem,
     addItem,
     deleteItem,
     approve,
+    markReady,
     reopen,
+    completeTrip,
+    undoTrip,
   }
 }
+
+const EMPTY_TRIPS: ShoppingTrip[] = []
