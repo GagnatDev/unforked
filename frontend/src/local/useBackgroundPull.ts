@@ -11,8 +11,8 @@ export type UseBackgroundPullResult = {
 
 /**
  * Kicks a network pull (which writes into the local store) when `deps`
- * change. The UI never awaits it — reads come from `useLocal`; a pull error
- * only matters when there is no local data to show, which the caller decides.
+ * change. The UI never awaits it — reads and loading come from `useLocal`.
+ * Empty local data is ready to render; pull errors are non-blocking status.
  *
  * The pull is not aborted on deps change or unmount: its store writes stay
  * valid background input regardless of which view is mounted.

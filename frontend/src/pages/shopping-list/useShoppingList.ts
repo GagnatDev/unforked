@@ -72,10 +72,8 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
   const [adding, setAdding] = useState(false)
 
   const items = doc?.items ?? null
-  // With nothing local yet, stay in loading until the pull lands in the
-  // store (or fails); with local data, pull errors are irrelevant offline noise.
-  const loading = localLoading || (doc == null && pullError == null)
-  const error = doc == null ? pullError : null
+  const loading = localLoading
+  const error = pullError
 
   const toggleChecked = useCallback(
     (id: string) => {

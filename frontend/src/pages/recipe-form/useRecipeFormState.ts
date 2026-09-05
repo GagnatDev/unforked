@@ -35,11 +35,10 @@ export function useRecipeFormState(id: string | undefined) {
     { enabled: !!id },
   )
 
-  // With no local copy yet, stay in loading until the pull lands in the
-  // store (or fails); with a local copy, pull errors are irrelevant offline noise.
-  const loading = !!id && (localLoading || (localRecipe == null && pullError == null))
-  const loadError = id && localRecipe == null ? pullError : null
-  const error = submitError ?? loadError
+  const loading = localLoading
+  // Never offer a blank replacement for an existing recipe we haven't read.
+  const unavailable = !!id && localRecipe == null
+  const error = submitError
 
   useEffect(() => {
     editedRef.current = false
@@ -115,6 +114,8 @@ export function useRecipeFormState(id: string | undefined) {
     doc,
     setDoc,
     loading,
+    unavailable,
+    pullError,
     error,
     setError: setSubmitError,
     update,

@@ -52,6 +52,8 @@
   },
   "recipeForm": {
     "editRecipe": "Rediger oppskrift",
+    "backToRecipes": "Tilbake til oppskrifter",
+    "unavailableLocally": "Denne oppskriften er ikke tilgjengelig på denne enheten ennå. Den vises her når den synkroniseres.",
     "newRecipe": "Ny oppskrift",
     "name": "Navn",
     "description": "Beskrivelse",

@@ -188,10 +188,13 @@ export default function ShoppingList() {
         </section>
       )}
 
+      {error && (
+        <p role="status" className="mb-4 text-sm text-muted-foreground">
+          {formatLoadErrorMessage(error, t)}
+        </p>
+      )}
       {resolving || (loading && !items) ? (
         <p>{t('shoppingList.loading')}</p>
-      ) : error ? (
-        <p className="text-destructive">{formatLoadErrorMessage(error, t)}</p>
       ) : (
         <div className="space-y-4">
           {groups.length > 0 ? (
