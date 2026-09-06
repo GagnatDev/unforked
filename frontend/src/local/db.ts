@@ -295,6 +295,76 @@ export async function listLocalRecipes(): Promise<Recipe[] | null> {
   })
 }
 
+const RECIPE_GENERATION_KEY = 'recipes:writeGeneration'
+const RECIPE_REVISION_PREFIX = 'recipes:writeRevision:'
+export interface RecipePullGuard {
+  generation: number
+  pendingKeys: string[]
+}
+
+/** Capture before GET, in the same transaction scope used by recipe writers. */
+export async function beginRecipePull(): Promise<RecipePullGuard> {
+  return readTx(['outbox', 'syncMeta'], async tx => {
+    const [generation, ops] = await Promise.all([
+      promisifyRequest<SyncMetaRecord | undefined>(tx.objectStore('syncMeta').get(RECIPE_GENERATION_KEY)),
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+    ])
+    return {
+      generation: (generation?.value as number | undefined) ?? 0,
+      pendingKeys: ops.filter(op => op.entity === 'recipe').map(op => op.key),
+    }
+  })
+}
+
+/**
+ * Reconcile against writes pending at GET start, pending now, or committed
+ * since GET start (even if their push has already drained). The shared
+ * recipes/outbox/syncMeta transaction serializes with mutations in every tab.
+ * Protected keys retain their current record or deletion absence. Only full
+ * list responses remove omitted unprotected keys. Local revision tombstones
+ * must survive drains: an older request may still be in flight in another tab.
+ */
+export async function applyRecipePull(recipes: Recipe[], fullList: boolean, guard: RecipePullGuard): Promise<void> {
+  await writeTx(['recipes', 'outbox', 'syncMeta'], async (tx) => {
+    const store = tx.objectStore('recipes')
+    const [ops, local, metadata] = await Promise.all([
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+      promisifyRequest<Recipe[]>(store.getAll()),
+      promisifyRequest<SyncMetaRecord[]>(tx.objectStore('syncMeta').getAll()),
+    ])
+    const protectedKeys = new Set([...guard.pendingKeys, ...ops.filter(op => op.entity === 'recipe').map(op => op.key)])
+    // A successful push can remove an op before this older GET resolves. Durable
+    // per-key generations (including delete tombstones) survive that drain and
+    // are shared by every tab; do not roll those keys back to the stale response.
+    for (const record of metadata) {
+      if (record.key.startsWith(RECIPE_REVISION_PREFIX) && (record.value as number) > guard.generation) {
+        protectedKeys.add(record.key.slice(RECIPE_REVISION_PREFIX.length))
+      }
+    }
+    if (fullList) {
+      store.clear()
+      for (const recipe of local) if (protectedKeys.has(recipe.id)) store.put(recipe)
+      tx.objectStore('syncMeta').put({ key: RECIPES_PULLED_AT_KEY, value: Date.now() })
+    }
+    for (const recipe of recipes) if (!protectedKeys.has(recipe.id)) store.put(recipe)
+  })
+}
+
+/** Commit optimistic recipe state and its durable protection together. */
+export async function writeRecipeMutation(recipe: Recipe | null, op: OutboxOp): Promise<void> {
+  await writeTx(['recipes', 'outbox', 'syncMeta'], async tx => {
+    const meta = tx.objectStore('syncMeta')
+    const current = await promisifyRequest<SyncMetaRecord | undefined>(meta.get(RECIPE_GENERATION_KEY))
+    const generation = ((current?.value as number | undefined) ?? 0) + 1
+    meta.put({ key: RECIPE_GENERATION_KEY, value: generation })
+    meta.put({ key: `${RECIPE_REVISION_PREFIX}${op.key}`, value: generation })
+    if (recipe) tx.objectStore('recipes').put(recipe)
+    else tx.objectStore('recipes').delete(op.key)
+    const { seq: _seq, ...record } = op
+    tx.objectStore('outbox').add(record)
+  })
+}
+
 /** Replaces the whole recipe collection with the server's list (full pull). */
 export async function replaceLocalRecipes(recipes: Recipe[]): Promise<void> {
   await writeTx(['recipes', 'syncMeta'], (tx) => {

@@ -1,4 +1,6 @@
 import type { MealPlanDoc, RecipeDoc } from '@/types'
+import { fetchWithTimeout as fetch } from '@/lib/fetchTimeout'
+import { trackSync } from './syncStatus'
 
 import {
   deleteOutboxOp,
@@ -41,11 +43,11 @@ const base = import.meta.env.VITE_API_URL ?? ''
 type SendResult =
   | { ok: true }
   /** Network unreachable / server down / 401: whole queue waits and retries. */
-  | { ok: false; retry: 'queue'; message: string }
+  | { ok: false; retry: 'queue'; message: string; status?: number }
   /** 409 conflict: this entity waits (phase-4 resolution), others proceed. */
-  | { ok: false; retry: 'key'; message: string }
+  | { ok: false; retry: 'key'; message: string; status?: number }
   /** Validation/permission 4xx: park this op, keep draining other entities. */
-  | { ok: false; retry: 'park'; message: string }
+  | { ok: false; retry: 'park'; message: string; status?: number }
 
 function headers(op: OutboxOp): Record<string, string> {
   return {
@@ -65,10 +67,10 @@ function weekQuery(weekId: string): string {
  * (phase-4 resolution); other 4xx are permanent (park). Never navigates.
  */
 function classifyFailure(status: number, body: string): SendResult {
-  if (status === 401) return { ok: false, retry: 'queue', message: 'session expired' }
-  if (status === 409) return { ok: false, retry: 'key', message: 'conflict' }
-  if (status >= 500) return { ok: false, retry: 'queue', message: `server error ${status}` }
-  return { ok: false, retry: 'park', message: body || `HTTP ${status}` }
+  if (status === 401) return { ok: false, retry: 'queue', message: 'session expired', status }
+  if (status === 409) return { ok: false, retry: 'key', message: 'conflict', status }
+  if (status >= 500) return { ok: false, retry: 'queue', message: `server error ${status}`, status }
+  return { ok: false, retry: 'park', message: body || `HTTP ${status}`, status }
 }
 
 // --- recipe ops ---
@@ -437,7 +439,7 @@ function scheduleRetry(): void {
   backoffMs = backoffMs === 0 ? INITIAL_BACKOFF_MS : Math.min(backoffMs * 2, MAX_BACKOFF_MS)
   retryTimer = setTimeout(() => {
     retryTimer = null
-    void drainOutbox()
+    if (isLeader()) void drainOutbox()
   }, backoffMs)
 }
 
@@ -451,7 +453,9 @@ function resetBackoff(): void {
 
 // --- drain loop ---
 
-let draining = false
+export type PushOutcome = { canPull: boolean }
+let drainPromise: Promise<PushOutcome> | null = null
+let drainFailure: Error | null = null
 let rerunRequested = false
 
 /**
@@ -466,7 +470,7 @@ async function drainOnce(): Promise<{ retryLater: boolean }> {
 
   // Keys we must not advance past this round, to preserve per-entity ordering
   // (a create must precede its later update) without blocking other entities.
-  const blockedKeys = new Set<string>()
+  const blockedKeys = new Set(ops.filter(op => op.parkedAt != null).map(op => `${op.entity}:${op.key}`))
 
   for (const op of active) {
     const keyId = `${op.entity}:${op.key}`
@@ -478,6 +482,9 @@ async function drainOnce(): Promise<{ retryLater: boolean }> {
       continue
     }
 
+    drainFailure ??= result.message === 'network unreachable'
+      ? new TypeError(result.message)
+      : Object.assign(new Error(result.message), { status: result.status ?? (result.retry === 'key' ? 409 : 400) })
     const attempted: OutboxOp = { ...op, attempts: op.attempts + 1, lastError: result.message }
     if (result.retry === 'park') {
       await putOutboxOp({ ...attempted, parkedAt: Date.now() })
@@ -501,26 +508,29 @@ async function drainOnce(): Promise<{ retryLater: boolean }> {
  * Drain the outbox, coalescing concurrent callers into a single loop and
  * re-running once more if a mutation was kicked while a drain was in flight.
  */
-export async function drainOutbox(): Promise<void> {
-  if (draining) {
+export function drainOutbox(): Promise<PushOutcome> {
+  if (drainPromise) {
     rerunRequested = true
-    return
+    return drainPromise
   }
-  draining = true
-  try {
+  drainPromise = trackSync('outbox', async () => {
     let retryLater = false
     do {
       rerunRequested = false
+      drainFailure = null
       retryLater = (await drainOnce()).retryLater
-    } while (rerunRequested)
+    } while (rerunRequested && !retryLater)
     if (retryLater) scheduleRetry()
     else resetBackoff()
-  } catch {
-    // A store read/write failed unexpectedly — try again on the next trigger.
-    scheduleRetry()
-  } finally {
-    draining = false
-  }
+    if (drainFailure) throw drainFailure
+  }).catch(error => {
+    // Send failures already chose their retry policy above. Only unexpected
+    // store failures need a timer here; parked/conflicting ops do not gain one.
+    if (error !== drainFailure) scheduleRetry()
+  }).then(async () => ({ canPull: (await listOutboxOps()).length === 0 }))
+    .catch(() => ({ canPull: false }))
+    .finally(() => { drainPromise = null })
+  return drainPromise
 }
 
 /**
@@ -531,6 +541,76 @@ export async function drainOutbox(): Promise<void> {
 export function kickOutboxSync(): void {
   if (isLeader()) void drainOutbox()
   else postCrossTab({ kind: 'outbox-kick' })
+}
+
+// Manual reconciliation only. Automatic catch-up scheduling belongs to WP3.
+const manualKeys = new Set<string>()
+let manualRun: Promise<void> | null = null
+
+async function runManualSync(keys: string[]): Promise<void> {
+  keys.forEach(key => manualKeys.add(key))
+  if (manualRun) return manualRun
+  manualRun = (async () => {
+    const { getObservedPullKeys, retryPullKeys } = await import('./sync')
+    getObservedPullKeys().forEach(key => manualKeys.add(key))
+    do {
+      const push = await drainOutbox() // Includes an already-running drain.
+      const batch = [...manualKeys]
+      manualKeys.clear()
+      // Retain the conservative manual push-first barrier. Recipe application
+      // also protects writes queued after this check, while GETs are in flight.
+      if (push.canPull) await retryPullKeys(batch)
+    } while (manualKeys.size > 0)
+  })().finally(() => { manualRun = null })
+  return manualRun
+}
+
+export const MANUAL_SYNC_TIMEOUT_MS = 60_000
+const pendingManual = new Map<string, {
+  keys: string[]; resolve: () => void; reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>
+}>()
+let stopManualMessages: (() => void) | undefined
+let stopManualTakeover: (() => void) | undefined
+
+function finishManual(requestId: string, failed: boolean) {
+  const pending = pendingManual.get(requestId)
+  if (!pending) return
+  clearTimeout(pending.timer)
+  pendingManual.delete(requestId)
+  if (failed) pending.reject(new Error('Manual sync did not complete'))
+  else pending.resolve()
+}
+
+function startManualRequests() {
+  if (stopManualMessages) return
+  stopManualMessages = subscribeCrossTab(message => {
+    if (message.kind === 'sync-complete') finishManual(message.requestId, message.failed)
+    if (message.kind === 'sync-now' && isLeader()) {
+      void runManualSync(message.keys).then(
+        () => postCrossTab({ kind: 'sync-complete', requestId: message.requestId, failed: false }),
+        () => postCrossTab({ kind: 'sync-complete', requestId: message.requestId, failed: true }),
+      )
+    }
+  })
+  stopManualTakeover = onBecomeLeader(() => {
+    for (const [id, pending] of pendingManual) {
+      void runManualSync(pending.keys).then(() => finishManual(id, false), () => finishManual(id, true))
+    }
+  })
+}
+
+export async function syncNow(): Promise<void> {
+  startManualRequests()
+  const { getObservedPullKeys } = await import('./sync')
+  const keys = getObservedPullKeys()
+  if (isLeader()) return runManualSync(keys)
+  const requestId = crypto.randomUUID()
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => finishManual(requestId, true), MANUAL_SYNC_TIMEOUT_MS)
+    pendingManual.set(requestId, { keys, resolve, reject, timer })
+    postCrossTab({ kind: 'sync-now', requestId, keys })
+  })
 }
 
 // --- lifecycle / triggers ---
@@ -552,6 +632,7 @@ export function startOutboxSync(): void {
 
   // Elect the single tab that drives draining and re-auth.
   startLeaderElection()
+  startManualRequests()
 
   const isOnline = () => typeof navigator === 'undefined' || navigator.onLine !== false
   const drainIfLeaderOnline = () => {
@@ -583,9 +664,18 @@ export function startOutboxSync(): void {
 
 /** Test hook: clear the module-level drain/backoff state between cases. */
 export function __resetOutboxSyncForTests(): void {
-  draining = false
+  drainPromise = null
+  drainFailure = null
   rerunRequested = false
   started = false
   shoppingVersions.clear()
+  manualKeys.clear()
+  manualRun = null
+  stopManualMessages?.()
+  stopManualTakeover?.()
+  stopManualMessages = undefined
+  stopManualTakeover = undefined
+  for (const pending of pendingManual.values()) clearTimeout(pending.timer)
+  pendingManual.clear()
   resetBackoff()
 }

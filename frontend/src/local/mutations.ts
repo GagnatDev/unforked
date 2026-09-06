@@ -4,7 +4,7 @@ import type { MealPlanDoc, Recipe, RecipeDoc, RecipePhoto, ShoppingListEntry } f
 
 import {
   appendOutboxOp,
-  deleteLocalRecipe,
+  writeRecipeMutation,
   getLocalMealPlan,
   getLocalRecipe,
   getLocalShoppingList,
@@ -59,8 +59,7 @@ function recipeOp(
 /** Create a recipe locally with a client-minted id and queue the server create. */
 export async function createRecipe(doc: RecipeDoc): Promise<Recipe> {
   const recipe: Recipe = { id: uuid(), doc }
-  await putLocalRecipe(recipe)
-  await appendOutboxOp(recipeOp('create', recipe.id, doc))
+  await writeRecipeMutation(recipe, recipeOp('create', recipe.id, doc))
   kickOutboxSync()
   return recipe
 }
@@ -74,8 +73,7 @@ export async function updateRecipe(id: string, doc: RecipeDoc): Promise<Recipe> 
   const existing = await getLocalRecipe(id)
   const baseDoc = existing?.doc ?? doc
   const recipe: Recipe = { id, doc, version: existing?.version }
-  await putLocalRecipe(recipe)
-  await appendOutboxOp(recipeOp('update', id, { baseDoc, nextDoc: doc }, existing?.version))
+  await writeRecipeMutation(recipe, recipeOp('update', id, { baseDoc, nextDoc: doc }, existing?.version))
   kickOutboxSync()
   return recipe
 }
@@ -95,8 +93,7 @@ export async function setRecipePhoto(id: string, keys: RecipePhoto | null): Prom
 
 /** Remove a recipe locally and queue the server delete. */
 export async function deleteRecipe(id: string): Promise<void> {
-  await deleteLocalRecipe(id)
-  await appendOutboxOp(recipeOp('delete', id))
+  await writeRecipeMutation(null, recipeOp('delete', id))
   kickOutboxSync()
 }
 

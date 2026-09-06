@@ -23,6 +23,10 @@ export type CrossTabMessage =
   | { kind: 'local-write'; stores: LocalStoreName[] }
   /** A follower queued a mutation and asks the leader to drain the outbox. */
   | { kind: 'outbox-kick' }
+  | { kind: 'sync-now'; requestId: string; keys: string[] }
+  | { kind: 'sync-complete'; requestId: string; failed: boolean }
+  | { kind: 'sync-outcome'; sourceId: string; key: string; runId: string; outcome: import('./syncStatus').SyncOutcome }
+  | { kind: 'sync-heartbeat'; sourceId: string }
   /** A follower saw a 401 and asks the leader to drive the re-auth navigation. */
   | { kind: 'reauth-request' }
   /** The deferred-reauth ("will sync") indicator changed; mirror it everywhere. */

@@ -1,4 +1,23 @@
 {
+  "sync": {
+    "synced": "Synkronisert",
+    "syncing": "Synkroniserer",
+    "offline": "Frakoblet",
+    "error": "Synkronisering pauset",
+    "now": "Synkroniser nå",
+    "localSafe": "Fortsett å jobbe her. Endringer lagres på denne enheten.",
+    "pending_one": "{{count}} endring venter",
+    "pending_other": "{{count}} endringer venter",
+    "disconnected": "Ingen forbindelse. Synkronisering fortsetter når du er på nett.",
+    "cause": {
+      "transport": "Forbindelsen sviktet eller fikk tidsavbrudd. Prøv å synkronisere igjen.",
+      "auth": "Økten er utløpt. Endringer synkroniseres når du logger inn igjen.",
+      "http": "Serveren kunne ikke synkronisere. Prøv igjen om litt.",
+      "conflict": "Noen endringer er i konflikt med serveren. Prøv å synkronisere igjen.",
+      "parked": "Noen endringer trenger oppfølging og kan ikke sendes automatisk. De blir på denne enheten.",
+      "storage": "Synkroniseringen kunne ikke fullføres. Prøv igjen."
+    }
+  },
   "nav": {
     "recipes": "Oppskrifter",
     "recipesMenu": "Oppskrifter",
