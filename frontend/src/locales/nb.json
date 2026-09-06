@@ -309,5 +309,21 @@
     "installPrompt": "Installer appen for rask tilgang.",
     "install": "Installer",
     "dismissInstall": "Lukk installasjonsmelding"
+  },
+  "settings": {
+    "loadingBody": "Sjekker tilkoblingen og laster inn innstillinger fra serveren.",
+    "loading": "Laster inn innstillinger…",
+    "retry": "Prøv igjen",
+    "connectionTitle": "Tilkobling kreves",
+    "connectionBody": "Disse innstillingene trenger en fungerende tilkobling. Koble til og prøv igjen.",
+    "permissionTitle": "Tilgang kreves",
+    "permissionBody": "Kontoen din har ikke tilgang til disse innstillingene. Kontakt familieadministratoren.",
+    "serverTitle": "Innstillingene er utilgjengelige",
+    "serverBody": "Serveren kunne ikke laste inn innstillingene. Prøv igjen senere.",
+    "reauthTitle": "Logg inn for å endre innstillinger",
+    "reauthBody": "Økten din har utløpt. Logg inn igjen for å endre disse innstillingene.",
+    "mismatchTitle": "Kontoen samsvarer ikke",
+    "mismatchBody": "Logg inn med den opprinnelige kontoen og familien for å endre innstillinger uten å flytte lokalt arbeid.",
+    "localAvailable": "Lokale oppskrifter, ukeplan og handleliste er fortsatt tilgjengelige."
   }
 }

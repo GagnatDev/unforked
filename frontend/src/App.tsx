@@ -59,8 +59,8 @@ function AppLayout({
           <Route path="/meal-plan" element={<MealPlan />} />
           <Route path="/shopping-list" element={<ShoppingList />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/family" element={<RequireLiveSession><Family /></RequireLiveSession>} />
-          <Route path="/api-keys" element={<RequireLiveSession><ApiKeys /></RequireLiveSession>} />
+          <Route path="/family" element={<RequireLiveSession titleKey="family.title"><Family /></RequireLiveSession>} />
+          <Route path="/api-keys" element={<RequireLiveSession titleKey="apiKeys.title"><ApiKeys /></RequireLiveSession>} />
           <Route path="/register-invite" element={<RequireLiveSession><JoinFamily /></RequireLiveSession>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

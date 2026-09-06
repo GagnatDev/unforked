@@ -51,6 +51,7 @@ it('distinguishes true offline from an online timeout and retains a failed pull 
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     window.dispatchEvent(new Event('offline'))
   })
-  expect(screen.getByRole('button', { name: 'Offline' })).toBeTruthy()
+  // Chromium excludes the nested role=status text from the button's name.
+  expect(screen.getByRole('button', { name: 'Offline' }).getAttribute('aria-label')).toBe('Offline')
   expect((screen.getByRole('button', { name: 'Sync now' }) as HTMLButtonElement).disabled).toBe(true)
 })

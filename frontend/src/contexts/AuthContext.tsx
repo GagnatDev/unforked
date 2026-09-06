@@ -14,9 +14,11 @@ type AuthContextValue = {
   user: UserInfo | null
   loading: boolean
   reloading: boolean
+  checkingSession?: boolean
   reauthPending: boolean
   liveSession: boolean
   accountMismatch: boolean
+  availabilityFailure?: 'connection' | 'permission' | 'server'
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -43,7 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const current = useRef<UserInfo | null>(null)
   const [user, setUser] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [availabilityFailure, setAvailabilityFailure] = useState<'connection' | 'permission' | 'server'>('connection')
   const [reloading, setReloading] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [reauthPending, setReauthPending] = useState(isReauthDeferred)
   const session = useSyncExternalStore(subscribeLocalSession, getLocalSessionState)
   const generation = useRef(0)
@@ -75,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (revoked.current) return Promise.resolve()
     if (checking.current) return checking.current
     const version = generation.current
+    setCheckingSession(true)
     const pending = (async () => {
       try {
         await initialize()
@@ -115,12 +120,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const disposition = await requestReauth()
           if (version === generation.current && !current.current) setReloading(disposition === 'reloading')
         } else {
-          if (getLocalSessionState() !== 'mismatch') setLocalSessionState('unavailable')
+          if (getLocalSessionState() !== 'mismatch') {
+            setAvailabilityFailure(res.status === 403 ? 'permission' : 'server')
+            setLocalSessionState('unavailable')
+          }
         }
       } catch {
-        if (version === generation.current && getLocalSessionState() !== 'mismatch') setLocalSessionState('unavailable')
+        if (version === generation.current && getLocalSessionState() !== 'mismatch') {
+          setAvailabilityFailure('connection')
+          setLocalSessionState('unavailable')
+        }
       } finally {
-        if (version === generation.current) setLoading(false)
+        if (version === generation.current) {
+          setLoading(false)
+          setCheckingSession(false)
+        }
       }
     })()
     checking.current = pending
@@ -148,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       seen.add(nonce)
       generation.current++
       checking.current = null
+      setCheckingSession(false)
       setLocalSessionState(kind === 'logout' ? 'logged-out' : 'mismatch')
       if (kind === 'logout') {
         revoked.current = true
@@ -200,6 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // resurrect local access. Keep the durable owner and all pending work.
     generation.current++
     revoked.current = true
+    setCheckingSession(false)
     setLocalSessionState('logged-out')
     clearCachedIdentity()
     publishUser(null)
@@ -212,9 +228,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await navigateForLogin()
   }, [publishUser])
 
-  const value = useMemo<AuthContextValue>(() => ({ user, loading, reloading, reauthPending,
-    liveSession: session === 'live', accountMismatch: session === 'mismatch', logout, refreshUser: loadUser,
-  }), [user, loading, reloading, reauthPending, session, logout, loadUser])
+  const value = useMemo<AuthContextValue>(() => ({ user, loading, reloading, checkingSession, reauthPending,
+    liveSession: session === 'live', accountMismatch: session === 'mismatch', availabilityFailure, logout, refreshUser: loadUser,
+  }), [user, loading, reloading, checkingSession, reauthPending, session, availabilityFailure, logout, loadUser])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 export function useAuth() {

@@ -198,7 +198,7 @@ export const api = {
       ),
   },
   apiKeys: {
-    list: () => request<ApiKey[]>('/api/api-keys'),
+    list: (signal?: AbortSignal) => request<ApiKey[]>('/api/api-keys', { signal, cache: 'no-store' }),
     // The response's `key` is the plaintext, returned exactly once at creation.
     // Scopes: every key can read; pass ['write'] to also allow mutations
     // (adding shopping-list items) — the server always includes 'read'.
@@ -233,13 +233,13 @@ export const api = {
       ),
   },
   family: {
-    get: () =>
+    get: (signal?: AbortSignal) =>
       request<{
         id: string
         defaultMealPlanPersons: number
         members: { id: string; email: string }[]
         pendingInvites: { id: string; inviteeEmail: string; token: string; expiresAt: string }[]
-      }>('/api/family'),
+      }>(`/api/family?probe=${crypto.randomUUID()}`, { signal, cache: 'no-store' }),
     patchDefaultPersons: (defaultMealPlanPersons: number) =>
       request<{ defaultMealPlanPersons: number }>('/api/family', {
         method: 'PATCH',

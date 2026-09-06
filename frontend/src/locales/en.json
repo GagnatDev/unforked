@@ -309,5 +309,21 @@
     "installPrompt": "Install this app for quick access.",
     "install": "Install",
     "dismissInstall": "Dismiss install prompt"
+  },
+  "settings": {
+    "loadingBody": "Checking the connection and loading server settings.",
+    "loading": "Loading settings…",
+    "retry": "Try again",
+    "connectionTitle": "Connection needed",
+    "connectionBody": "These settings need a working connection. Reconnect, then try again.",
+    "permissionTitle": "Permission needed",
+    "permissionBody": "Your account cannot access these settings. Check with your family administrator.",
+    "serverTitle": "Settings unavailable",
+    "serverBody": "The server could not load these settings. Try again later.",
+    "reauthTitle": "Sign in to manage settings",
+    "reauthBody": "Your session has expired. Sign in again to manage these settings.",
+    "mismatchTitle": "Account does not match",
+    "mismatchBody": "Sign in to the original account and family to manage settings without moving your local work.",
+    "localAvailable": "Your local recipes, plan and shopping list are still available."
   }
 }

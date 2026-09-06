@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { RequireLiveSession } from '@/components/RequireLiveSession'
 import { NotificationSettings } from '@/components/NotificationSettings'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme, type Theme } from '@/contexts/ThemeContext'
@@ -98,7 +99,9 @@ export default function Profile() {
         </div>
       </section>
 
-      <NotificationSettings />
+      <RequireLiveSession embedded titleKey="notifications.cardTitle">
+        <NotificationSettings />
+      </RequireLiveSession>
 
       {/* Rows, not cards: these are two doors out of this page, and a row makes
           the destination and its one-line reason read in a single sweep. */}
