@@ -1,4 +1,5 @@
 import { api } from '@/api'
+import { sessionGuard } from '@/lib/localSession'
 import { getFailedSyncKeys, trackSync } from './syncStatus'
 
 // Observed keys survive page unmounts and are persisted for subsequent sessions.
@@ -7,7 +8,7 @@ export const getObservedPullKeys = () => [...new Set([...observedKeys, ...getFai
 
 function observedPull(key: string, work: () => Promise<void>): Promise<void> {
   observedKeys.add(key)
-  return trackSync(key, async () => { await rememberPullKey(key); await work() })
+  return trackSync(key, async () => { sessionGuard(); await rememberPullKey(key); await work() })
 }
 
 export const pullRecipes = () => observedPull('recipes', fetchRecipes)
@@ -61,31 +62,36 @@ import { scheduleSync } from './outboxSync'
 export const FAMILY_DEFAULT_PERSONS_KEY = 'family:defaultMealPlanPersons'
 
 async function fetchRecipes(): Promise<void> {
+  const check = sessionGuard()
   const guard = await beginRecipePull()
   const recipes = await api.recipes.list()
-  await applyRecipePull(recipes, true, guard)
+  await applyRecipePull(recipes, true, guard, check)
 }
 
 async function fetchRecipe(id: string): Promise<void> {
+  const check = sessionGuard()
   const guard = await beginRecipePull()
   const recipe = await api.recipes.get(id)
-  await applyRecipePull([recipe], false, guard)
+  await applyRecipePull([recipe], false, guard, check)
 }
 
 async function fetchMealPlan(weekId: string): Promise<void> {
+  const check = sessionGuard()
   const guard = await beginWeekPull('mealPlans', weekId)
   const server = await api.mealPlans.getCurrent(weekId)
-  if (!await applyWeekPull('mealPlans', weekId, server, guard)) scheduleSync()
+  if (!await applyWeekPull('mealPlans', weekId, server, guard, check)) scheduleSync()
 }
 
 async function fetchShoppingList(weekId: string): Promise<void> {
+  const check = sessionGuard()
   const guard = await beginWeekPull('shoppingLists', weekId)
   const server = await api.shoppingList.get(weekId)
-  if (!await applyWeekPull('shoppingLists', weekId, server, guard)) scheduleSync()
+  if (!await applyWeekPull('shoppingLists', weekId, server, guard, check)) scheduleSync()
 }
 
 /** The family default is optional context; failure is non-fatal by design. */
 async function fetchFamilyMealPlanDefaults(): Promise<void> {
+  const check = sessionGuard()
   const family = await api.family.get()
-  await setSyncMeta(FAMILY_DEFAULT_PERSONS_KEY, family.defaultMealPlanPersons ?? null)
+  await setSyncMeta(FAMILY_DEFAULT_PERSONS_KEY, family.defaultMealPlanPersons ?? null, check)
 }

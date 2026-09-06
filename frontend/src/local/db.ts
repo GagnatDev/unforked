@@ -183,6 +183,30 @@ function openLocalDb(): Promise<IDBDatabase> {
   return dbPromise
 }
 
+/** Owner binding is independent of the revocable cached display identity. */
+export type LocalOwner = { id: string; familyId: string }
+export const sameLocalOwner = (a: LocalOwner, b: LocalOwner) => a.id === b.id && a.familyId === b.familyId
+
+/** Atomically claim an empty/legacy cache, never transfer existing ownership. */
+export async function bindLocalOwner(owner: LocalOwner, trustedLegacyOwner = false): Promise<boolean> {
+  const db = await openLocalDb()
+  const stores: LocalStoreName[] = ['recipes', 'mealPlans', 'shoppingLists', 'outbox', 'syncMeta']
+  const tx = db.transaction(stores, 'readwrite')
+  const done = transactionDone(tx)
+  const meta = tx.objectStore('syncMeta')
+  const existing = await promisifyRequest(meta.get('auth:owner')) as SyncMetaRecord | undefined
+  let matches = existing ? sameLocalOwner(existing.value as LocalOwner, owner) : false
+  if (!existing) {
+    const counts = await Promise.all(stores.map(name => promisifyRequest(tx.objectStore(name).count())))
+    if (trustedLegacyOwner || counts.every(count => count === 0)) {
+      meta.put({ key: 'auth:owner', value: { id: owner.id, familyId: owner.familyId } })
+      matches = true
+    }
+  }
+  await done
+  return matches
+}
+
 function promisifyRequest<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result)
@@ -326,7 +350,7 @@ export async function beginRecipePull(): Promise<RecipePullGuard> {
  * list responses remove omitted unprotected keys. Local revision tombstones
  * must survive drains: an older request may still be in flight in another tab.
  */
-export async function applyRecipePull(recipes: Recipe[], fullList: boolean, guard: RecipePullGuard): Promise<void> {
+export async function applyRecipePull(recipes: Recipe[], fullList: boolean, guard: RecipePullGuard, checkSession?: () => void): Promise<void> {
   await writeTx(['recipes', 'outbox', 'syncMeta'], async (tx) => {
     const store = tx.objectStore('recipes')
     const [ops, local, metadata] = await Promise.all([
@@ -334,6 +358,7 @@ export async function applyRecipePull(recipes: Recipe[], fullList: boolean, guar
       promisifyRequest<Recipe[]>(store.getAll()),
       promisifyRequest<SyncMetaRecord[]>(tx.objectStore('syncMeta').getAll()),
     ])
+    checkSession?.()
     const protectedKeys = new Set([...guard.pendingKeys, ...ops.filter(op => op.entity === 'recipe').map(op => op.key)])
     // A successful push can remove an op before this older GET resolves. Durable
     // per-key generations (including delete tombstones) survive that drain and
@@ -410,13 +435,14 @@ export async function beginWeekPull(store: WeekStore, week: string): Promise<Wee
 }
 
 /** Returns false when a newer local write needs a fresh catch-up snapshot. */
-export async function applyWeekPull(store: WeekStore, week: string, server: MealPlanDoc | PersistedShoppingListDoc, guard: WeekPullGuard): Promise<boolean> {
+export async function applyWeekPull(store: WeekStore, week: string, server: MealPlanDoc | PersistedShoppingListDoc, guard: WeekPullGuard, checkSession?: () => void): Promise<boolean> {
   let applied = false
   await writeTx([store, 'outbox', 'syncMeta'], async tx => {
     const [meta, ops] = await Promise.all([
       promisifyRequest<SyncMetaRecord | undefined>(tx.objectStore('syncMeta').get(weekRevisionKey(store, week))),
       promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
     ])
+    checkSession?.()
     const pending = weekOps(ops, store, week)
     if (((meta?.value as number) ?? 0) !== guard.generation || guard.pendingIds.some(id => !pending.some(op => op.opId === id))) return
     let doc = server
@@ -550,8 +576,9 @@ export async function getSyncMeta<T>(key: string): Promise<T | undefined> {
   })
 }
 
-export async function setSyncMeta(key: string, value: unknown): Promise<void> {
+export async function setSyncMeta(key: string, value: unknown, checkSession?: () => void): Promise<void> {
   await writeTx(['syncMeta'], (tx) => {
+    checkSession?.()
     tx.objectStore('syncMeta').put({ key, value })
   })
 }
@@ -585,8 +612,9 @@ export async function putOutboxOp(op: OutboxOp): Promise<void> {
 }
 
 /** Remove a drained op by its sequence key. */
-export async function deleteOutboxOp(seq: number): Promise<void> {
+export async function deleteOutboxOp(seq: number, checkSession?: () => void): Promise<void> {
   await writeTx(['outbox'], (tx) => {
+    checkSession?.()
     tx.objectStore('outbox').delete(seq)
   })
 }

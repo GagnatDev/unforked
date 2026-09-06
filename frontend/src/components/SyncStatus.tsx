@@ -8,11 +8,14 @@ import { syncNow } from '@/local/outboxSync'
 import { Button } from './ui/button'
 import { Popover, PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger } from './ui/popover'
 import { cn } from '@/lib/utils'
+import { navigateForLogin } from '@/lib/session'
+import { getLocalSessionState, subscribeLocalSession } from '@/lib/localSession'
 
 /** One quiet, inspectable reconciliation surface; local editing stays available. */
 export function SyncStatus() {
   const { t } = useTranslation()
-  const { reauthPending } = useAuth()
+  const { reauthPending, accountMismatch } = useAuth()
+  const session = useSyncExternalStore(subscribeLocalSession, getLocalSessionState)
   const outcome = useSyncExternalStore(subscribeSyncStatus, getSyncStatus)
   const { data: ops, loading } = useLocal(listOutboxOps, ['outbox'], [])
   const [online, setOnline] = useState(navigator.onLine)
@@ -28,9 +31,9 @@ export function SyncStatus() {
     }
   }, [])
   const parked = ops?.filter(op => op.parkedAt != null).length ?? 0
-  const cause = parked ? 'parked' : reauthPending ? 'auth' : outcome.failure ??
+  const cause = accountMismatch || reauthPending || session === 'reauth' ? 'auth' : session === 'unavailable' ? 'transport' : parked ? 'parked' : outcome.failure ??
     (requestFailed || (!loading && ops == null) ? 'storage' : null)
-  const state = !online ? 'offline' : outcome.active || requested ? 'syncing' : cause ? 'error' :
+  const state = !online ? 'offline' : outcome.active || requested || session === 'checking' ? 'syncing' : cause ? 'error' :
     loading || (ops?.length ?? 0) > 0 ? 'syncing' : 'synced'
 
   async function requestSync() {
@@ -51,7 +54,8 @@ export function SyncStatus() {
         <PopoverTitle>{t(`sync.${state}`)}</PopoverTitle>
         <PopoverDescription>{t('sync.localSafe')}</PopoverDescription>
         <p className="tabular-nums">{t('sync.pending', { count: ops?.length ?? 0 })}</p>
-        {!online ? <p>{t('sync.disconnected')}</p> : cause && <p>{t(`sync.cause.${cause}`)}</p>}
+        {accountMismatch ? <p>{t('auth.accountMismatch')}</p> : !online ? <p>{t('sync.disconnected')}</p> : cause && <p>{t(`sync.cause.${cause}`)}</p>}
+        {online && cause === 'auth' && <Button variant="outline" onClick={() => void navigateForLogin()}>{t('auth.signIn')}</Button>}
         <Button variant="outline" disabled={!online || outcome.active || requested} onClick={() => void requestSync()}>
           {t('sync.now')}
         </Button>

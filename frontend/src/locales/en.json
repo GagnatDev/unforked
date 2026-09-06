@@ -53,6 +53,9 @@
     "couldNotReachServer": "Could not reach the server. Check your connection and try again."
   },
   "auth": {
+    "accountMismatch": "This device’s saved work belongs to another account or family. Sign back into the original account to sync. Nothing has been removed.",
+    "needsConnection": "These settings need a connection and a live session. Your recipes, plan and shopping list are still available.",
+    "signIn": "Sign in again",
     "email": "Email",
     "logOut": "Log out",
     "sessionExpired": "Your session has expired. Reload to log in again.",

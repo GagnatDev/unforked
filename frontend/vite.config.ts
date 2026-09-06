@@ -142,8 +142,13 @@ export default defineConfig({
             urlPattern: /^https?:\/\/[^/]+\/api\/shopping-lists/,
             handler: 'NetworkOnly',
           },
+          // Live identity checks must never be answered from an HTTP cache.
           {
-            urlPattern: /^https?:\/\/[^/]+\/api\/(auth|users|family)/,
+            urlPattern: /^https?:\/\/[^/]+\/api\/auth(?:\/|\?|$)/,
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /^https?:\/\/[^/]+\/api\/(users|family)/,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-auth-sensitive',
@@ -170,6 +175,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    setupFiles: ['./src/testSessionSetup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
   server: {

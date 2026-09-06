@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { BottomNav } from '@/components/BottomNav'
 import { TopBar } from '@/components/TopBar'
 import { RequireAuth } from '@/components/RequireAuth'
+import { RequireLiveSession } from '@/components/RequireLiveSession'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePWA } from '@/hooks/usePWA'
 import { PWAUpdateBanner } from '@/components/PWAUpdateBanner'
@@ -58,9 +59,9 @@ function AppLayout({
           <Route path="/meal-plan" element={<MealPlan />} />
           <Route path="/shopping-list" element={<ShoppingList />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/family" element={<Family />} />
-          <Route path="/api-keys" element={<ApiKeys />} />
-          <Route path="/register-invite" element={<JoinFamily />} />
+          <Route path="/family" element={<RequireLiveSession><Family /></RequireLiveSession>} />
+          <Route path="/api-keys" element={<RequireLiveSession><ApiKeys /></RequireLiveSession>} />
+          <Route path="/register-invite" element={<RequireLiveSession><JoinFamily /></RequireLiveSession>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

@@ -33,6 +33,7 @@ export type CrossTabMessage =
   | { kind: 'reauth-request' }
   /** The deferred-reauth ("will sync") indicator changed; mirror it everywhere. */
   | { kind: 'reauth-state'; pending: boolean }
+  | { kind: 'auth-boundary'; boundary: 'logout' | 'mismatch'; nonce: string }
 
 const CHANNEL_NAME = 'unforked-cross-tab'
 const LEADER_LOCK = 'unforked-sync-leader'
@@ -49,7 +50,10 @@ function getChannel(): BroadcastChannel | null {
     channelUnavailable = true
     return null
   }
-  channel = new BroadcastChannel(CHANNEL_NAME)
+  try { channel = new BroadcastChannel(CHANNEL_NAME) } catch {
+    channelUnavailable = true
+    return null
+  }
   channel.onmessage = (event: MessageEvent<CrossTabMessage>) => {
     for (const handler of handlers) handler(event.data)
   }
@@ -62,8 +66,11 @@ function getChannel(): BroadcastChannel | null {
  * `BroadcastChannel` is unavailable.
  */
 export function postCrossTab(message: CrossTabMessage): void {
-  getChannel()?.postMessage(message)
+  try { getChannel()?.postMessage(message) } catch { channelUnavailable = true; channel = null }
 }
+
+/** Auth fails closed for sync if neither cross-tab transport is available. */
+export function canUseCrossTab(): boolean { return getChannel() !== null }
 
 /** Subscribe to messages from other tabs. Returns an unsubscribe function. */
 export function subscribeCrossTab(handler: (message: CrossTabMessage) => void): () => void {

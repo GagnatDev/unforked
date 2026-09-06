@@ -1,5 +1,4 @@
-import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from '@/lib/fetchTimeout'
-import { requestReauth } from '@/lib/reauth'
+import { sessionFetch } from '@/lib/localSession'
 import type {
   ApiKey,
   MealPlanDoc,
@@ -79,9 +78,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     'Content-Type': 'application/json',
     ...(options?.headers as Record<string, string>),
   }
-  const res = await fetchWithTimeout(`${base}${path}`, { ...options, headers }, DEFAULT_FETCH_TIMEOUT_MS)
+  const res = await sessionFetch(`${base}${path}`, { ...options, headers })
   if (!res.ok) {
-    if (res.status === 401) void requestReauth()
     const text = await res.text()
     throw Object.assign(new Error(text || `HTTP ${res.status}`), { status: res.status })
   }

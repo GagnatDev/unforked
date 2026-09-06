@@ -1,3 +1,6 @@
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
+import { __resetLocalDbForTests } from '@/local/db'
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
@@ -26,7 +29,9 @@ function Probe() {
 describe('AuthProvider — poor / missing connectivity', () => {
   const store = new Map<string, string>()
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await __resetLocalDbForTests()
+    globalThis.indexedDB = new IDBFactory()
     store.clear()
     __resetReauthForTests()
     vi.stubGlobal('localStorage', {
@@ -76,7 +81,7 @@ describe('AuthProvider — poor / missing connectivity', () => {
     )
 
     // Cached identity must unblock RequireAuth without waiting on the network.
-    expect(screen.getByText('user:cached@example.com')).toBeTruthy()
+    await waitFor(() => expect(screen.getByText('user:cached@example.com')).toBeTruthy())
     expect(screen.queryByText('loading')).toBeNull()
   })
 
@@ -153,6 +158,6 @@ describe('AuthProvider — poor / missing connectivity', () => {
       </AuthProvider>,
     )
 
-    expect(screen.getByText('user:online@example.com')).toBeTruthy()
+    await waitFor(() => expect(screen.getByText('user:online@example.com')).toBeTruthy())
   })
 })

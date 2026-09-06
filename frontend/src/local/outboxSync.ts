@@ -1,5 +1,5 @@
 import type { MealPlanDoc, RecipeDoc } from '@/types'
-import { fetchWithTimeout as fetch } from '@/lib/fetchTimeout'
+import { sessionFetch as fetch, ensureLiveSession, sessionGuard } from '@/lib/localSession'
 import { trackSync } from './syncStatus'
 
 import {
@@ -476,9 +476,11 @@ async function drainOnce(): Promise<{ retryLater: boolean }> {
     const keyId = `${op.entity}:${op.key}`
     if (blockedKeys.has(keyId)) continue
 
+    const check = sessionGuard()
     const result = await sendOp(op)
+    check()
     if (result.ok) {
-      await deleteOutboxOp(op.seq!)
+      await deleteOutboxOp(op.seq!, check)
       continue
     }
 
@@ -514,6 +516,7 @@ export function drainOutbox(): Promise<PushOutcome> {
     return drainPromise
   }
   drainPromise = trackSync('outbox', async () => {
+    if (!await ensureLiveSession()) throw Object.assign(new Error('Sync needs a matching live session'), { status: 401 })
     let retryLater = false
     do {
       rerunRequested = false
@@ -566,7 +569,7 @@ export function scheduleSync(): void {
   }, 0)
 }
 
-async function runManualSync(keys: string[]): Promise<void> {
+async function runManualSync(keys: string[], recover = false): Promise<void> {
   keys.forEach(key => manualKeys.add(key))
   if (manualRun) { syncRequested = true; return manualRun }
   clearTimeout(scheduleTimer)
@@ -578,6 +581,8 @@ async function runManualSync(keys: string[]): Promise<void> {
       do {
         syncRequested = false
         if (!isLeader() || (typeof navigator !== 'undefined' && navigator.onLine === false)) break
+        if (!await ensureLiveSession(recover)) break
+        recover = false
         getObservedPullKeys().forEach(key => manualKeys.add(key))
         // Startup discovers existing caches as well as demand persisted before a
         // failed/absent pull. No route needs to mount to keep those keys fresh.
@@ -620,7 +625,7 @@ function startManualRequests() {
   stopManualMessages = subscribeCrossTab(message => {
     if (message.kind === 'sync-complete') finishManual(message.requestId, message.failed)
     if (message.kind === 'sync-now' && isLeader()) {
-      void runManualSync(message.keys).then(
+      void runManualSync(message.keys, true).then(
         () => postCrossTab({ kind: 'sync-complete', requestId: message.requestId, failed: false }),
         () => postCrossTab({ kind: 'sync-complete', requestId: message.requestId, failed: true }),
       )
@@ -628,7 +633,7 @@ function startManualRequests() {
   })
   stopManualTakeover = onBecomeLeader(() => {
     for (const [id, pending] of pendingManual) {
-      void runManualSync(pending.keys).then(() => finishManual(id, false), () => finishManual(id, true))
+      void runManualSync(pending.keys, true).then(() => finishManual(id, false), () => finishManual(id, true))
     }
   })
 }
@@ -637,7 +642,7 @@ export async function syncNow(requestedKeys: string[] = []): Promise<void> {
   startManualRequests()
   const { getObservedPullKeys } = await import('./sync')
   const keys = [...new Set([...getObservedPullKeys(), ...requestedKeys])]
-  if (isLeader()) return runManualSync(keys)
+  if (isLeader()) return runManualSync(keys, true)
   const requestId = crypto.randomUUID()
   return new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => finishManual(requestId, true), MANUAL_SYNC_TIMEOUT_MS)

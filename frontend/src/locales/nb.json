@@ -53,6 +53,9 @@
     "couldNotReachServer": "Kunne ikke nå serveren. Sjekk tilkoblingen og prøv igjen."
   },
   "auth": {
+    "accountMismatch": "Det lagrede arbeidet på denne enheten tilhører en annen konto eller familie. Logg inn med den opprinnelige kontoen for å synkronisere. Ingenting er fjernet.",
+    "needsConnection": "Disse innstillingene trenger nettforbindelse og en aktiv økt. Oppskriftene, ukemenyen og handlelisten er fortsatt tilgjengelige.",
+    "signIn": "Logg inn igjen",
     "email": "E-post",
     "logOut": "Logg ut",
     "sessionExpired": "Økten din er utløpt. Last inn siden på nytt for å logge inn igjen.",
