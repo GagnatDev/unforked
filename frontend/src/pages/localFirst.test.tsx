@@ -14,7 +14,7 @@ import { DAYS } from '@/components/meal-plan/constants'
 import { selectOption } from '@/test/selectOption'
 
 const mocks = vi.hoisted(() => ({ pull: vi.fn() }))
-vi.mock('@/local/sync', () => ({
+vi.mock('@/local/pullDemand', () => ({
   FAMILY_DEFAULT_PERSONS_KEY: 'family-default-persons',
   pullMealPlan: mocks.pull,
   pullRecipes: mocks.pull,
@@ -24,7 +24,7 @@ vi.mock('@/local/sync', () => ({
 }))
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }))
 // Keep real mutations/outbox writes, but do not start transport draining in page tests.
-vi.mock('@/local/outboxSync', () => ({ kickOutboxSync: vi.fn() }))
+vi.mock('@/local/outboxSync', () => ({ kickOutboxSync: vi.fn(), scheduleSync: vi.fn() }))
 
 import type { PersistedShoppingListDoc, Recipe } from '@/types'
 import RecipeForm from './RecipeForm'
@@ -225,12 +225,18 @@ it('reconciles a late shopping pull while retaining a queued check', async () =>
   let finish!: (doc: PersistedShoppingListDoc) => void
   vi.spyOn(api.shoppingList, 'get').mockImplementation(() => new Promise((resolve) => { finish = resolve }))
   const realSync = await vi.importActual<typeof import('@/local/sync')>('@/local/sync')
-  mocks.pull.mockImplementation((week: string) => realSync.pullShoppingList(week))
+  let initialPull!: Promise<void>
+  mocks.pull.mockImplementation((week: string) => (initialPull = realSync.pullShoppingList(week)))
   render(<MemoryRouter initialEntries={[`/shopping-list?week=${weekId}`]}><ShoppingList /></MemoryRouter>)
   const checkbox = await screen.findByRole('checkbox', { name: /milk/i })
   fireEvent.click(checkbox)
   await waitFor(async () => expect(await listOutboxOps()).toHaveLength(1))
-  await act(async () => finish({ ...initial, items: [...initial.items, { ...initial.items[0], id: 'bread', name: 'Bread' }] }))
+  const fresh = { ...initial, items: [...initial.items, { ...initial.items[0], id: 'bread', name: 'Bread' }] }
+  await act(async () => { finish(fresh); await initialPull })
+  // The request-relative guard retains the week changed during GET; the
+  // engine's trailing fresh pull then merges remote fields with queued intent.
+  vi.mocked(api.shoppingList.get).mockResolvedValue(fresh)
+  await act(async () => realSync.pullShoppingList(weekId))
   await screen.findByRole('checkbox', { name: /bread/i })
   expect((screen.getByRole('checkbox', { name: /milk/i }) as HTMLInputElement).checked).toBe(true)
   expect((await getLocalShoppingList(weekId))?.items.find((item) => item.id === 'milk')?.checked).toBe(true)
@@ -245,12 +251,15 @@ it('reconciles a late meal-plan pull without replacing the queued local edit', a
   let finish!: (doc: typeof initial) => void
   vi.spyOn(api.mealPlans, 'getCurrent').mockImplementation(() => new Promise((resolve) => { finish = resolve }))
   const realSync = await vi.importActual<typeof import('@/local/sync')>('@/local/sync')
-  mocks.pull.mockImplementation((week?: string) => week === weekId ? realSync.pullMealPlan(week) : Promise.resolve())
+  let initialPull!: Promise<void>
+  mocks.pull.mockImplementation((week?: string) => week === weekId ? (initialPull = realSync.pullMealPlan(week)) : Promise.resolve())
   render(<MemoryRouter><MealPlan /></MemoryRouter>)
   const controls = await screen.findAllByRole('combobox', { name: /recipe for monday/i })
   await selectOption(controls[0], 'Local soup')
   await waitFor(async () => expect(await listOutboxOps()).toHaveLength(1))
-  await act(async () => finish({ ...initial, defaultPersons: 6 }))
+  await act(async () => { finish({ ...initial, defaultPersons: 6 }); await initialPull })
+  vi.mocked(api.mealPlans.getCurrent).mockResolvedValue({ ...initial, defaultPersons: 6 })
+  await act(async () => realSync.pullMealPlan(weekId))
   await waitFor(async () => expect(await getLocalMealPlan(weekId)).toMatchObject({ defaultPersons: 6 }))
   await waitFor(() => expect(controls[0].textContent).toContain('Local soup'))
   expect((await getLocalMealPlan(weekId))?.assignments[0].recipeId).toBe(recipe.id)

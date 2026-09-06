@@ -1,13 +1,13 @@
 import { api } from '@/api'
 import { getFailedSyncKeys, trackSync } from './syncStatus'
 
-// Session-observed keys survive page unmounts; WP3 can extend this with persisted keys.
+// Observed keys survive page unmounts and are persisted for subsequent sessions.
 const observedKeys = new Set<string>()
 export const getObservedPullKeys = () => [...new Set([...observedKeys, ...getFailedSyncKeys()])]
 
 function observedPull(key: string, work: () => Promise<void>): Promise<void> {
   observedKeys.add(key)
-  return trackSync(key, work)
+  return trackSync(key, async () => { await rememberPullKey(key); await work() })
 }
 
 export const pullRecipes = () => observedPull('recipes', fetchRecipes)
@@ -19,6 +19,10 @@ export const pullFamilyMealPlanDefaults = () => observedPull('familyDefaults', f
 /** Serializable keys, not mounted callbacks, let a follower request its own views. */
 export async function retryPullKeys(keys: string[]): Promise<void> {
   for (const key of new Set(keys)) {
+    // A write can arrive while an earlier GET is pending. Never start the
+    // next GET across queued or parked intent; its mutation kick schedules
+    // a trailing push-first pass (parked writes wait for explicit resolution).
+    if ((await listOutboxOps()).length > 0) return
     try {
       if (key === 'recipes') await pullRecipes()
       else if (key === 'familyDefaults') await pullFamilyMealPlanDefaults()
@@ -32,16 +36,15 @@ export async function retryPullKeys(keys: string[]): Promise<void> {
 }
 
 import {
+  rememberPullKey,
   listOutboxOps,
-  type MealPlanOpPayload,
-  putLocalMealPlan,
+  beginWeekPull,
+  applyWeekPull,
   applyRecipePull,
   beginRecipePull,
-  putLocalShoppingList,
   setSyncMeta,
 } from './db'
-import { mergeMealPlan } from './mealPlanMerge'
-import { applyShoppingOps } from './shoppingMerge'
+import { scheduleSync } from './outboxSync'
 
 /**
  * Background pulls: fetch from the network and write into the local store.
@@ -70,25 +73,15 @@ async function fetchRecipe(id: string): Promise<void> {
 }
 
 async function fetchMealPlan(weekId: string): Promise<void> {
+  const guard = await beginWeekPull('mealPlans', weekId)
   const server = await api.mealPlans.getCurrent(weekId)
-  const pending = (await listOutboxOps()).filter(
-    (o) => o.entity === 'mealPlan' && o.key === weekId && o.parkedAt == null,
-  )
-  if (pending.length === 0) {
-    await putLocalMealPlan(weekId, server)
-    return
-  }
-  // Our net offline change is (first op's base) → (last op's doc); re-apply
-  // its changed days onto the server's current plan.
-  const first = pending[0].payload as MealPlanOpPayload
-  const last = pending[pending.length - 1].payload as MealPlanOpPayload
-  await putLocalMealPlan(weekId, mergeMealPlan(first.baseDoc, last.nextDoc, server, weekId))
+  if (!await applyWeekPull('mealPlans', weekId, server, guard)) scheduleSync()
 }
 
 async function fetchShoppingList(weekId: string): Promise<void> {
+  const guard = await beginWeekPull('shoppingLists', weekId)
   const server = await api.shoppingList.get(weekId)
-  const pending = (await listOutboxOps()).filter((o) => o.parkedAt == null)
-  await putLocalShoppingList(weekId, applyShoppingOps(server, pending, weekId) ?? server)
+  if (!await applyWeekPull('shoppingLists', weekId, server, guard)) scheduleSync()
 }
 
 /** The family default is optional context; failure is non-fatal by design. */

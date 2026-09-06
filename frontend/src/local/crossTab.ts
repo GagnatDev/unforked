@@ -27,6 +27,8 @@ export type CrossTabMessage =
   | { kind: 'sync-complete'; requestId: string; failed: boolean }
   | { kind: 'sync-outcome'; sourceId: string; key: string; runId: string; outcome: import('./syncStatus').SyncOutcome }
   | { kind: 'sync-heartbeat'; sourceId: string }
+  | { kind: 'sync-status-request'; sourceId: string }
+  | { kind: 'sync-status-snapshot'; target: string; outcomes: [string, import('./syncStatus').SyncFailure | null][]; runs: { runId: string; key: string; sourceId: string }[] }
   /** A follower saw a 401 and asks the leader to drive the re-auth navigation. */
   | { kind: 'reauth-request' }
   /** The deferred-reauth ("will sync") indicator changed; mirror it everywhere. */

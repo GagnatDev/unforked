@@ -11,7 +11,7 @@ import {
   reopenShoppingList,
   undoShoppingTrip,
 } from '@/local/mutations'
-import { pullShoppingList } from '@/local/sync'
+import { pullShoppingList } from '@/local/pullDemand'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import type { ShoppingCategory, ShoppingListEntry, ShoppingListStatus, ShoppingTrip } from '@/types'

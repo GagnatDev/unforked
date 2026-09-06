@@ -12,7 +12,7 @@ import {
   pullFamilyMealPlanDefaults,
   pullMealPlan,
   pullRecipes,
-} from '@/local/sync'
+} from '@/local/pullDemand'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'

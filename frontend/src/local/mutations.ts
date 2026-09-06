@@ -3,15 +3,13 @@ import { categorizeIngredient } from '@/lib/categorize'
 import type { MealPlanDoc, Recipe, RecipeDoc, RecipePhoto, ShoppingListEntry } from '@/types'
 
 import {
-  appendOutboxOp,
+  writeMealPlanMutation,
   writeRecipeMutation,
-  getLocalMealPlan,
   getLocalRecipe,
   getLocalShoppingList,
   mutateLocalShoppingList,
   type OutboxOp,
   type OutboxOpType,
-  putLocalMealPlan,
   putLocalRecipe,
   type ShoppingItemPatch,
 } from './db'
@@ -108,15 +106,11 @@ export async function deleteRecipe(id: string): Promise<void> {
  * merges compose.
  */
 export async function saveMealPlan(weekId: string, nextDoc: MealPlanDoc): Promise<void> {
-  const baseDoc: MealPlanDoc =
-    (await getLocalMealPlan(weekId)) ?? { weekIdentifier: weekId, defaultPersons: null, assignments: [] }
-  await putLocalMealPlan(weekId, nextDoc)
-  await appendOutboxOp({
+  await writeMealPlanMutation(weekId, nextDoc, {
     opId: uuid(),
     entity: 'mealPlan',
     type: 'update',
     key: weekId,
-    payload: { baseDoc, nextDoc },
     createdAt: Date.now(),
     attempts: 0,
   })
@@ -161,8 +155,8 @@ export async function addShoppingItem(weekId: string, name: string): Promise<Sho
   }
   await mutateLocalShoppingList(weekId, (doc) =>
     doc ? { ...doc, items: [...doc.items, item] } : { weekIdentifier: weekId, items: [item] },
+    shoppingItemOp('create', item.id, { weekId, item }),
   )
-  await appendOutboxOp(shoppingItemOp('create', item.id, { weekId, item }))
   kickOutboxSync()
   return item
 }
@@ -178,8 +172,8 @@ export async function patchShoppingItem(
   const baseVersion = (await getLocalShoppingList(weekId))?.version
   await mutateLocalShoppingList(weekId, (doc) =>
     doc ? { ...doc, items: doc.items.map((i) => (i.id === itemId ? { ...i, ...patch } : i)) } : doc,
+    shoppingItemOp('update', itemId, { weekId, patch }, baseVersion),
   )
-  await appendOutboxOp(shoppingItemOp('update', itemId, { weekId, patch }, baseVersion))
   kickOutboxSync()
 }
 
@@ -187,8 +181,8 @@ export async function patchShoppingItem(
 export async function deleteShoppingItem(weekId: string, itemId: string): Promise<void> {
   await mutateLocalShoppingList(weekId, (doc) =>
     doc ? { ...doc, items: doc.items.filter((i) => i.id !== itemId) } : doc,
+    shoppingItemOp('delete', itemId, { weekId }),
   )
-  await appendOutboxOp(shoppingItemOp('delete', itemId, { weekId }))
   kickOutboxSync()
 }
 
@@ -210,8 +204,7 @@ export async function approveShoppingList(
   const approvedAt = new Date().toISOString()
   await mutateLocalShoppingList(weekId, (doc) =>
     doc ? approveShoppingDoc(doc, approver, approvedAt) : doc,
-  )
-  await appendOutboxOp({
+  {
     opId: uuid(),
     entity: 'shoppingStatus',
     type: 'update',
@@ -243,8 +236,7 @@ export async function markShoppingListReady(
   const readyAt = new Date().toISOString()
   await mutateLocalShoppingList(weekId, (doc) =>
     doc ? markShoppingDocReady(doc, marker, readyAt) : doc,
-  )
-  await appendOutboxOp({
+  {
     opId: uuid(),
     entity: 'shoppingStatus',
     type: 'update',
@@ -266,8 +258,7 @@ export async function markShoppingListReady(
 /** Reopen a week's list (cancel the trip / back to editing) — allowed to any member. */
 export async function reopenShoppingList(weekId: string): Promise<void> {
   const baseVersion = (await getLocalShoppingList(weekId))?.version
-  await mutateLocalShoppingList(weekId, (doc) => (doc ? clearShoppingStatus(doc) : doc))
-  await appendOutboxOp({
+  await mutateLocalShoppingList(weekId, (doc) => (doc ? clearShoppingStatus(doc) : doc), {
     opId: uuid(),
     entity: 'shoppingStatus',
     type: 'update',
@@ -300,8 +291,7 @@ export async function completeShoppingTrip(
     completedBy: shopper.id,
     completedByEmail: shopper.email,
   }
-  await mutateLocalShoppingList(weekId, (doc) => (doc ? completeShoppingTripInDoc(doc, meta) : doc))
-  await appendOutboxOp({
+  await mutateLocalShoppingList(weekId, (doc) => (doc ? completeShoppingTripInDoc(doc, meta) : doc), {
     opId: uuid(),
     entity: 'shoppingTrip',
     type: 'create',
@@ -322,8 +312,7 @@ export async function completeShoppingTrip(
 
 /** Undo a "Shopping done": the trip's items come back onto the open list, still checked. */
 export async function undoShoppingTrip(weekId: string, tripId: string): Promise<void> {
-  await mutateLocalShoppingList(weekId, (doc) => (doc ? undoShoppingTripInDoc(doc, tripId) : doc))
-  await appendOutboxOp({
+  await mutateLocalShoppingList(weekId, (doc) => (doc ? undoShoppingTripInDoc(doc, tripId) : doc), {
     opId: uuid(),
     entity: 'shoppingTrip',
     type: 'delete',

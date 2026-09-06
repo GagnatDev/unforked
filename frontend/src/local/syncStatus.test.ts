@@ -96,6 +96,25 @@ it('heartbeats only its own active work with the same source identity', async ()
   } finally { finish(); await run; other.close() }
 })
 
+it('requests a startup snapshot and imports existing remote failures and active work', async () => {
+  const other = new BroadcastChannel('unforked-cross-tab')
+  other.onmessage = event => {
+    if (event.data.kind === 'sync-status-request') other.postMessage({
+      kind: 'sync-status-snapshot', target: event.data.sourceId,
+      outcomes: [['shopping:week', 'auth']],
+      runs: [{ key: 'shopping:week', runId: 'remote-startup', sourceId: 'leader' }],
+    })
+  }
+  try {
+    await trackSync('initial', async () => {})
+    await waitFor(() => getSyncStatus().failure === 'auth')
+    expect(getSyncStatus().active).toBe(true)
+    other.postMessage({ kind: 'sync-outcome', sourceId: 'leader', key: 'shopping:week', runId: 'remote-startup', outcome: { active: false, failure: null } })
+    await waitFor(() => !getSyncStatus().active)
+    expect(getSyncStatus().failure).toBeNull()
+  } finally { other.close() }
+})
+
 it('coalesces same-key pulls', async () => {
   let finish!: () => void
   const pull = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))

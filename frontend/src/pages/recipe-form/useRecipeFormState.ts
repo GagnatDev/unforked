@@ -1,6 +1,6 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react'
 import { getLocalRecipe } from '@/local/db'
-import { pullRecipe } from '@/local/sync'
+import { pullRecipe } from '@/local/pullDemand'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import type { Ingredient, RecipeDoc } from '@/types'

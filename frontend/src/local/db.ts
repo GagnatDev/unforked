@@ -8,6 +8,8 @@ import type {
 } from '@/types'
 
 import { postCrossTab, subscribeCrossTab } from './crossTab'
+import { mergeMealPlan } from './mealPlanMerge'
+import { applyShoppingOps } from './shoppingMerge'
 
 /**
  * Persistent local store (IndexedDB) for domain data — the read source of
@@ -387,6 +389,82 @@ export async function deleteLocalRecipe(id: string): Promise<void> {
   })
 }
 
+// --- request-relative week protection (shared across tabs and successful drains) ---
+
+type WeekStore = 'mealPlans' | 'shoppingLists'
+const weekRevisionKey = (store: WeekStore, week: string) => `weekRevision:${store}:${week}`
+function weekOps(ops: OutboxOp[], store: WeekStore, week: string): OutboxOp[] {
+  return ops.filter(op => store === 'mealPlans'
+    ? op.entity === 'mealPlan' && op.key === week
+    : op.entity.startsWith('shopping') && (op.payload as { weekId?: string })?.weekId === week)
+}
+export interface WeekPullGuard { generation: number; pendingIds: string[] }
+export async function beginWeekPull(store: WeekStore, week: string): Promise<WeekPullGuard> {
+  return readTx(['syncMeta', 'outbox'], async tx => {
+    const [meta, ops] = await Promise.all([
+      promisifyRequest<SyncMetaRecord | undefined>(tx.objectStore('syncMeta').get(weekRevisionKey(store, week))),
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+    ])
+    return { generation: (meta?.value as number) ?? 0, pendingIds: weekOps(ops, store, week).map(op => op.opId) }
+  })
+}
+
+/** Returns false when a newer local write needs a fresh catch-up snapshot. */
+export async function applyWeekPull(store: WeekStore, week: string, server: MealPlanDoc | PersistedShoppingListDoc, guard: WeekPullGuard): Promise<boolean> {
+  let applied = false
+  await writeTx([store, 'outbox', 'syncMeta'], async tx => {
+    const [meta, ops] = await Promise.all([
+      promisifyRequest<SyncMetaRecord | undefined>(tx.objectStore('syncMeta').get(weekRevisionKey(store, week))),
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+    ])
+    const pending = weekOps(ops, store, week)
+    if (((meta?.value as number) ?? 0) !== guard.generation || guard.pendingIds.some(id => !pending.some(op => op.opId === id))) return
+    let doc = server
+    if (store === 'mealPlans' && pending.length) {
+      const first = pending[0].payload as MealPlanOpPayload
+      const last = pending[pending.length - 1].payload as MealPlanOpPayload
+      doc = mergeMealPlan(first.baseDoc, last.nextDoc, server as MealPlanDoc, week)
+    } else if (store === 'shoppingLists') {
+      doc = applyShoppingOps(server as PersistedShoppingListDoc, pending, week) ?? server
+    }
+    tx.objectStore(store).put(doc, week)
+    applied = true
+  })
+  return applied
+}
+
+async function queueWeekMutation(tx: IDBTransaction, store: WeekStore, week: string, op: OutboxOp): Promise<void> {
+  const meta = tx.objectStore('syncMeta')
+  const key = weekRevisionKey(store, week)
+  const current = await promisifyRequest<SyncMetaRecord | undefined>(meta.get(key))
+  meta.put({ key, value: ((current?.value as number) ?? 0) + 1 })
+  const { seq: _seq, ...record } = op
+  tx.objectStore('outbox').add(record)
+}
+
+export async function writeMealPlanMutation(week: string, nextDoc: MealPlanDoc, op: OutboxOp): Promise<void> {
+  await writeTx(['mealPlans', 'outbox', 'syncMeta'], async tx => {
+    const store = tx.objectStore('mealPlans')
+    const baseDoc = await promisifyRequest<MealPlanDoc | undefined>(store.get(week)) ?? { weekIdentifier: week, defaultPersons: null, assignments: [] }
+    store.put(nextDoc, week)
+    await queueWeekMutation(tx, 'mealPlans', week, { ...op, payload: { baseDoc, nextDoc } })
+  })
+}
+
+/** Persist demand even when the requested week has never existed locally. */
+export const rememberPullKey = (key: string) => setSyncMeta(`pullDemand:${key}`, true)
+export async function listKnownPullKeys(): Promise<string[]> {
+  return readTx(['syncMeta', 'mealPlans', 'shoppingLists'], async tx => {
+    const [meta, plans, shopping] = await Promise.all([
+      promisifyRequest<SyncMetaRecord[]>(tx.objectStore('syncMeta').getAll()),
+      promisifyRequest<IDBValidKey[]>(tx.objectStore('mealPlans').getAllKeys()),
+      promisifyRequest<IDBValidKey[]>(tx.objectStore('shoppingLists').getAllKeys()),
+    ])
+    return [...new Set(['recipes', ...meta.filter(row => row.key.startsWith('pullDemand:')).map(row => row.key.slice(11)),
+      ...plans.map(week => `mealPlan:${week}`), ...shopping.map(week => `shopping:${week}`)])]
+  })
+}
+
 // --- meal plans (keyed by requested weekIdentifier) ---
 
 export async function getLocalMealPlan(weekId: string): Promise<MealPlanDoc | null> {
@@ -448,14 +526,16 @@ export async function listLocalShoppingListWeeks(): Promise<string[]> {
 export async function mutateLocalShoppingList(
   weekId: string,
   mutate: (doc: PersistedShoppingListDoc | null) => PersistedShoppingListDoc | null,
+  op?: OutboxOp,
 ): Promise<void> {
-  await writeTx(['shoppingLists'], async (tx) => {
+  await writeTx(op ? ['shoppingLists', 'outbox', 'syncMeta'] : ['shoppingLists'], async (tx) => {
     const store = tx.objectStore('shoppingLists')
     const current = await promisifyRequest<PersistedShoppingListDoc | undefined>(
       store.get(weekId),
     )
     const next = mutate(current ?? null)
     if (next != null) store.put(next, weekId)
+    if (op) await queueWeekMutation(tx, 'shoppingLists', weekId, { ...op, baseVersion: current?.version })
   })
 }
 

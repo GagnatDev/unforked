@@ -439,7 +439,7 @@ function scheduleRetry(): void {
   backoffMs = backoffMs === 0 ? INITIAL_BACKOFF_MS : Math.min(backoffMs * 2, MAX_BACKOFF_MS)
   retryTimer = setTimeout(() => {
     retryTimer = null
-    if (isLeader()) void drainOutbox()
+    if (isLeader()) kickOutboxSync()
   }, backoffMs)
 }
 
@@ -539,29 +539,62 @@ export function drainOutbox(): Promise<PushOutcome> {
  * 6); a follower asks the leader to drain instead.
  */
 export function kickOutboxSync(): void {
-  if (isLeader()) void drainOutbox()
+  if (started) scheduleSync()
+  else if (isLeader()) void drainOutbox()
   else postCrossTab({ kind: 'outbox-kick' })
 }
 
-// Manual reconciliation only. Automatic catch-up scheduling belongs to WP3.
+// One reconciliation owner for manual runs, lifecycle events, demand and writes.
 const manualKeys = new Set<string>()
 let manualRun: Promise<void> | null = null
+let syncRequested = false
+let scheduleTimer: ReturnType<typeof setTimeout> | undefined
+
+/** Coalesce bursts; an in-flight run gets one trailing push→pull pass. */
+export function scheduleSync(): void {
+  if (!started) return
+  if (!isLeader()) {
+    postCrossTab({ kind: 'outbox-kick' })
+    return
+  }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return
+  if (manualRun) { syncRequested = true; return }
+  if (scheduleTimer !== undefined) return
+  scheduleTimer = setTimeout(() => {
+    scheduleTimer = undefined
+    void runManualSync([]).catch(() => {})
+  }, 0)
+}
 
 async function runManualSync(keys: string[]): Promise<void> {
   keys.forEach(key => manualKeys.add(key))
-  if (manualRun) return manualRun
+  if (manualRun) { syncRequested = true; return manualRun }
+  clearTimeout(scheduleTimer)
+  scheduleTimer = undefined
   manualRun = (async () => {
-    const { getObservedPullKeys, retryPullKeys } = await import('./sync')
-    getObservedPullKeys().forEach(key => manualKeys.add(key))
-    do {
-      const push = await drainOutbox() // Includes an already-running drain.
-      const batch = [...manualKeys]
-      manualKeys.clear()
-      // Retain the conservative manual push-first barrier. Recipe application
-      // also protects writes queued after this check, while GETs are in flight.
-      if (push.canPull) await retryPullKeys(batch)
-    } while (manualKeys.size > 0)
-  })().finally(() => { manualRun = null })
+    try {
+      const { getObservedPullKeys, retryPullKeys } = await import('./sync')
+      const { listKnownPullKeys } = await import('./db')
+      do {
+        syncRequested = false
+        if (!isLeader() || (typeof navigator !== 'undefined' && navigator.onLine === false)) break
+        getObservedPullKeys().forEach(key => manualKeys.add(key))
+        // Startup discovers existing caches as well as demand persisted before a
+        // failed/absent pull. No route needs to mount to keep those keys fresh.
+        if (started) (await listKnownPullKeys()).forEach(key => manualKeys.add(key))
+        const push = await drainOutbox() // Includes an already-running drain.
+        const batch = [...manualKeys]
+        manualKeys.clear()
+        // Retain the conservative manual push-first barrier. Recipe application
+        // also protects writes queued after this check, while GETs are in flight.
+        if (push.canPull) await retryPullKeys(batch)
+      } while (syncRequested || manualKeys.size > 0)
+    } finally {
+      // Release ownership in the same microtask as the final loop check. A
+      // promise .finally() leaves a gap where a kick sees a finished owner.
+      manualRun = null
+    }
+  })()
   return manualRun
 }
 
@@ -600,10 +633,10 @@ function startManualRequests() {
   })
 }
 
-export async function syncNow(): Promise<void> {
+export async function syncNow(requestedKeys: string[] = []): Promise<void> {
   startManualRequests()
   const { getObservedPullKeys } = await import('./sync')
-  const keys = getObservedPullKeys()
+  const keys = [...new Set([...getObservedPullKeys(), ...requestedKeys])]
   if (isLeader()) return runManualSync(keys)
   const requestId = crypto.randomUUID()
   return new Promise<void>((resolve, reject) => {
@@ -616,6 +649,7 @@ export async function syncNow(): Promise<void> {
 // --- lifecycle / triggers ---
 
 let started = false
+let stopLifecycle: (() => void) | undefined
 
 /**
  * Register drain triggers and flush anything that survived a reload. Idempotent
@@ -634,32 +668,24 @@ export function startOutboxSync(): void {
   startLeaderElection()
   startManualRequests()
 
-  const isOnline = () => typeof navigator === 'undefined' || navigator.onLine !== false
-  const drainIfLeaderOnline = () => {
-    if (isLeader() && isOnline()) void drainOutbox()
-  }
-
-  const onOnline = () => {
-    resetBackoff()
-    if (isLeader()) void drainOutbox()
-  }
-
+  const onOnline = () => { resetBackoff(); scheduleSync() }
+  const onVisible = () => { if (document.visibilityState === 'visible') scheduleSync() }
   window.addEventListener('online', onOnline)
-  window.addEventListener('focus', drainIfLeaderOnline)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') drainIfLeaderOnline()
+  window.addEventListener('focus', scheduleSync)
+  document.addEventListener('visibilitychange', onVisible)
+  const stopMessages = subscribeCrossTab(message => {
+    if (message.kind === 'outbox-kick' && isLeader()) scheduleSync()
   })
-
-  // A write in a follower tab asks the leader to drain the shared outbox.
-  subscribeCrossTab((message) => {
-    if (message.kind === 'outbox-kick' && isLeader()) void drainOutbox()
-  })
-
-  // Flush ops persisted from a previous session (offline edit → reload) and any
-  // work queued by followers, as soon as this tab holds leadership.
-  onBecomeLeader(() => {
-    if (isOnline()) void drainOutbox()
-  })
+  const stopLeader = onBecomeLeader(scheduleSync)
+  // Followers also request an initial refresh/status from the current leader.
+  if (!isLeader()) scheduleSync()
+  stopLifecycle = () => {
+    window.removeEventListener('online', onOnline)
+    window.removeEventListener('focus', scheduleSync)
+    document.removeEventListener('visibilitychange', onVisible)
+    stopMessages()
+    stopLeader()
+  }
 }
 
 /** Test hook: clear the module-level drain/backoff state between cases. */
@@ -668,6 +694,11 @@ export function __resetOutboxSyncForTests(): void {
   drainFailure = null
   rerunRequested = false
   started = false
+  stopLifecycle?.()
+  stopLifecycle = undefined
+  clearTimeout(scheduleTimer)
+  scheduleTimer = undefined
+  syncRequested = false
   shoppingVersions.clear()
   manualKeys.clear()
   manualRun = null
