@@ -149,17 +149,31 @@ it('automatically pushes a write made during GET and applies a trailing fresh we
   expect((await getLocalMealPlan(week))?.defaultPersons).toBe(8)
 })
 
-it('stops the pull batch if a parked write arrives during its first GET', async () => {
+it('stops the pull batch if a queued write arrives during its first GET', async () => {
   startOutboxSync()
   await syncNow()
   let finish!: (response: Response) => void
   fetchMock.mockClear().mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve }))
   const run = syncNow(['recipes', `mealPlan:${week}`])
   await waitFor(() => !!finish)
-  await appendOutboxOp({ opId: 'parked', entity: 'recipe', type: 'delete', key: 'blocked', createdAt: 1, attempts: 0, parkedAt: 1 })
+  await appendOutboxOp({ opId: 'queued', entity: 'recipe', type: 'delete', key: 'blocked', createdAt: 1, attempts: 0 })
   finish(new Response('[]'))
   await run
   expect(fetchMock.mock.calls).toHaveLength(1)
+})
+
+// Nothing un-parks an op, so a parked one must never become a permanent stop
+// on reconciliation: its intent is preserved by the pull overlay instead.
+it('keeps reconciling every view while a write stays parked', async () => {
+  startOutboxSync()
+  await syncNow()
+  await putLocalMealPlan(week, { weekIdentifier: week, assignments: [], defaultPersons: 9 })
+  await appendOutboxOp({ opId: 'parked', entity: 'recipe', type: 'delete', key: 'blocked', createdAt: 1, attempts: 1, parkedAt: 1 })
+  fetchMock.mockClear()
+  await syncNow(['recipes', `mealPlan:${week}`])
+  expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/recipes'))).toBe(true)
+  expect(fetchMock.mock.calls.some(([url]) => url.includes('meal-plans'))).toBe(true)
+  expect((await getLocalMealPlan(week))?.defaultPersons).toBeNull()
 })
 
 it('a local online write pushes then refreshes recipes without navigation', async () => {

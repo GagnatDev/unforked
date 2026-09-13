@@ -642,6 +642,15 @@ export async function listOutboxOps(): Promise<OutboxOp[]> {
   })
 }
 
+/**
+ * Queued ops still waiting to be sent, oldest first. Parked ops are excluded:
+ * nothing un-parks them, so treating them as pending would stall the queue
+ * permanently. Their intent survives in the pull merges instead.
+ */
+export async function listPendingOutboxOps(): Promise<OutboxOp[]> {
+  return (await listOutboxOps()).filter(op => op.parkedAt == null)
+}
+
 /** Persist an existing op (must have `seq`), e.g. to record attempts/parking. */
 export async function putOutboxOp(op: OutboxOp): Promise<void> {
   await writeTx(['outbox'], (tx) => {

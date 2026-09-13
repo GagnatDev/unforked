@@ -21,9 +21,10 @@ export const pullFamilyMealPlanDefaults = () => observedPull('familyDefaults', f
 export async function retryPullKeys(keys: string[]): Promise<void> {
   for (const key of new Set(keys)) {
     // A write can arrive while an earlier GET is pending. Never start the
-    // next GET across queued or parked intent; its mutation kick schedules
-    // a trailing push-first pass (parked writes wait for explicit resolution).
-    if ((await listOutboxOps()).length > 0) return
+    // next GET across queued intent; its mutation kick schedules a trailing
+    // push-first pass. Parked intent never drains and is replayed onto each
+    // pull, so it must not stop reconciliation.
+    if ((await listPendingOutboxOps()).length > 0) return
     try {
       if (key === 'recipes') await pullRecipes()
       else if (key === 'familyDefaults') await pullFamilyMealPlanDefaults()
@@ -38,7 +39,7 @@ export async function retryPullKeys(keys: string[]): Promise<void> {
 
 import {
   rememberPullKey,
-  listOutboxOps,
+  listPendingOutboxOps,
   beginWeekPull,
   applyWeekPull,
   applyRecipePull,

@@ -5,6 +5,7 @@ import { trackSync } from './syncStatus'
 import {
   deleteOutboxOp,
   listOutboxOps,
+  listPendingOutboxOps,
   type MealPlanOpPayload,
   type OutboxOp,
   putOutboxOp,
@@ -530,7 +531,7 @@ export function drainOutbox(): Promise<PushOutcome> {
     // Send failures already chose their retry policy above. Only unexpected
     // store failures need a timer here; parked/conflicting ops do not gain one.
     if (error !== drainFailure) scheduleRetry()
-  }).then(async () => ({ canPull: (await listOutboxOps()).length === 0 }))
+  }).then(async () => ({ canPull: (await listPendingOutboxOps()).length === 0 }))
     .catch(() => ({ canPull: false }))
     .finally(() => { drainPromise = null })
   return drainPromise

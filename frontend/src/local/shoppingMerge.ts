@@ -28,7 +28,9 @@ import {
  * checked state, categories and manual items across meal-plan syncs server-side;
  * this handles the client's own in-flight edits.
  *
- * Ops must be passed in FIFO (seq) order and should exclude parked ones.
+ * Ops must be passed in FIFO (seq) order. Parked ops are included: they are
+ * intent the user has not withdrawn, so the list keeps showing it until the
+ * op is resolved (see `weekOps` in `db.ts`).
  */
 export function applyShoppingOps(
   server: PersistedShoppingListDoc | null,
