@@ -413,18 +413,36 @@ export async function applyRecipePull(recipes: Recipe[], fullList: boolean, guar
   })
 }
 
+/** Claim the next write generation for one recipe key, inside `tx`. */
+async function bumpRecipeRevision(tx: IDBTransaction, key: string): Promise<void> {
+  const meta = tx.objectStore('syncMeta')
+  const current = await promisifyRequest<SyncMetaRecord | undefined>(meta.get(RECIPE_GENERATION_KEY))
+  const generation = ((current?.value as number | undefined) ?? 0) + 1
+  meta.put({ key: RECIPE_GENERATION_KEY, value: generation })
+  meta.put({ key: `${RECIPE_REVISION_PREFIX}${key}`, value: generation })
+}
+
 /** Commit optimistic recipe state and its durable protection together. */
 export async function writeRecipeMutation(recipe: Recipe | null, op: OutboxOp): Promise<void> {
   await writeTx(['recipes', 'outbox', 'syncMeta'], async tx => {
-    const meta = tx.objectStore('syncMeta')
-    const current = await promisifyRequest<SyncMetaRecord | undefined>(meta.get(RECIPE_GENERATION_KEY))
-    const generation = ((current?.value as number | undefined) ?? 0) + 1
-    meta.put({ key: RECIPE_GENERATION_KEY, value: generation })
-    meta.put({ key: `${RECIPE_REVISION_PREFIX}${op.key}`, value: generation })
+    await bumpRecipeRevision(tx, op.key)
     if (recipe) tx.objectStore('recipes').put(recipe)
     else tx.objectStore('recipes').delete(op.key)
     const { seq: _seq, ...record } = op
     tx.objectStore('outbox').add(record)
+  })
+}
+
+/**
+ * Commit a recipe write the server has already applied (photo attach/remove)
+ * with the same durable protection a queued mutation gets. Nothing queues, so
+ * only the revision marks it: an older recipe GET still in flight would
+ * otherwise put its pre-write snapshot back.
+ */
+export async function writeRecipeRevision(recipe: Recipe): Promise<void> {
+  await writeTx(['recipes', 'syncMeta'], async tx => {
+    await bumpRecipeRevision(tx, recipe.id)
+    tx.objectStore('recipes').put(recipe)
   })
 }
 

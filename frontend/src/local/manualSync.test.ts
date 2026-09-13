@@ -3,7 +3,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { __resetLocalDbForTests, appendOutboxOp, beginRecipePull, applyRecipePull, getLocalRecipe, listOutboxOps, putLocalRecipe } from './db'
 import type { Recipe } from '@/types'
-import { createRecipe, deleteRecipe, updateRecipe } from './mutations'
+import { createRecipe, deleteRecipe, setRecipePhoto, updateRecipe } from './mutations'
 import { __resetOutboxSyncForTests, drainOutbox, startOutboxSync, syncNow } from './outboxSync'
 import { __resetCrossTabForTests, startLeaderElection, type CrossTabMessage } from './crossTab'
 import { __resetSyncStatusForTests, getSyncStatus } from './syncStatus'
@@ -177,6 +177,27 @@ it.each([
   if (scope === 'list') await pullRecipes()
   else await pullRecipe(server.id)
   expect(await getLocalRecipe(server.id)).toMatchObject(server)
+})
+
+it.each(['attach', 'remove'] as const)('does not overwrite a photo %s that lands during a stale GET', async action => {
+  const photo = { key: 'photo-key', thumbKey: 'thumb-key' }
+  const stale: Recipe = { id: 'photo-race', version: 1, doc: { name: 'Server', description: '', sourceUrl: null, sourceName: null, servings: 2, tags: [], ingredients: [], steps: [],
+    photo: action === 'remove' ? photo : null } }
+  await putLocalRecipe(stale)
+  let finish!: (response: Response) => void
+  fetchMock.mockImplementation((_url, init) => init?.method
+    ? Promise.resolve(new Response(JSON.stringify({ id: stale.id, version: 2,
+      doc: { ...stale.doc, photo: action === 'attach' ? photo : null } })))
+    : new Promise<Response>(resolve => { finish = resolve }))
+  const pull = pullRecipe(stale.id)
+  await waitFor(() => !!finish)
+  // The photo write is not queued — the bytes need the network, so the server
+  // is its write path — but it is still a local write an older GET must not undo.
+  const written = await setRecipePhoto(stale.id, action === 'attach' ? photo : null)
+  expect(await getLocalRecipe(stale.id)).toEqual(written)
+  finish(new Response(JSON.stringify(stale)))
+  await pull
+  expect(await getLocalRecipe(stale.id)).toEqual(written)
 })
 
 it('shares pull generations with a writer on an independent IndexedDB connection', async () => {

@@ -10,8 +10,8 @@ import {
   mutateLocalShoppingList,
   type OutboxOp,
   type OutboxOpType,
-  putLocalRecipe,
   type ShoppingItemPatch,
+  writeRecipeRevision,
 } from './db'
 import { kickOutboxSync } from './outboxSync'
 import {
@@ -81,11 +81,13 @@ export async function updateRecipe(id: string, doc: RecipeDoc): Promise<Recipe> 
  * this is NOT queued through the outbox: uploading a photo requires the
  * network anyway (the bytes go straight to the bucket via presigned URLs), so
  * the server is the write path and the local store just mirrors its response.
+ * It still takes a write revision: no queued op marks the key, so an older
+ * recipe GET in flight would otherwise put the pre-photo doc back.
  */
 export async function setRecipePhoto(id: string, keys: RecipePhoto | null): Promise<Recipe> {
   const result = keys ? await api.recipePhotos.attach(id, keys) : await api.recipePhotos.remove(id)
   const recipe: Recipe = { id, doc: result.doc, version: result.version }
-  await putLocalRecipe(recipe)
+  await writeRecipeRevision(recipe)
   return recipe
 }
 
