@@ -15,7 +15,7 @@ export default function JoinFamily() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { refreshUser } = useAuth()
+  const { joinFamily } = useAuth()
   const [token, setToken] = useState(() => searchParams.get('token') ?? '')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -25,8 +25,8 @@ export default function JoinFamily() {
     setError(null)
     setSubmitting(true)
     try {
-      await api.family.acceptInvite(token.trim())
-      await refreshUser()
+      const { familyId } = await api.family.acceptInvite(token.trim())
+      await joinFamily(familyId)
       navigate('/family', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))

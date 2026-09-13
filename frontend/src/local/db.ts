@@ -207,6 +207,42 @@ export async function bindLocalOwner(owner: LocalOwner, trustedLegacyOwner = fal
   return matches
 }
 
+/**
+ * Re-bind the workspace after the server moved this user into another family
+ * (invite accept). Only the family changes — a different user id is still a
+ * mismatch and is never re-bound here. The split mirrors what the server does
+ * on accept: recipes travel with the user, so they and their queued ops stay;
+ * meal plans and shopping lists belong to the family left behind, so their
+ * documents, queued ops and pull bookkeeping go with it.
+ */
+export async function rebindLocalOwnerFamily(familyId: string): Promise<boolean> {
+  let rebound = false
+  await writeTx(['mealPlans', 'shoppingLists', 'outbox', 'syncMeta'], async tx => {
+    const meta = tx.objectStore('syncMeta')
+    const existing = await promisifyRequest<SyncMetaRecord | undefined>(meta.get('auth:owner'))
+    const owner = existing?.value as LocalOwner | undefined
+    if (!owner || owner.familyId === familyId) {
+      rebound = owner != null
+      return
+    }
+    meta.put({ key: 'auth:owner', value: { id: owner.id, familyId } })
+    tx.objectStore('mealPlans').clear()
+    tx.objectStore('shoppingLists').clear()
+    const [ops, rows] = await Promise.all([
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+      promisifyRequest<SyncMetaRecord[]>(meta.getAll()),
+    ])
+    for (const op of ops) if (op.entity !== 'recipe') tx.objectStore('outbox').delete(op.seq!)
+    for (const row of rows) {
+      if (row.key.startsWith('weekRevision:')
+        || row.key.startsWith(`${PULL_DEMAND_PREFIX}mealPlan:`)
+        || row.key.startsWith(`${PULL_DEMAND_PREFIX}shopping:`)) meta.delete(row.key)
+    }
+    rebound = true
+  })
+  return rebound
+}
+
 function promisifyRequest<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result)
@@ -477,8 +513,10 @@ export async function writeMealPlanMutation(week: string, nextDoc: MealPlanDoc, 
   })
 }
 
+const PULL_DEMAND_PREFIX = 'pullDemand:'
+
 /** Persist demand even when the requested week has never existed locally. */
-export const rememberPullKey = (key: string) => setSyncMeta(`pullDemand:${key}`, true)
+export const rememberPullKey = (key: string) => setSyncMeta(`${PULL_DEMAND_PREFIX}${key}`, true)
 export async function listKnownPullKeys(): Promise<string[]> {
   return readTx(['syncMeta', 'mealPlans', 'shoppingLists'], async tx => {
     const [meta, plans, shopping] = await Promise.all([

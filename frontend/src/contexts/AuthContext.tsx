@@ -4,7 +4,7 @@ import { AUTH_FETCH_TIMEOUT_MS, fetchWithTimeout } from '@/lib/fetchTimeout'
 import { markAuthenticated, navigateForLogin, onSessionLost } from '@/lib/session'
 import { clearDeferredReauth, isReauthDeferred, onReauthStateChange, requestReauth, setSessionEstablished } from '@/lib/reauth'
 import { getLocalSessionState, getSessionEpoch, registerSessionVerifier, setLocalSessionState, subscribeLocalSession } from '@/lib/localSession'
-import { bindLocalOwner, sameLocalOwner, getSyncMeta, setSyncMeta } from '@/local/db'
+import { bindLocalOwner, rebindLocalOwnerFamily, sameLocalOwner, getSyncMeta, setSyncMeta } from '@/local/db'
 import { canUseCrossTab, postCrossTab, subscribeCrossTab } from '@/local/crossTab'
 import { scheduleSync } from '@/local/outboxSync'
 import { setLiveEventsUser } from '@/local/liveEvents'
@@ -21,6 +21,8 @@ type AuthContextValue = {
   availabilityFailure?: 'connection' | 'permission' | 'server'
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
+  /** Re-bind this workspace after the server moved the user into `familyId`. */
+  joinFamily: (familyId: string) => Promise<void>
 }
 const AuthContext = createContext<AuthContextValue | null>(null)
 const base = import.meta.env.VITE_API_URL ?? ''
@@ -210,6 +212,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loadUser])
 
+  /**
+   * Accepting a family invitation moves the account to another family, which
+   * otherwise reads as an owner mismatch and wedges the workspace. The move is
+   * server-confirmed and client-initiated, so re-bind the durable owner (and
+   * the identity this tab holds) before verifying the new session.
+   */
+  const joinFamily = useCallback(async (familyId: string) => {
+    // Any /me still in flight predates the move; its answer would read as a
+    // mismatch against the family we are about to bind.
+    generation.current++
+    checking.current = null
+    await rebindLocalOwnerFamily(familyId)
+    if (current.current) publishUser({ ...current.current, familyId })
+    if (cached.current) cached.current = { ...cached.current, familyId }
+    await loadUser()
+  }, [loadUser, publishUser])
+
   const logout = useCallback(async () => {
     // Revoke before awaiting transport, so a hanging logout or older /me cannot
     // resurrect local access. Keep the durable owner and all pending work.
@@ -229,8 +248,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [publishUser])
 
   const value = useMemo<AuthContextValue>(() => ({ user, loading, reloading, checkingSession, reauthPending,
-    liveSession: session === 'live', accountMismatch: session === 'mismatch', availabilityFailure, logout, refreshUser: loadUser,
-  }), [user, loading, reloading, checkingSession, reauthPending, session, availabilityFailure, logout, loadUser])
+    liveSession: session === 'live', accountMismatch: session === 'mismatch', availabilityFailure, logout, refreshUser: loadUser, joinFamily,
+  }), [user, loading, reloading, checkingSession, reauthPending, session, availabilityFailure, logout, loadUser, joinFamily])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 export function useAuth() {
