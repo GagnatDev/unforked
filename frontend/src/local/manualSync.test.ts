@@ -9,6 +9,7 @@ import { __resetCrossTabForTests, startLeaderElection, type CrossTabMessage } fr
 import { __resetSyncStatusForTests, getSyncStatus } from './syncStatus'
 import { pullRecipes, pullRecipe, pullMealPlan } from './sync'
 import { waitFor } from '@/test/waitFor'
+import { COULD_NOT_REACH_SERVER_I18N_KEY, mapAsyncCatchError } from '@/lib/loadErrors'
 
 vi.mock('@/lib/reauth', () => ({ requestReauth: vi.fn() }))
 vi.mock('./liveEvents', () => ({ noteShoppingFlush: vi.fn() }))
@@ -267,12 +268,13 @@ it('rejects a lost follower request after the bounded acknowledgement wait', asy
   startLeaderElection()
   const timers = vi.spyOn(globalThis, 'setTimeout')
   try {
-    const manual = syncNow()
-    const rejected = expect(manual).rejects.toThrow('Manual sync did not complete')
+    const settled = syncNow().then(() => null, (error: unknown) => error)
     await waitFor(() => timers.mock.calls.some(([, delay]) => delay === 60_000))
     const timeout = timers.mock.calls.find(([, delay]) => delay === 60_000)![0] as () => void
     timeout()
-    await rejected
+    // Pages render this straight into the view, so it has to be a translatable
+    // reason rather than an internal English sentence.
+    expect(mapAsyncCatchError(await settled)).toBe(COULD_NOT_REACH_SERVER_I18N_KEY)
   } finally { timers.mockRestore() }
 })
 

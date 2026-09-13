@@ -617,7 +617,10 @@ function finishManual(requestId: string, failed: boolean) {
   if (!pending) return
   clearTimeout(pending.timer)
   pendingManual.delete(requestId)
-  if (failed) pending.reject(new Error('Manual sync did not complete'))
+  // Views render this reason directly, so it must map to a translatable
+  // transport failure, not an internal English sentence: an unanswered
+  // cross-tab request is the leader being unreachable.
+  if (failed) pending.reject(new DOMException('Manual sync did not complete', 'TimeoutError'))
   else pending.resolve()
 }
 
