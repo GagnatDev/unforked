@@ -10,7 +10,7 @@ import * as sync from './sync'
 import { saveMealPlan, addShoppingItem } from './mutations'
 import { waitFor } from '@/test/waitFor'
 import { waitFor as waitForAssertion } from '@testing-library/react'
-import { rememberPullKey, listKnownPullKeys, appendOutboxOp, deleteOutboxOp } from './db'
+import { rememberPullKey, listKnownPullKeys, appendOutboxOp, deleteOutboxOp, getSyncMeta, setSyncMeta } from './db'
 import { requestPull } from './pullDemand'
 
 vi.mock('@/lib/reauth', () => ({ requestReauth: vi.fn() }))
@@ -87,6 +87,39 @@ it('persists absent-week demand and services it on startup without a mounted vie
   startOutboxSync()
   await syncNow()
   expect(await getLocalMealPlan(week)).not.toBeNull()
+})
+
+// Demand is durable, so without an eviction policy every key ever viewed would
+// be re-fetched, serially, on every startup, focus, reconnect and write.
+it('bounds persisted pull demand instead of replaying every key ever viewed', async () => {
+  const now = Date.now()
+  await setSyncMeta('pullDemand:recipe:legacy', true) // stored before keys carried a time
+  await setSyncMeta('pullDemand:recipe:stale', now - 30 * 24 * 60 * 60 * 1000)
+  for (let i = 0; i < 40; i++) await setSyncMeta(`pullDemand:recipe:r${i}`, now - i * 1000)
+
+  const keys = await listKnownPullKeys()
+
+  expect(keys.filter(key => key.startsWith('recipe:'))).toHaveLength(24)
+  expect(keys).toContain('recipe:r0')
+  expect(keys).toContain('recipe:legacy')
+  expect(keys).not.toContain('recipe:r39')
+  expect(keys).not.toContain('recipe:stale')
+  // Evicted demand is dropped for good, not re-gathered on the next pass.
+  expect(await getSyncMeta('pullDemand:recipe:r39')).toBeUndefined()
+  expect(await getSyncMeta('pullDemand:recipe:stale')).toBeUndefined()
+})
+
+it('refreshes only the most recent cached weeks without explicit demand', async () => {
+  for (let w = 1; w <= 20; w++) {
+    const id = `2026-W${String(w).padStart(2, '0')}`
+    await putLocalMealPlan(id, { weekIdentifier: id, assignments: [], defaultPersons: null })
+    await putLocalShoppingList(id, { weekIdentifier: id, items: [] })
+  }
+  const keys = await listKnownPullKeys()
+  expect(keys.filter(key => key.startsWith('mealPlan:'))).toHaveLength(8)
+  expect(keys.filter(key => key.startsWith('shopping:'))).toHaveLength(8)
+  expect(keys).toContain('mealPlan:2026-W20')
+  expect(keys).not.toContain('mealPlan:2026-W01')
 })
 
 it('coalesces demand during a GET into a trailing pass, without parallel requests or notification loops', async () => {

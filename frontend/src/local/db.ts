@@ -532,19 +532,61 @@ export async function writeMealPlanMutation(week: string, nextDoc: MealPlanDoc, 
 }
 
 const PULL_DEMAND_PREFIX = 'pullDemand:'
+/** How long demand keeps a view in the background catch-up after its last use. */
+const PULL_DEMAND_TTL_MS = 7 * 24 * 60 * 60 * 1000
+/** Ceiling on demanded keys; the batch is fetched serially on every pass. */
+const MAX_PULL_DEMAND_KEYS = 24
+/** Cached weeks refreshed without explicit demand, newest first. */
+const MAX_CACHED_WEEKS = 8
 
 /** Persist demand even when the requested week has never existed locally. */
-export const rememberPullKey = (key: string) => setSyncMeta(`${PULL_DEMAND_PREFIX}${key}`, true)
+export const rememberPullKey = (key: string) => setSyncMeta(`${PULL_DEMAND_PREFIX}${key}`, Date.now())
+
+/** Newest cached weeks; older ones refresh when they are opened again. */
+function recentWeeks(keys: IDBValidKey[]): string[] {
+  return keys.filter((key): key is string => typeof key === 'string')
+    .sort((a, b) => b.localeCompare(a)).slice(0, MAX_CACHED_WEEKS)
+}
+
+/**
+ * Keys the background catch-up should refresh. Demand is durable, so it is
+ * bounded by recency as well: every key here is GET-ed serially on each pass,
+ * and a profile accumulates a key per recipe opened and per week browsed.
+ * Evicted demand is deleted, not merely skipped — otherwise it would be
+ * re-gathered on every pass forever.
+ */
 export async function listKnownPullKeys(): Promise<string[]> {
-  return readTx(['syncMeta', 'mealPlans', 'shoppingLists'], async tx => {
+  const { keys, evicted, undated } = await readTx(['syncMeta', 'mealPlans', 'shoppingLists'], async tx => {
     const [meta, plans, shopping] = await Promise.all([
       promisifyRequest<SyncMetaRecord[]>(tx.objectStore('syncMeta').getAll()),
       promisifyRequest<IDBValidKey[]>(tx.objectStore('mealPlans').getAllKeys()),
       promisifyRequest<IDBValidKey[]>(tx.objectStore('shoppingLists').getAllKeys()),
     ])
-    return [...new Set(['recipes', ...meta.filter(row => row.key.startsWith('pullDemand:')).map(row => row.key.slice(11)),
-      ...plans.map(week => `mealPlan:${week}`), ...shopping.map(week => `shopping:${week}`)])]
+    const now = Date.now()
+    // Demand persisted before keys carried a timestamp starts its window now.
+    const undated = meta.filter(row => row.key.startsWith(PULL_DEMAND_PREFIX) && typeof row.value !== 'number')
+      .map(row => row.key)
+    const demand = meta.filter(row => row.key.startsWith(PULL_DEMAND_PREFIX))
+      .map(row => ({ row: row.key, at: typeof row.value === 'number' ? row.value : now }))
+      .sort((a, b) => b.at - a.at)
+    const kept = demand.filter(entry => now - entry.at < PULL_DEMAND_TTL_MS).slice(0, MAX_PULL_DEMAND_KEYS)
+    const keptRows = new Set(kept.map(entry => entry.row))
+    return {
+      keys: [...new Set(['recipes', ...kept.map(entry => entry.row.slice(PULL_DEMAND_PREFIX.length)),
+        ...recentWeeks(plans).map(week => `mealPlan:${week}`),
+        ...recentWeeks(shopping).map(week => `shopping:${week}`)])],
+      evicted: demand.filter(entry => !keptRows.has(entry.row)).map(entry => entry.row),
+      undated: undated.filter(row => keptRows.has(row)),
+    }
   })
+  if (evicted.length || undated.length) {
+    await writeTx(['syncMeta'], tx => {
+      const meta = tx.objectStore('syncMeta')
+      for (const row of evicted) meta.delete(row)
+      for (const row of undated) meta.put({ key: row, value: Date.now() })
+    })
+  }
+  return keys
 }
 
 // --- meal plans (keyed by requested weekIdentifier) ---
