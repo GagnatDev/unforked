@@ -234,7 +234,7 @@ export async function rebindLocalOwnerFamily(familyId: string): Promise<boolean>
     ])
     for (const op of ops) if (op.entity !== 'recipe') tx.objectStore('outbox').delete(op.seq!)
     for (const row of rows) {
-      if (row.key.startsWith('weekRevision:')
+      if (row.key.startsWith(WEEK_REVISION_PREFIX)
         || row.key.startsWith(`${PULL_DEMAND_PREFIX}mealPlan:`)
         || row.key.startsWith(`${PULL_DEMAND_PREFIX}shopping:`)) meta.delete(row.key)
     }
@@ -471,7 +471,8 @@ export async function deleteLocalRecipe(id: string): Promise<void> {
 // --- request-relative week protection (shared across tabs and successful drains) ---
 
 type WeekStore = 'mealPlans' | 'shoppingLists'
-const weekRevisionKey = (store: WeekStore, week: string) => `weekRevision:${store}:${week}`
+const WEEK_REVISION_PREFIX = 'weekRevision:'
+const weekRevisionKey = (store: WeekStore, week: string) => `${WEEK_REVISION_PREFIX}${store}:${week}`
 function weekOps(ops: OutboxOp[], store: WeekStore, week: string): OutboxOp[] {
   return ops.filter(op => store === 'mealPlans'
     ? op.entity === 'mealPlan' && op.key === week
