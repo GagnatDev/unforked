@@ -189,9 +189,13 @@ test.describe('meal plan people and shopping list', { tag: '@integration' }, () 
         payload.assignments.some((a) => a.day === 'monday')
     )
     await selectMealPlanRecipe(page.getByRole('row', { name: /^Monday\b/i }), recipeName)
-    expect((await (await savedPlan).response())?.ok()).toBeTruthy()
+    const persistedRequest = await savedPlan
+    expect((await persistedRequest.response())?.ok()).toBeTruthy()
+    const savedWeek = (persistedRequest.postDataJSON() as PlanPayload).weekIdentifier
 
-    await page.goto('/shopping-list')
+    // Menu defaults to next week; Shopping can fall back to the current week.
+    // Inspect the list for the week we actually edited.
+    await page.goto(`/shopping-list?week=${savedWeek}`)
     await expect(page.getByRole('heading', { name: 'Shopping list' })).toBeVisible()
     const flourLine = page.getByRole('listitem').filter({ hasText: /^Flour/i })
     await expect(flourLine).toBeVisible()
@@ -230,9 +234,13 @@ test.describe('meal plan people and shopping list', { tag: '@integration' }, () 
       mondayRow.getByRole('combobox', { name: /People for Monday/i }),
       '2'
     )
-    expect((await (await savedPlan).response())?.ok()).toBeTruthy()
+    const persistedRequest = await savedPlan
+    expect((await persistedRequest.response())?.ok()).toBeTruthy()
+    const savedWeek = (persistedRequest.postDataJSON() as PlanPayload).weekIdentifier
 
-    await page.goto('/shopping-list')
+    // Menu defaults to next week; Shopping can fall back to the current week.
+    // Inspect the list for the week we actually edited.
+    await page.goto(`/shopping-list?week=${savedWeek}`)
     const flourLine = page.getByRole('listitem').filter({ hasText: /^Flour/i })
     await expect(flourLine).toContainText('600')
     await expect(flourLine).toContainText('g')

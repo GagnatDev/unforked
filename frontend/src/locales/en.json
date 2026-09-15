@@ -1,4 +1,23 @@
 {
+  "sync": {
+    "synced": "Synced",
+    "syncing": "Syncing",
+    "offline": "Offline",
+    "error": "Sync paused",
+    "now": "Sync now",
+    "localSafe": "Keep working here. Changes are saved on this device.",
+    "pending_one": "{{count}} change pending",
+    "pending_other": "{{count}} changes pending",
+    "disconnected": "No connection. Sync will resume when you’re online.",
+    "cause": {
+      "transport": "The connection failed or timed out. Try syncing again.",
+      "auth": "Your session expired. Changes will sync after you sign back in.",
+      "http": "The server couldn’t sync. Try again shortly.",
+      "conflict": "Some changes conflict with the server. Try syncing again.",
+      "parked": "Some changes need attention and cannot be sent automatically. They remain on this device.",
+      "storage": "Sync couldn’t finish. Try again."
+    }
+  },
   "nav": {
     "recipes": "Recipes",
     "recipesMenu": "Recipes",
@@ -34,6 +53,9 @@
     "couldNotReachServer": "Could not reach the server. Check your connection and try again."
   },
   "auth": {
+    "accountMismatch": "This device’s saved work belongs to another account or family. Sign back into the original account to sync. Nothing has been removed.",
+    "needsConnection": "These settings need a connection and a live session. Your recipes, plan and shopping list are still available.",
+    "signIn": "Sign in again",
     "email": "Email",
     "logOut": "Log out",
     "sessionExpired": "Your session has expired. Reload to log in again.",
@@ -52,6 +74,8 @@
   },
   "recipeForm": {
     "editRecipe": "Edit recipe",
+    "backToRecipes": "Back to recipes",
+    "unavailableLocally": "This recipe isn't available on this device yet. It will appear here when it syncs.",
     "newRecipe": "New recipe",
     "name": "Name",
     "description": "Description",
@@ -285,5 +309,21 @@
     "installPrompt": "Install this app for quick access.",
     "install": "Install",
     "dismissInstall": "Dismiss install prompt"
+  },
+  "settings": {
+    "loadingBody": "Checking the connection and loading server settings.",
+    "loading": "Loading settings…",
+    "retry": "Try again",
+    "connectionTitle": "Connection needed",
+    "connectionBody": "These settings need a working connection. Reconnect, then try again.",
+    "permissionTitle": "Permission needed",
+    "permissionBody": "Your account cannot access these settings. Check with your family administrator.",
+    "serverTitle": "Settings unavailable",
+    "serverBody": "The server could not load these settings. Try again later.",
+    "reauthTitle": "Sign in to manage settings",
+    "reauthBody": "Your session has expired. Sign in again to manage these settings.",
+    "mismatchTitle": "Account does not match",
+    "mismatchBody": "Sign in to the original account and family to manage settings without moving your local work.",
+    "localAvailable": "Your local recipes, plan and shopping list are still available."
   }
 }

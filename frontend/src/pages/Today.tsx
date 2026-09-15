@@ -6,7 +6,7 @@ import type { DayKey } from '@/components/meal-plan/constants'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { cn, getCurrentWeekId } from '@/lib/utils'
 import { getLocalMealPlan, getLocalRecipe } from '@/local/db'
-import { pullMealPlan, pullRecipe } from '@/local/sync'
+import { pullMealPlan, pullRecipe } from '@/local/pullDemand'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import { TodayIngredients } from './today/TodayIngredients'
@@ -60,8 +60,6 @@ export default function Today() {
         (p.assignments ?? []).find((x) => x.day === dayKey) ?? null
       if (!assignment?.recipeId) return { plan: p, assignment, recipe: null }
       const recipe = await getLocalRecipe(assignment.recipeId)
-      // The assigned recipe isn't local yet: treat as unknown until pulled.
-      if (!recipe) return null
       return { plan: p, assignment, recipe }
     },
     ['mealPlans', 'recipes'],
@@ -76,10 +74,8 @@ export default function Today() {
     },
     [dayKey, weekId],
   )
-  // With nothing local yet, stay in loading until the pull lands in the
-  // store (or fails); with local data, pull errors are irrelevant offline noise.
-  const loading = localLoading || (data == null && pullError == null)
-  const error = data == null ? pullError : null
+  // An empty local snapshot is ready to render; pulling is reconciliation.
+  const loading = localLoading
 
   const plan = data?.plan ?? null
   const assignment = data?.assignment ?? null
@@ -99,23 +95,23 @@ export default function Today() {
   const plannedPeople = assignment?.persons ?? plan?.defaultPersons ?? null
 
   if (loading) return <p>{t('today.loading')}</p>
-  if (error) {
-    return (
-      <p className="text-destructive">{formatLoadErrorMessage(error, t)}</p>
-    )
-  }
 
   if (!assignment?.recipeId || !recipe) {
     return (
       <div className="space-y-4">
+        {pullError && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {formatLoadErrorMessage(pullError, t)}
+          </p>
+        )}
         <div>
           <p className="text-sm font-semibold text-primary">
             {t(`mealPlan.days.${dayKey}`)} ·{' '}
             {weekNumber != null ? t('today.week', { week: weekNumber }) : weekId}
           </p>
-          <h1 className="mb-0">{t('today.title')}</h1>
+          <h1 className="mb-0 text-pretty">{assignment?.recipeId ? assignment.recipeName || t('today.title') : t('today.title')}</h1>
         </div>
-        <p>{t('today.noMealPlanned')}</p>
+        <p>{assignment?.recipeId ? t('recipeForm.unavailableLocally') : t('today.noMealPlanned')}</p>
         <p>
           <Link to="/meal-plan" className={cn('text-primary underline-offset-4 hover:underline')}>
             {t('today.goToMealPlan')}
@@ -129,6 +125,11 @@ export default function Today() {
 
   return (
     <div className="space-y-6">
+      {pullError && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {formatLoadErrorMessage(pullError, t)}
+        </p>
+      )}
       <header className="space-y-3">
         <div>
           <p className="text-sm font-semibold text-primary">

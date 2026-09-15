@@ -4,7 +4,7 @@ import { getCurrentWeekId, getNextWeekId } from '@/lib/utils'
 
 import { isLeader, onBecomeLeader } from './crossTab'
 import { getLocalShoppingList, listLocalShoppingListWeeks } from './db'
-import { pullShoppingList } from './sync'
+import { pullShoppingList } from './pullDemand'
 
 /**
  * Realtime live-update client (design #104, D3 — phase 2).
@@ -19,7 +19,7 @@ import { pullShoppingList } from './sync'
  *
  * The channel is an optimization signal, never a data path: IndexedDB stays
  * the source of truth, writes keep going through the outbox, and losing the
- * stream degrades to today's pull-on-mount behaviour. Accordingly a stream
+ * stream degrades to the continuous engine's focus/reconnect catch-up. Accordingly a stream
  * failure never navigates — repeated failures only run the auth probe so a
  * real 401 flows into the deferred-reauth classifier (offline-first A7).
  *

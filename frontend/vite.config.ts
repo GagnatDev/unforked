@@ -71,7 +71,7 @@ export default defineConfig({
         // hand-written file pulled into the generated SW — keeps generateSW
         // (precache/update behavior unchanged) while adding push +
         // notificationclick. Served from public/, next to the generated sw.js.
-        importScripts: ['push-sw.js'],
+        importScripts: ['push-sw.js', 'settings-cache-cleanup-sw.js'],
         runtimeCaching: [
           // The realtime SSE stream (/api/events) must never be served from a
           // cache: a cached response would freeze the event feed and a caching
@@ -142,18 +142,15 @@ export default defineConfig({
             urlPattern: /^https?:\/\/[^/]+\/api\/shopping-lists/,
             handler: 'NetworkOnly',
           },
+          // Live identity checks must never be answered from an HTTP cache.
           {
-            urlPattern: /^https?:\/\/[^/]+\/api\/(auth|users|family)/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-auth-sensitive',
-              networkTimeoutSeconds: 5,
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 5,
-              },
-              cacheableResponse: { statuses: [0, 200] },
-            },
+            urlPattern: /^https?:\/\/[^/]+\/api\/auth(?:\/|\?|$)/,
+            handler: 'NetworkOnly',
+          },
+          {
+            // Family reads include pending invitation tokens. Never cache them.
+            urlPattern: /^https?:\/\/[^/]+\/api\/(users|family|api-keys)(?:\/|\?|$)/,
+            handler: 'NetworkOnly',
           },
         ],
         navigateFallback: 'index.html',
@@ -170,6 +167,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    setupFiles: ['./src/testSessionSetup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
   server: {

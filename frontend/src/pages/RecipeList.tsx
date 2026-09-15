@@ -8,7 +8,7 @@ import { SwipeToDelete } from '@/components/SwipeToDelete'
 import { Input } from '@/components/ui/input'
 import { listLocalRecipes } from '@/local/db'
 import { deleteRecipe } from '@/local/mutations'
-import { pullRecipes } from '@/local/sync'
+import { pullRecipes } from '@/local/pullDemand'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
@@ -33,10 +33,7 @@ export default function RecipeList() {
     return allRecipes.filter((r) => r.doc.name.toLowerCase().includes(query))
   }, [allRecipes, search])
 
-  // With nothing local yet, stay in loading until the pull lands in the
-  // store (or fails); with local data, pull errors are irrelevant offline noise.
-  const loading = localLoading || (allRecipes == null && pullError == null)
-  const error = allRecipes == null ? pullError : null
+  const loading = localLoading
 
   // No confirm dialog: swiping the row open and then pressing the trash panel
   // is itself the two-step confirmation.
@@ -47,12 +44,6 @@ export default function RecipeList() {
     } catch (e) {
       alert((e as Error).message)
     }
-  }
-
-  if (error) {
-    return (
-      <p className="text-destructive">{formatLoadErrorMessage(error, t)}</p>
-    )
   }
 
   return (
@@ -78,6 +69,11 @@ export default function RecipeList() {
           className="h-11 w-full rounded-full sm:w-72"
         />
       </p>
+      {pullError && (
+        <p role="status" className="mb-4 text-sm text-muted-foreground">
+          {formatLoadErrorMessage(pullError, t)}
+        </p>
+      )}
       {loading ? (
         <p>{t('recipes.loading')}</p>
       ) : (

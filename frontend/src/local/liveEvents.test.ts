@@ -16,7 +16,7 @@ import {
 import { __resetOutboxSyncForTests, drainOutbox } from './outboxSync'
 
 const pullShoppingListMock = vi.hoisted(() => vi.fn())
-vi.mock('./sync', () => ({ pullShoppingList: pullShoppingListMock }))
+vi.mock('./pullDemand', () => ({ pullShoppingList: pullShoppingListMock }))
 
 const requestReauthMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/reauth', () => ({ requestReauth: requestReauthMock }))

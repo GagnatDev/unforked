@@ -1,4 +1,23 @@
 {
+  "sync": {
+    "synced": "Synkronisert",
+    "syncing": "Synkroniserer",
+    "offline": "Frakoblet",
+    "error": "Synkronisering pauset",
+    "now": "Synkroniser nå",
+    "localSafe": "Fortsett å jobbe her. Endringer lagres på denne enheten.",
+    "pending_one": "{{count}} endring venter",
+    "pending_other": "{{count}} endringer venter",
+    "disconnected": "Ingen forbindelse. Synkronisering fortsetter når du er på nett.",
+    "cause": {
+      "transport": "Forbindelsen sviktet eller fikk tidsavbrudd. Prøv å synkronisere igjen.",
+      "auth": "Økten er utløpt. Endringer synkroniseres når du logger inn igjen.",
+      "http": "Serveren kunne ikke synkronisere. Prøv igjen om litt.",
+      "conflict": "Noen endringer er i konflikt med serveren. Prøv å synkronisere igjen.",
+      "parked": "Noen endringer trenger oppfølging og kan ikke sendes automatisk. De blir på denne enheten.",
+      "storage": "Synkroniseringen kunne ikke fullføres. Prøv igjen."
+    }
+  },
   "nav": {
     "recipes": "Oppskrifter",
     "recipesMenu": "Oppskrifter",
@@ -34,6 +53,9 @@
     "couldNotReachServer": "Kunne ikke nå serveren. Sjekk tilkoblingen og prøv igjen."
   },
   "auth": {
+    "accountMismatch": "Det lagrede arbeidet på denne enheten tilhører en annen konto eller familie. Logg inn med den opprinnelige kontoen for å synkronisere. Ingenting er fjernet.",
+    "needsConnection": "Disse innstillingene trenger nettforbindelse og en aktiv økt. Oppskriftene, ukemenyen og handlelisten er fortsatt tilgjengelige.",
+    "signIn": "Logg inn igjen",
     "email": "E-post",
     "logOut": "Logg ut",
     "sessionExpired": "Økten din er utløpt. Last inn siden på nytt for å logge inn igjen.",
@@ -52,6 +74,8 @@
   },
   "recipeForm": {
     "editRecipe": "Rediger oppskrift",
+    "backToRecipes": "Tilbake til oppskrifter",
+    "unavailableLocally": "Denne oppskriften er ikke tilgjengelig på denne enheten ennå. Den vises her når den synkroniseres.",
     "newRecipe": "Ny oppskrift",
     "name": "Navn",
     "description": "Beskrivelse",
@@ -285,5 +309,21 @@
     "installPrompt": "Installer appen for rask tilgang.",
     "install": "Installer",
     "dismissInstall": "Lukk installasjonsmelding"
+  },
+  "settings": {
+    "loadingBody": "Sjekker tilkoblingen og laster inn innstillinger fra serveren.",
+    "loading": "Laster inn innstillinger…",
+    "retry": "Prøv igjen",
+    "connectionTitle": "Tilkobling kreves",
+    "connectionBody": "Disse innstillingene trenger en fungerende tilkobling. Koble til og prøv igjen.",
+    "permissionTitle": "Tilgang kreves",
+    "permissionBody": "Kontoen din har ikke tilgang til disse innstillingene. Kontakt familieadministratoren.",
+    "serverTitle": "Innstillingene er utilgjengelige",
+    "serverBody": "Serveren kunne ikke laste inn innstillingene. Prøv igjen senere.",
+    "reauthTitle": "Logg inn for å endre innstillinger",
+    "reauthBody": "Økten din har utløpt. Logg inn igjen for å endre disse innstillingene.",
+    "mismatchTitle": "Kontoen samsvarer ikke",
+    "mismatchBody": "Logg inn med den opprinnelige kontoen og familien for å endre innstillinger uten å flytte lokalt arbeid.",
+    "localAvailable": "Lokale oppskrifter, ukeplan og handleliste er fortsatt tilgjengelige."
   }
 }

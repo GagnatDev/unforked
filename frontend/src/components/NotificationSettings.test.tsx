@@ -181,3 +181,10 @@ describe('NotificationSettings', () => {
     expect(screen.getByText(/shows here instead of as a system notification/)).toBeDefined()
   })
 })
+
+it('catches subscription lookup rejection and translates transport failure', async () => {
+  pushManager.getSubscription.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+  render(<NotificationSettings />)
+  expect((await screen.findByRole('alert')).textContent).toContain('Could not reach')
+  expect(screen.queryByText('errors.couldNotReachServer')).toBeNull()
+})

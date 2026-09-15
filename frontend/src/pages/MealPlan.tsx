@@ -12,7 +12,7 @@ import {
   pullFamilyMealPlanDefaults,
   pullMealPlan,
   pullRecipes,
-} from '@/local/sync'
+} from '@/local/pullDemand'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
 import { useLocal } from '@/local/useLocal'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
@@ -52,8 +52,12 @@ export default function MealPlan() {
         listLocalRecipes(),
         getSyncMeta<number | null>(FAMILY_DEFAULT_PERSONS_KEY),
       ])
-      if (!planData) return null
-      let merged = planData
+      // A week not cached yet is still editable; its first edit creates it locally.
+      let merged: MealPlanDoc = planData ?? {
+        weekIdentifier: weekId,
+        defaultPersons: familyDefault ?? null,
+        assignments: [],
+      }
       if (merged.defaultPersons == null && familyDefault != null) {
         merged = { ...merged, defaultPersons: familyDefault }
       }
@@ -72,10 +76,7 @@ export default function MealPlan() {
     },
     [weekId],
   )
-  // With nothing local yet, stay in loading until the pull lands in the
-  // store (or fails); with local data, pull errors are irrelevant offline noise.
-  const loading = localLoading || (data == null && pullError == null)
-  const loadError = data == null ? pullError : null
+  const loading = localLoading
 
   useEffect(() => {
     setPlan(null)
@@ -193,10 +194,13 @@ export default function MealPlan() {
         <h1 className="mb-0">{t('mealPlan.title')}</h1>
         <WeekPicker value={weekId} onChange={setWeekId} locale={locale} />
       </div>
+      {pullError && (
+        <p role="status" className="mb-4 text-sm text-muted-foreground">
+          {formatLoadErrorMessage(pullError, t)}
+        </p>
+      )}
       {loading ? (
         <p>{t('mealPlan.loading')}</p>
-      ) : loadError ? (
-        <p className="text-destructive">{formatLoadErrorMessage(loadError, t)}</p>
       ) : (
         <>
           <MealPlanWeekAssignments

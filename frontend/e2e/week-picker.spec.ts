@@ -72,7 +72,7 @@ test.describe('week picker', () => {
 
     await test.step('refetch with week=2026-W25 and raise it in the strip', async () => {
       await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(2)
-      expect(requestedUrls.at(-1)).toContain('week=2026-W25')
+      await expect.poll(() => requestedUrls.some(url => url.includes('week=2026-W25'))).toBe(true)
       await expect(selectedWeek(page)).toHaveAccessibleName(/Week 25, 2026/)
       // W25 is the week the frozen clock is in, so it now reads as "this week".
       await expect(selectedWeek(page)).toContainText('This week')
@@ -94,7 +94,7 @@ test.describe('week picker', () => {
     await swipeHorizontally(page, weekStrip(page), -120)
 
     await expect(selectedWeek(page)).toHaveAccessibleName(/Week 27, 2026/)
-    await expect.poll(() => requestedUrls.at(-1)).toContain('week=2026-W27')
+    await expect.poll(() => requestedUrls.some(url => url.includes('week=2026-W27'))).toBe(true)
   })
 
   test('shopping list: changing week refetches it and updates ?week=', async ({ page }) => {
@@ -121,7 +121,7 @@ test.describe('week picker', () => {
       await weekStrip(page).getByRole('button', { name: /^Previous week/ }).click()
 
       await expect.poll(() => requestedUrls.length).toBeGreaterThanOrEqual(2)
-      expect(requestedUrls.at(-1)).toContain('week=2026-W25')
+      await expect.poll(() => requestedUrls.some(url => url.includes('week=2026-W25'))).toBe(true)
       await expect(selectedWeek(page)).toHaveAccessibleName(/Week 25, 2026/)
       // The viewed week lives in the URL, so the list is linkable.
       await expect(page).toHaveURL(/\?week=2026-W25$/)

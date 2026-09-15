@@ -1,5 +1,4 @@
-import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from '@/lib/fetchTimeout'
-import { requestReauth } from '@/lib/reauth'
+import { sessionFetch } from '@/lib/localSession'
 import type {
   ApiKey,
   MealPlanDoc,
@@ -79,11 +78,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     'Content-Type': 'application/json',
     ...(options?.headers as Record<string, string>),
   }
-  const res = await fetchWithTimeout(`${base}${path}`, { ...options, headers }, DEFAULT_FETCH_TIMEOUT_MS)
+  const res = await sessionFetch(`${base}${path}`, { ...options, headers })
   if (!res.ok) {
-    if (res.status === 401) void requestReauth()
     const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
+    throw Object.assign(new Error(text || `HTTP ${res.status}`), { status: res.status })
   }
   if (res.status === 204) return undefined as T
   return res.json()
@@ -200,7 +198,7 @@ export const api = {
       ),
   },
   apiKeys: {
-    list: () => request<ApiKey[]>('/api/api-keys'),
+    list: (signal?: AbortSignal) => request<ApiKey[]>('/api/api-keys', { signal, cache: 'no-store' }),
     // The response's `key` is the plaintext, returned exactly once at creation.
     // Scopes: every key can read; pass ['write'] to also allow mutations
     // (adding shopping-list items) — the server always includes 'read'.
@@ -235,13 +233,13 @@ export const api = {
       ),
   },
   family: {
-    get: () =>
+    get: (signal?: AbortSignal) =>
       request<{
         id: string
         defaultMealPlanPersons: number
         members: { id: string; email: string }[]
         pendingInvites: { id: string; inviteeEmail: string; token: string; expiresAt: string }[]
-      }>('/api/family'),
+      }>(`/api/family?probe=${crypto.randomUUID()}`, { signal, cache: 'no-store' }),
     patchDefaultPersons: (defaultMealPlanPersons: number) =>
       request<{ defaultMealPlanPersons: number }>('/api/family', {
         method: 'PATCH',

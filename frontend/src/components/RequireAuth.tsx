@@ -12,8 +12,18 @@ import { navigateForLogin } from '@/lib/session'
  * kicked in (see lib/session.ts).
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading, reloading } = useAuth()
+  const { user, loading, reloading, accountMismatch } = useAuth()
   const { t } = useTranslation()
+
+  // Cached workspace access never depends on background session health.
+  if (user) return <>{children}</>
+
+  if (accountMismatch) return (
+    <div className="mx-auto max-w-sm space-y-4 pt-12 text-center">
+      <p role="status">{t('auth.accountMismatch')}</p>
+      <Button onClick={() => void navigateForLogin()}>{t('auth.signIn')}</Button>
+    </div>
+  )
 
   if (loading) return <div className="p-6">{t('common.loading')}</div>
 

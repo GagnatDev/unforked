@@ -10,6 +10,8 @@ import { RecipePhotoSection } from '@/components/RecipePhotoSection'
 import { RecipeSourceAttribution } from '@/components/RecipeSourceAttribution'
 import { AutoGrowTextarea } from '@/components/AutoGrowTextarea'
 import { Button } from '@/components/ui/button'
+import { BackLink } from '@/components/BackLink'
+import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { Input } from '@/components/ui/input'
 import { createRecipe, updateRecipe } from '@/local/mutations'
 import { IngredientListEditor } from './recipe-form/IngredientListEditor'
@@ -26,6 +28,8 @@ export default function RecipeForm() {
     doc,
     setDoc,
     loading,
+    unavailable,
+    pullError,
     error,
     setError,
     update,
@@ -65,6 +69,23 @@ export default function RecipeForm() {
   }
 
   if (loading) return <p>{t('recipeForm.loading')}</p>
+
+  const pullStatus = pullError && (
+    <p role="status" className="mb-4 text-sm text-muted-foreground">
+      {formatLoadErrorMessage(pullError, t)}
+    </p>
+  )
+
+  if (unavailable) {
+    return (
+      <div className="space-y-4">
+        <BackLink to="/recipes" label={t('recipeForm.backToRecipes')} />
+        <h1>{t('recipeForm.editRecipe')}</h1>
+        {pullStatus}
+        <p>{t('recipeForm.unavailableLocally')}</p>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -106,6 +127,7 @@ export default function RecipeForm() {
           </Button>
         </div>
       )}
+      {pullStatus}
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* What the recipe is, in one sheet; what it is made of and how to cook
             it get a sheet each below. */}

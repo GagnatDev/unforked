@@ -10,6 +10,9 @@ Plan meals for the week: manage recipes, assign dinners by day, and export shopp
 
 A single Node process serves the API and the built SPA on port 8080.
 
+See [Local-first workspace](docs/local-first.md) for offline, sync, identity and
+server-owned settings policy (issue #136 WP1–5; WP6 deferred).
+
 ## Run with Docker (recommended)
 
 From the repo root:

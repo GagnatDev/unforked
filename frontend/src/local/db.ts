@@ -8,6 +8,8 @@ import type {
 } from '@/types'
 
 import { postCrossTab, subscribeCrossTab } from './crossTab'
+import { mergeMealPlan } from './mealPlanMerge'
+import { applyShoppingOps } from './shoppingMerge'
 
 /**
  * Persistent local store (IndexedDB) for domain data — the read source of
@@ -181,6 +183,66 @@ function openLocalDb(): Promise<IDBDatabase> {
   return dbPromise
 }
 
+/** Owner binding is independent of the revocable cached display identity. */
+export type LocalOwner = { id: string; familyId: string }
+export const sameLocalOwner = (a: LocalOwner, b: LocalOwner) => a.id === b.id && a.familyId === b.familyId
+
+/** Atomically claim an empty/legacy cache, never transfer existing ownership. */
+export async function bindLocalOwner(owner: LocalOwner, trustedLegacyOwner = false): Promise<boolean> {
+  const db = await openLocalDb()
+  const stores: LocalStoreName[] = ['recipes', 'mealPlans', 'shoppingLists', 'outbox', 'syncMeta']
+  const tx = db.transaction(stores, 'readwrite')
+  const done = transactionDone(tx)
+  const meta = tx.objectStore('syncMeta')
+  const existing = await promisifyRequest(meta.get('auth:owner')) as SyncMetaRecord | undefined
+  let matches = existing ? sameLocalOwner(existing.value as LocalOwner, owner) : false
+  if (!existing) {
+    const counts = await Promise.all(stores.map(name => promisifyRequest(tx.objectStore(name).count())))
+    if (trustedLegacyOwner || counts.every(count => count === 0)) {
+      meta.put({ key: 'auth:owner', value: { id: owner.id, familyId: owner.familyId } })
+      matches = true
+    }
+  }
+  await done
+  return matches
+}
+
+/**
+ * Re-bind the workspace after the server moved this user into another family
+ * (invite accept). Only the family changes — a different user id is still a
+ * mismatch and is never re-bound here. The split mirrors what the server does
+ * on accept: recipes travel with the user, so they and their queued ops stay;
+ * meal plans and shopping lists belong to the family left behind, so their
+ * documents, queued ops and pull bookkeeping go with it.
+ */
+export async function rebindLocalOwnerFamily(familyId: string): Promise<boolean> {
+  let rebound = false
+  await writeTx(['mealPlans', 'shoppingLists', 'outbox', 'syncMeta'], async tx => {
+    const meta = tx.objectStore('syncMeta')
+    const existing = await promisifyRequest<SyncMetaRecord | undefined>(meta.get('auth:owner'))
+    const owner = existing?.value as LocalOwner | undefined
+    if (!owner || owner.familyId === familyId) {
+      rebound = owner != null
+      return
+    }
+    meta.put({ key: 'auth:owner', value: { id: owner.id, familyId } })
+    tx.objectStore('mealPlans').clear()
+    tx.objectStore('shoppingLists').clear()
+    const [ops, rows] = await Promise.all([
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+      promisifyRequest<SyncMetaRecord[]>(meta.getAll()),
+    ])
+    for (const op of ops) if (op.entity !== 'recipe') tx.objectStore('outbox').delete(op.seq!)
+    for (const row of rows) {
+      if (row.key.startsWith(WEEK_REVISION_PREFIX)
+        || row.key.startsWith(`${PULL_DEMAND_PREFIX}mealPlan:`)
+        || row.key.startsWith(`${PULL_DEMAND_PREFIX}shopping:`)) meta.delete(row.key)
+    }
+    rebound = true
+  })
+  return rebound
+}
+
 function promisifyRequest<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result)
@@ -295,6 +357,95 @@ export async function listLocalRecipes(): Promise<Recipe[] | null> {
   })
 }
 
+const RECIPE_GENERATION_KEY = 'recipes:writeGeneration'
+const RECIPE_REVISION_PREFIX = 'recipes:writeRevision:'
+export interface RecipePullGuard {
+  generation: number
+  pendingKeys: string[]
+}
+
+/** Capture before GET, in the same transaction scope used by recipe writers. */
+export async function beginRecipePull(): Promise<RecipePullGuard> {
+  return readTx(['outbox', 'syncMeta'], async tx => {
+    const [generation, ops] = await Promise.all([
+      promisifyRequest<SyncMetaRecord | undefined>(tx.objectStore('syncMeta').get(RECIPE_GENERATION_KEY)),
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+    ])
+    return {
+      generation: (generation?.value as number | undefined) ?? 0,
+      pendingKeys: ops.filter(op => op.entity === 'recipe').map(op => op.key),
+    }
+  })
+}
+
+/**
+ * Reconcile against writes pending at GET start, pending now, or committed
+ * since GET start (even if their push has already drained). The shared
+ * recipes/outbox/syncMeta transaction serializes with mutations in every tab.
+ * Protected keys retain their current record or deletion absence. Only full
+ * list responses remove omitted unprotected keys. Local revision tombstones
+ * must survive drains: an older request may still be in flight in another tab.
+ */
+export async function applyRecipePull(recipes: Recipe[], fullList: boolean, guard: RecipePullGuard, checkSession?: () => void): Promise<void> {
+  await writeTx(['recipes', 'outbox', 'syncMeta'], async (tx) => {
+    const store = tx.objectStore('recipes')
+    const [ops, local, metadata] = await Promise.all([
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+      promisifyRequest<Recipe[]>(store.getAll()),
+      promisifyRequest<SyncMetaRecord[]>(tx.objectStore('syncMeta').getAll()),
+    ])
+    checkSession?.()
+    const protectedKeys = new Set([...guard.pendingKeys, ...ops.filter(op => op.entity === 'recipe').map(op => op.key)])
+    // A successful push can remove an op before this older GET resolves. Durable
+    // per-key generations (including delete tombstones) survive that drain and
+    // are shared by every tab; do not roll those keys back to the stale response.
+    for (const record of metadata) {
+      if (record.key.startsWith(RECIPE_REVISION_PREFIX) && (record.value as number) > guard.generation) {
+        protectedKeys.add(record.key.slice(RECIPE_REVISION_PREFIX.length))
+      }
+    }
+    if (fullList) {
+      store.clear()
+      for (const recipe of local) if (protectedKeys.has(recipe.id)) store.put(recipe)
+      tx.objectStore('syncMeta').put({ key: RECIPES_PULLED_AT_KEY, value: Date.now() })
+    }
+    for (const recipe of recipes) if (!protectedKeys.has(recipe.id)) store.put(recipe)
+  })
+}
+
+/** Claim the next write generation for one recipe key, inside `tx`. */
+async function bumpRecipeRevision(tx: IDBTransaction, key: string): Promise<void> {
+  const meta = tx.objectStore('syncMeta')
+  const current = await promisifyRequest<SyncMetaRecord | undefined>(meta.get(RECIPE_GENERATION_KEY))
+  const generation = ((current?.value as number | undefined) ?? 0) + 1
+  meta.put({ key: RECIPE_GENERATION_KEY, value: generation })
+  meta.put({ key: `${RECIPE_REVISION_PREFIX}${key}`, value: generation })
+}
+
+/** Commit optimistic recipe state and its durable protection together. */
+export async function writeRecipeMutation(recipe: Recipe | null, op: OutboxOp): Promise<void> {
+  await writeTx(['recipes', 'outbox', 'syncMeta'], async tx => {
+    await bumpRecipeRevision(tx, op.key)
+    if (recipe) tx.objectStore('recipes').put(recipe)
+    else tx.objectStore('recipes').delete(op.key)
+    const { seq: _seq, ...record } = op
+    tx.objectStore('outbox').add(record)
+  })
+}
+
+/**
+ * Commit a recipe write the server has already applied (photo attach/remove)
+ * with the same durable protection a queued mutation gets. Nothing queues, so
+ * only the revision marks it: an older recipe GET still in flight would
+ * otherwise put its pre-write snapshot back.
+ */
+export async function writeRecipeRevision(recipe: Recipe): Promise<void> {
+  await writeTx(['recipes', 'syncMeta'], async tx => {
+    await bumpRecipeRevision(tx, recipe.id)
+    tx.objectStore('recipes').put(recipe)
+  })
+}
+
 /** Replaces the whole recipe collection with the server's list (full pull). */
 export async function replaceLocalRecipes(recipes: Recipe[]): Promise<void> {
   await writeTx(['recipes', 'syncMeta'], (tx) => {
@@ -315,6 +466,128 @@ export async function deleteLocalRecipe(id: string): Promise<void> {
   await writeTx(['recipes'], (tx) => {
     tx.objectStore('recipes').delete(id)
   })
+}
+
+// --- request-relative week protection (shared across tabs and successful drains) ---
+
+type WeekStore = 'mealPlans' | 'shoppingLists'
+const WEEK_REVISION_PREFIX = 'weekRevision:'
+const weekRevisionKey = (store: WeekStore, week: string) => `${WEEK_REVISION_PREFIX}${store}:${week}`
+function weekOps(ops: OutboxOp[], store: WeekStore, week: string): OutboxOp[] {
+  return ops.filter(op => store === 'mealPlans'
+    ? op.entity === 'mealPlan' && op.key === week
+    : op.entity.startsWith('shopping') && (op.payload as { weekId?: string })?.weekId === week)
+}
+export interface WeekPullGuard { generation: number; pendingIds: string[] }
+export async function beginWeekPull(store: WeekStore, week: string): Promise<WeekPullGuard> {
+  return readTx(['syncMeta', 'outbox'], async tx => {
+    const [meta, ops] = await Promise.all([
+      promisifyRequest<SyncMetaRecord | undefined>(tx.objectStore('syncMeta').get(weekRevisionKey(store, week))),
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+    ])
+    return { generation: (meta?.value as number) ?? 0, pendingIds: weekOps(ops, store, week).map(op => op.opId) }
+  })
+}
+
+/** Returns false when a newer local write needs a fresh catch-up snapshot. */
+export async function applyWeekPull(store: WeekStore, week: string, server: MealPlanDoc | PersistedShoppingListDoc, guard: WeekPullGuard, checkSession?: () => void): Promise<boolean> {
+  let applied = false
+  await writeTx([store, 'outbox', 'syncMeta'], async tx => {
+    const [meta, ops] = await Promise.all([
+      promisifyRequest<SyncMetaRecord | undefined>(tx.objectStore('syncMeta').get(weekRevisionKey(store, week))),
+      promisifyRequest<OutboxOp[]>(tx.objectStore('outbox').getAll()),
+    ])
+    checkSession?.()
+    const pending = weekOps(ops, store, week)
+    if (((meta?.value as number) ?? 0) !== guard.generation || guard.pendingIds.some(id => !pending.some(op => op.opId === id))) return
+    let doc = server
+    if (store === 'mealPlans' && pending.length) {
+      const first = pending[0].payload as MealPlanOpPayload
+      const last = pending[pending.length - 1].payload as MealPlanOpPayload
+      doc = mergeMealPlan(first.baseDoc, last.nextDoc, server as MealPlanDoc, week)
+    } else if (store === 'shoppingLists') {
+      doc = applyShoppingOps(server as PersistedShoppingListDoc, pending, week) ?? server
+    }
+    tx.objectStore(store).put(doc, week)
+    applied = true
+  })
+  return applied
+}
+
+async function queueWeekMutation(tx: IDBTransaction, store: WeekStore, week: string, op: OutboxOp): Promise<void> {
+  const meta = tx.objectStore('syncMeta')
+  const key = weekRevisionKey(store, week)
+  const current = await promisifyRequest<SyncMetaRecord | undefined>(meta.get(key))
+  meta.put({ key, value: ((current?.value as number) ?? 0) + 1 })
+  const { seq: _seq, ...record } = op
+  tx.objectStore('outbox').add(record)
+}
+
+export async function writeMealPlanMutation(week: string, nextDoc: MealPlanDoc, op: OutboxOp): Promise<void> {
+  await writeTx(['mealPlans', 'outbox', 'syncMeta'], async tx => {
+    const store = tx.objectStore('mealPlans')
+    const baseDoc = await promisifyRequest<MealPlanDoc | undefined>(store.get(week)) ?? { weekIdentifier: week, defaultPersons: null, assignments: [] }
+    store.put(nextDoc, week)
+    await queueWeekMutation(tx, 'mealPlans', week, { ...op, payload: { baseDoc, nextDoc } })
+  })
+}
+
+const PULL_DEMAND_PREFIX = 'pullDemand:'
+/** How long demand keeps a view in the background catch-up after its last use. */
+const PULL_DEMAND_TTL_MS = 7 * 24 * 60 * 60 * 1000
+/** Ceiling on demanded keys; the batch is fetched serially on every pass. */
+const MAX_PULL_DEMAND_KEYS = 24
+/** Cached weeks refreshed without explicit demand, newest first. */
+const MAX_CACHED_WEEKS = 8
+
+/** Persist demand even when the requested week has never existed locally. */
+export const rememberPullKey = (key: string) => setSyncMeta(`${PULL_DEMAND_PREFIX}${key}`, Date.now())
+
+/** Newest cached weeks; older ones refresh when they are opened again. */
+function recentWeeks(keys: IDBValidKey[]): string[] {
+  return keys.filter((key): key is string => typeof key === 'string')
+    .sort((a, b) => b.localeCompare(a)).slice(0, MAX_CACHED_WEEKS)
+}
+
+/**
+ * Keys the background catch-up should refresh. Demand is durable, so it is
+ * bounded by recency as well: every key here is GET-ed serially on each pass,
+ * and a profile accumulates a key per recipe opened and per week browsed.
+ * Evicted demand is deleted, not merely skipped — otherwise it would be
+ * re-gathered on every pass forever.
+ */
+export async function listKnownPullKeys(): Promise<string[]> {
+  const { keys, evicted, undated } = await readTx(['syncMeta', 'mealPlans', 'shoppingLists'], async tx => {
+    const [meta, plans, shopping] = await Promise.all([
+      promisifyRequest<SyncMetaRecord[]>(tx.objectStore('syncMeta').getAll()),
+      promisifyRequest<IDBValidKey[]>(tx.objectStore('mealPlans').getAllKeys()),
+      promisifyRequest<IDBValidKey[]>(tx.objectStore('shoppingLists').getAllKeys()),
+    ])
+    const now = Date.now()
+    // Demand persisted before keys carried a timestamp starts its window now.
+    const undated = meta.filter(row => row.key.startsWith(PULL_DEMAND_PREFIX) && typeof row.value !== 'number')
+      .map(row => row.key)
+    const demand = meta.filter(row => row.key.startsWith(PULL_DEMAND_PREFIX))
+      .map(row => ({ row: row.key, at: typeof row.value === 'number' ? row.value : now }))
+      .sort((a, b) => b.at - a.at)
+    const kept = demand.filter(entry => now - entry.at < PULL_DEMAND_TTL_MS).slice(0, MAX_PULL_DEMAND_KEYS)
+    const keptRows = new Set(kept.map(entry => entry.row))
+    return {
+      keys: [...new Set(['recipes', ...kept.map(entry => entry.row.slice(PULL_DEMAND_PREFIX.length)),
+        ...recentWeeks(plans).map(week => `mealPlan:${week}`),
+        ...recentWeeks(shopping).map(week => `shopping:${week}`)])],
+      evicted: demand.filter(entry => !keptRows.has(entry.row)).map(entry => entry.row),
+      undated: undated.filter(row => keptRows.has(row)),
+    }
+  })
+  if (evicted.length || undated.length) {
+    await writeTx(['syncMeta'], tx => {
+      const meta = tx.objectStore('syncMeta')
+      for (const row of evicted) meta.delete(row)
+      for (const row of undated) meta.put({ key: row, value: Date.now() })
+    })
+  }
+  return keys
 }
 
 // --- meal plans (keyed by requested weekIdentifier) ---
@@ -378,14 +651,16 @@ export async function listLocalShoppingListWeeks(): Promise<string[]> {
 export async function mutateLocalShoppingList(
   weekId: string,
   mutate: (doc: PersistedShoppingListDoc | null) => PersistedShoppingListDoc | null,
+  op?: OutboxOp,
 ): Promise<void> {
-  await writeTx(['shoppingLists'], async (tx) => {
+  await writeTx(op ? ['shoppingLists', 'outbox', 'syncMeta'] : ['shoppingLists'], async (tx) => {
     const store = tx.objectStore('shoppingLists')
     const current = await promisifyRequest<PersistedShoppingListDoc | undefined>(
       store.get(weekId),
     )
     const next = mutate(current ?? null)
     if (next != null) store.put(next, weekId)
+    if (op) await queueWeekMutation(tx, 'shoppingLists', weekId, { ...op, baseVersion: current?.version })
   })
 }
 
@@ -400,8 +675,9 @@ export async function getSyncMeta<T>(key: string): Promise<T | undefined> {
   })
 }
 
-export async function setSyncMeta(key: string, value: unknown): Promise<void> {
+export async function setSyncMeta(key: string, value: unknown, checkSession?: () => void): Promise<void> {
   await writeTx(['syncMeta'], (tx) => {
+    checkSession?.()
     tx.objectStore('syncMeta').put({ key, value })
   })
 }
@@ -427,6 +703,15 @@ export async function listOutboxOps(): Promise<OutboxOp[]> {
   })
 }
 
+/**
+ * Queued ops still waiting to be sent, oldest first. Parked ops are excluded:
+ * nothing un-parks them, so treating them as pending would stall the queue
+ * permanently. Their intent survives in the pull merges instead.
+ */
+export async function listPendingOutboxOps(): Promise<OutboxOp[]> {
+  return (await listOutboxOps()).filter(op => op.parkedAt == null)
+}
+
 /** Persist an existing op (must have `seq`), e.g. to record attempts/parking. */
 export async function putOutboxOp(op: OutboxOp): Promise<void> {
   await writeTx(['outbox'], (tx) => {
@@ -435,8 +720,9 @@ export async function putOutboxOp(op: OutboxOp): Promise<void> {
 }
 
 /** Remove a drained op by its sequence key. */
-export async function deleteOutboxOp(seq: number): Promise<void> {
+export async function deleteOutboxOp(seq: number, checkSession?: () => void): Promise<void> {
   await writeTx(['outbox'], (tx) => {
+    checkSession?.()
     tx.objectStore('outbox').delete(seq)
   })
 }

@@ -49,11 +49,9 @@ test.describe('Today load behavior', () => {
     await page.route('**/api/meal-plans/current**', (route) => route.abort())
 
     await page.goto('/')
-    await expect(
-      page.getByText(
-        'Could not reach the server. Check your connection and try again.',
-      ),
-    ).toBeVisible()
+    await expect(page.getByText('No meal planned for today.', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Sync paused', exact: true }).click()
+    await expect(page.getByText('The connection failed or timed out. Try syncing again.')).toBeVisible()
     await expect(page.getByText('Failed to fetch')).toHaveCount(0)
   })
 })

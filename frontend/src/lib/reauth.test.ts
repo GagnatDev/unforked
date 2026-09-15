@@ -72,13 +72,13 @@ describe('requestReauth — classification', () => {
     expect(await requestReauth()).toBe('lost')
   })
 
-  it('reloads immediately mid-session when nothing is queued', async () => {
+  it('keeps cached local access with an empty outbox', async () => {
     setSessionEstablished(true)
     countOutboxOps.mockResolvedValue(0)
 
-    expect(await requestReauth()).toBe('reloading')
-    expect(reloadForLogin).toHaveBeenCalledTimes(1)
-    expect(isReauthDeferred()).toBe(false)
+    expect(await requestReauth()).toBe('deferred')
+    expect(reloadForLogin).not.toHaveBeenCalled()
+    expect(isReauthDeferred()).toBe(true)
   })
 
   it('defers mid-session when unsynced work is queued', async () => {
@@ -109,7 +109,7 @@ describe('deferred re-auth — natural break', () => {
     countOutboxOps.mockResolvedValue(1)
   })
 
-  it('navigates once the tab goes hidden and comes back visible', async () => {
+  it('never navigates when the tab goes hidden and comes back visible', async () => {
     await requestReauth()
     expect(reloadForLogin).not.toHaveBeenCalled()
 
@@ -117,7 +117,7 @@ describe('deferred re-auth — natural break', () => {
     expect(reloadForLogin).not.toHaveBeenCalled()
 
     fireVisibilityChange('visible')
-    expect(reloadForLogin).toHaveBeenCalledTimes(1)
+    expect(reloadForLogin).not.toHaveBeenCalled()
   })
 
   it('does not navigate on a visible event that was never preceded by hidden', async () => {
@@ -126,12 +126,12 @@ describe('deferred re-auth — natural break', () => {
     expect(reloadForLogin).not.toHaveBeenCalled()
   })
 
-  it('treats a 401 seen while already hidden as ready to break on return', async () => {
+  it('keeps cached access when a background 401 is followed by return', async () => {
     setVisibility('hidden')
     await requestReauth()
 
     fireVisibilityChange('visible')
-    expect(reloadForLogin).toHaveBeenCalledTimes(1)
+    expect(reloadForLogin).not.toHaveBeenCalled()
   })
 
   it('does not navigate after the deferral is cleared', async () => {
@@ -203,20 +203,20 @@ describe('multi-tab coordination (phase 6)', () => {
 
     // A follower must never call reloadForLogin — the leader owns navigation.
     expect(reloadForLogin).not.toHaveBeenCalled()
-    expect(seen).toContainEqual({ kind: 'reauth-request' })
+    expect(seen).toContainEqual({ kind: 'reauth-state', pending: true })
   })
 
-  it('the leader drives the navigation when a follower requests re-auth', async () => {
+  it('the leader pauses without navigating when a follower requests re-auth', async () => {
     startReauthCrossTab() // this tab (sole leader by default) listens
     setSessionEstablished(true)
     countOutboxOps.mockResolvedValue(0)
 
     const otherTab = new BroadcastChannel(CHANNEL_NAME)
     otherTab.postMessage({ kind: 'reauth-request' })
-    await waitFor(() => reloadForLogin.mock.calls.length > 0)
+    await waitFor(() => isReauthDeferred())
     otherTab.close()
 
-    expect(reloadForLogin).toHaveBeenCalledTimes(1)
+    expect(reloadForLogin).not.toHaveBeenCalled()
   })
 
   it('mirrors another tab’s pending indicator', async () => {

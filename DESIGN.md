@@ -73,7 +73,7 @@ the most reachable pixel on the screen — the frequent gesture is ticking thing
 off, which is not an add.
 
 `components/TopBar.tsx` keeps only what must be true everywhere: the wordmark,
-offline and pending-sync indicators, and the menu (profile, log out).
+one inspectable sync-status control, and the menu (profile, log out).
 
 Settings sits off the tab bar: Profile is reached from that menu, and Family
 and API keys from rows on Profile. Installed as a PWA there is no browser back
@@ -91,7 +91,9 @@ what survives a bright aisle:
   and checked items must remain findable mid-shop.
 - **Someone is shopping:** a named line inside the green status card, alongside
   the progress it belongs to — not a separate banner.
-- **Offline / pending sync:** their existing indicators in the top bar.
+- **Sync:** one quiet dot with a text state in the top bar (synced, syncing,
+  offline, or paused). Its popover shows pending changes, the reason sync paused,
+  and a manual retry. Local editing remains available.
 
 ## Signature moment
 

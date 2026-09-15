@@ -161,6 +161,23 @@ describe('MealPlan autosave', () => {
     )
   })
 
+  it('does not replace an active edit when a background snapshot arrives during saving', async () => {
+    mocks.saveMealPlan.mockImplementationOnce(() => new Promise(() => {}))
+    const view = renderPage()
+    await selectOption(combobox(/Recipe for Monday/i), 'Tacos')
+    const results = mocks.useLocal.mock.results
+    const snapshot = results[results.length - 1].value
+    mocks.useLocal.mockReturnValue({
+      ...snapshot,
+      data: { ...snapshot.data, plan: { ...snapshot.data.plan, defaultPersons: 6 } },
+    })
+    view.rerender(<MealPlan />)
+    expect(combobox(/Recipe for Monday/i).textContent).toContain('Tacos')
+    expect(lastSavedDoc().assignments).toContainEqual(
+      expect.objectContaining({ day: 'monday', recipeId: 'recipe-2' }),
+    )
+  })
+
   it('lets the newest save decide the outcome when an earlier one is slower', async () => {
     let failFirst: (e: Error) => void = () => {}
     mocks.saveMealPlan.mockImplementationOnce(

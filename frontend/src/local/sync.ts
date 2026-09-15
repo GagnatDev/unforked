@@ -1,16 +1,52 @@
 import { api } from '@/api'
+import { sessionGuard } from '@/lib/localSession'
+import { getFailedSyncKeys, trackSync } from './syncStatus'
+
+// Observed keys survive page unmounts and are persisted for subsequent sessions.
+const observedKeys = new Set<string>()
+export const getObservedPullKeys = () => [...new Set([...observedKeys, ...getFailedSyncKeys()])]
+
+function observedPull(key: string, work: () => Promise<void>): Promise<void> {
+  observedKeys.add(key)
+  return trackSync(key, async () => { sessionGuard(); await rememberPullKey(key); await work() })
+}
+
+export const pullRecipes = () => observedPull('recipes', fetchRecipes)
+export const pullRecipe = (id: string) => observedPull(`recipe:${id}`, () => fetchRecipe(id))
+export const pullMealPlan = (week: string) => observedPull(`mealPlan:${week}`, () => fetchMealPlan(week))
+export const pullShoppingList = (week: string) => observedPull(`shopping:${week}`, () => fetchShoppingList(week))
+export const pullFamilyMealPlanDefaults = () => observedPull('familyDefaults', fetchFamilyMealPlanDefaults).catch(() => {})
+
+/** Serializable keys, not mounted callbacks, let a follower request its own views. */
+export async function retryPullKeys(keys: string[]): Promise<void> {
+  for (const key of new Set(keys)) {
+    // A write can arrive while an earlier GET is pending. Never start the
+    // next GET across queued intent; its mutation kick schedules a trailing
+    // push-first pass. Parked intent never drains and is replayed onto each
+    // pull, so it must not stop reconciliation.
+    if ((await listPendingOutboxOps()).length > 0) return
+    try {
+      if (key === 'recipes') await pullRecipes()
+      else if (key === 'familyDefaults') await pullFamilyMealPlanDefaults()
+      else if (key.startsWith('recipe:')) await pullRecipe(key.slice(7))
+      else if (key.startsWith('mealPlan:')) await pullMealPlan(key.slice(9))
+      else if (key.startsWith('shopping:')) await pullShoppingList(key.slice(9))
+    } catch {
+      // Each failed key keeps its outcome; continue reconciling independent views.
+    }
+  }
+}
 
 import {
-  listOutboxOps,
-  type MealPlanOpPayload,
-  putLocalMealPlan,
-  putLocalRecipe,
-  putLocalShoppingList,
-  replaceLocalRecipes,
+  rememberPullKey,
+  listPendingOutboxOps,
+  beginWeekPull,
+  applyWeekPull,
+  applyRecipePull,
+  beginRecipePull,
   setSyncMeta,
 } from './db'
-import { mergeMealPlan } from './mealPlanMerge'
-import { applyShoppingOps } from './shoppingMerge'
+import { scheduleSync } from './outboxSync'
 
 /**
  * Background pulls: fetch from the network and write into the local store.
@@ -26,44 +62,37 @@ import { applyShoppingOps } from './shoppingMerge'
 /** syncMeta key holding the family's default meal-plan persons (display fallback). */
 export const FAMILY_DEFAULT_PERSONS_KEY = 'family:defaultMealPlanPersons'
 
-export async function pullRecipes(): Promise<void> {
+async function fetchRecipes(): Promise<void> {
+  const check = sessionGuard()
+  const guard = await beginRecipePull()
   const recipes = await api.recipes.list()
-  await replaceLocalRecipes(recipes)
+  await applyRecipePull(recipes, true, guard, check)
 }
 
-export async function pullRecipe(id: string): Promise<void> {
+async function fetchRecipe(id: string): Promise<void> {
+  const check = sessionGuard()
+  const guard = await beginRecipePull()
   const recipe = await api.recipes.get(id)
-  await putLocalRecipe(recipe)
+  await applyRecipePull([recipe], false, guard, check)
 }
 
-export async function pullMealPlan(weekId: string): Promise<void> {
+async function fetchMealPlan(weekId: string): Promise<void> {
+  const check = sessionGuard()
+  const guard = await beginWeekPull('mealPlans', weekId)
   const server = await api.mealPlans.getCurrent(weekId)
-  const pending = (await listOutboxOps()).filter(
-    (o) => o.entity === 'mealPlan' && o.key === weekId && o.parkedAt == null,
-  )
-  if (pending.length === 0) {
-    await putLocalMealPlan(weekId, server)
-    return
-  }
-  // Our net offline change is (first op's base) → (last op's doc); re-apply
-  // its changed days onto the server's current plan.
-  const first = pending[0].payload as MealPlanOpPayload
-  const last = pending[pending.length - 1].payload as MealPlanOpPayload
-  await putLocalMealPlan(weekId, mergeMealPlan(first.baseDoc, last.nextDoc, server, weekId))
+  if (!await applyWeekPull('mealPlans', weekId, server, guard, check)) scheduleSync()
 }
 
-export async function pullShoppingList(weekId: string): Promise<void> {
+async function fetchShoppingList(weekId: string): Promise<void> {
+  const check = sessionGuard()
+  const guard = await beginWeekPull('shoppingLists', weekId)
   const server = await api.shoppingList.get(weekId)
-  const pending = (await listOutboxOps()).filter((o) => o.parkedAt == null)
-  await putLocalShoppingList(weekId, applyShoppingOps(server, pending, weekId) ?? server)
+  if (!await applyWeekPull('shoppingLists', weekId, server, guard, check)) scheduleSync()
 }
 
 /** The family default is optional context; failure is non-fatal by design. */
-export async function pullFamilyMealPlanDefaults(): Promise<void> {
-  try {
-    const family = await api.family.get()
-    await setSyncMeta(FAMILY_DEFAULT_PERSONS_KEY, family.defaultMealPlanPersons ?? null)
-  } catch {
-    // Keep whatever default we last saw; the meal-plan page works without it.
-  }
+async function fetchFamilyMealPlanDefaults(): Promise<void> {
+  const check = sessionGuard()
+  const family = await api.family.get()
+  await setSyncMeta(FAMILY_DEFAULT_PERSONS_KEY, family.defaultMealPlanPersons ?? null, check)
 }

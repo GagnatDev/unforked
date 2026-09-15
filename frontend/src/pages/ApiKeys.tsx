@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/api'
+import { SettingsUnavailable } from '@/components/SettingsUnavailable'
+import { COULD_NOT_REACH_SERVER_I18N_KEY } from '@/lib/loadErrors'
 import { BackLink } from '@/components/BackLink'
 import { CheckboxField } from '@/components/CheckboxField'
 import { Button } from '@/components/ui/button'
@@ -20,8 +22,8 @@ export default function ApiKeys() {
   const { t } = useTranslation()
   const locale = useLocale()
   const [reloadKey, setReloadKey] = useState(0)
-  const { data: keys, loading, error: loadError } = useAsync(
-    (_signal) => api.apiKeys.list(),
+  const { data: keys, loading, error: loadError, errorStatus } = useAsync(
+    (signal) => api.apiKeys.list(signal),
     [reloadKey],
     { keepPreviousData: true },
   )
@@ -70,8 +72,10 @@ export default function ApiKeys() {
     }
   }
 
-  if (loading && !keys) {
-    return <p className="text-muted-foreground">{t('common.loading')}</p>
+  if ((loading && !keys) || loadError) {
+    return <SettingsUnavailable titleKey="apiKeys.title" busy={loading}
+      reason={loadError === COULD_NOT_REACH_SERVER_I18N_KEY ? 'connection' : errorStatus === 403 ? 'permission' : 'server'}
+      onRetry={refetch} />
   }
 
   return (

@@ -29,6 +29,7 @@ export type UseAsyncResult<T> = {
   data: T | null
   loading: boolean
   error: string | null
+  errorStatus: number | null
 }
 
 /**
@@ -46,11 +47,13 @@ export function useAsync<T>(
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(() => enabled)
   const [error, setError] = useState<string | null>(null)
+  const [errorStatus, setErrorStatus] = useState<number | null>(null)
 
   useEffect(() => {
     if (!enabled) {
       setData(null)
       setError(null)
+      setErrorStatus(null)
       setLoading(false)
       return
     }
@@ -60,6 +63,7 @@ export function useAsync<T>(
 
     setLoading(true)
     setError(null)
+    setErrorStatus(null)
     if (!keepPreviousData) {
       setData(null)
     }
@@ -72,6 +76,7 @@ export function useAsync<T>(
       .catch((e) => {
         if (signal.aborted || isAbortError(e)) return
         setError(mapAsyncCatchError(e))
+        setErrorStatus(typeof e?.status === 'number' ? e.status : null)
       })
       .finally(() => {
         if (signal.aborted) return
@@ -84,5 +89,5 @@ export function useAsync<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deps array is the contract
   }, [enabled, keepPreviousData, ...deps])
 
-  return { data, loading, error }
+  return { data, loading, error, errorStatus }
 }

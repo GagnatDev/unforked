@@ -1,211 +1,257 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
-import {
-  clearCachedIdentity,
-  readCachedIdentity,
-  writeCachedIdentity,
-} from '@/lib/authIdentity'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { clearCachedIdentity, readCachedIdentity, writeCachedIdentity } from '@/lib/authIdentity'
 import { AUTH_FETCH_TIMEOUT_MS, fetchWithTimeout } from '@/lib/fetchTimeout'
 import { markAuthenticated, navigateForLogin, onSessionLost } from '@/lib/session'
-import {
-  clearDeferredReauth,
-  isReauthDeferred,
-  onReauthStateChange,
-  requestReauth,
-  setSessionEstablished,
-} from '@/lib/reauth'
+import { clearDeferredReauth, isReauthDeferred, onReauthStateChange, requestReauth, setSessionEstablished } from '@/lib/reauth'
+import { getLocalSessionState, getSessionEpoch, registerSessionVerifier, setLocalSessionState, subscribeLocalSession } from '@/lib/localSession'
+import { bindLocalOwner, rebindLocalOwnerFamily, sameLocalOwner, getSyncMeta, setSyncMeta } from '@/local/db'
+import { canUseCrossTab, postCrossTab, subscribeCrossTab } from '@/local/crossTab'
+import { scheduleSync } from '@/local/outboxSync'
 import { setLiveEventsUser } from '@/local/liveEvents'
 
 export type UserInfo = { id: string; email: string; role: string; familyId: string }
-
 type AuthContextValue = {
   user: UserInfo | null
   loading: boolean
-  /**
-   * A silent re-auth full page load has been triggered and is in flight. The UI
-   * shows a spinner (not the manual session-expired screen) because the page is
-   * about to reload on its own.
-   */
   reloading: boolean
-  /**
-   * The session was lost while unsynced work is queued, so the re-auth reload
-   * is deferred to a natural break (offline-first A7). The UI shows a quiet
-   * "will sync when you sign back in" indicator rather than reloading mid-edit.
-   */
+  checkingSession?: boolean
   reauthPending: boolean
+  liveSession: boolean
+  accountMismatch: boolean
+  availabilityFailure?: 'connection' | 'permission' | 'server'
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
+  /** Re-bind this workspace after the server moved the user into `familyId`. */
+  joinFamily: (familyId: string) => Promise<void>
 }
-
 const AuthContext = createContext<AuthContextValue | null>(null)
-
 const base = import.meta.env.VITE_API_URL ?? ''
-
-function initialCachedUser(): UserInfo | null {
-  const cached = readCachedIdentity()
-  // A previously confirmed identity counts as an established session so a cold
-  // start that later sees a 401 with queued work defers re-auth (A7) instead of
-  // immediately unregistering the SW on a flaky link.
-  if (cached) setSessionEstablished(true)
-  return cached
+const BOUNDARY_KEY = 'auth:boundary'
+function announceBoundary(kind: 'logout' | 'mismatch') {
+  const nonce = crypto.randomUUID()
+  postCrossTab({ kind: 'auth-boundary', boundary: kind, nonce })
+  try { localStorage.setItem(BOUNDARY_KEY, JSON.stringify({ kind, nonce })) } catch { /* BroadcastChannel is independent of storage quota. */ }
+}
+function canCoordinateBoundaries(): boolean {
+  if (canUseCrossTab()) return true
+  try {
+    localStorage.setItem('auth:coordination-probe', '1')
+    localStorage.removeItem('auth:coordination-probe')
+    return true
+  } catch { return false }
 }
 
-/**
- * Loads the identity resolved by the backend from the auth sidecar's headers.
- * The SPA is auth-agnostic: no token, no login form — the sidecar redirects
- * unauthenticated top-level navigations to central login, and 401s on XHRs are
- * answered with a full page load so that redirect can happen.
- *
- * On poor cellular, `/api/auth/me` can hang while `navigator.onLine` stays true.
- * We bound that fetch and hydrate from the last cached identity so RequireAuth
- * can mount the shell and IndexedDB-backed pages without waiting on the network.
- */
+/** The local identity is a workspace key, never proof of server authorization. */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserInfo | null>(initialCachedUser)
-  // Cached identity → show the shell immediately and revalidate in the
-  // background. No cache → wait for `/me` (with timeout) before deciding.
-  const [loading, setLoading] = useState(() => readCachedIdentity() === null)
+  const cached = useRef(readCachedIdentity())
+  const current = useRef<UserInfo | null>(null)
+  const [user, setUser] = useState<UserInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [availabilityFailure, setAvailabilityFailure] = useState<'connection' | 'permission' | 'server'>('connection')
   const [reloading, setReloading] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [reauthPending, setReauthPending] = useState(isReauthDeferred)
+  const session = useSyncExternalStore(subscribeLocalSession, getLocalSessionState)
+  const generation = useRef(0)
+  const revoked = useRef(false)
+  const bootstrap = useRef<Promise<void> | null>(null)
+  const checking = useRef<Promise<void> | null>(null)
 
-  const loadUser = useCallback(async (): Promise<void> => {
-    try {
-      const res = await fetchWithTimeout(
-        `${base}/api/auth/me`,
-        undefined,
-        AUTH_FETCH_TIMEOUT_MS,
-      )
-      if (res.ok) {
-        // A confirmed identity means the session is healthy again: clear the
-        // re-auth loop counters and any deferred re-auth so a later expiry
-        // starts fresh, and mark the session established so a future 401 while
-        // editing is deferred rather than reloading mid-edit (offline-first A7).
-        markAuthenticated()
-        clearDeferredReauth()
-        setReloading(false)
-        setSessionEstablished(true)
-        const next = (await res.json()) as UserInfo
-        writeCachedIdentity(next)
-        setUser(next)
-        return
-      }
-      if (res.status === 401) {
-        // Let the classifier decide: reload now (silent re-auth in flight),
-        // defer behind queued work, or — offline — do nothing. Keep the current
-        // identity except when the session is truly lost.
-        const disposition = await requestReauth()
-        if (disposition === 'reloading') {
-          // Show a spinner instead of flashing the manual screen for the moment
-          // before the page reloads itself.
-          setReloading(true)
-          return
-        }
-        if (disposition === 'deferred' || disposition === 'offline') return
-        clearCachedIdentity()
-        setUser(null)
-        return
-      }
-      clearCachedIdentity()
-      setUser(null)
-    } catch {
-      // A thrown fetch is a network error / timeout (offline / sidecar
-      // unreachable), never a session loss — do not blank the identity or
-      // navigate. Prefer the in-memory user, then the durable cache, so offline
-      // reads keep working after a cold start (offline-first A7).
-      setUser((current) => current ?? readCachedIdentity())
-    }
+  const publishUser = useCallback((next: UserInfo | null) => {
+    current.current = next
+    setUser(next)
+    setSessionEstablished(next !== null)
   }, [])
 
-  useEffect(() => {
-    void loadUser().finally(() => setLoading(false))
-  }, [loadUser])
+  const initialize = useCallback(() => {
+    if (!bootstrap.current) bootstrap.current = (async () => {
+      if (!cached.current) return
+      const version = generation.current
+      if (await getSyncMeta<boolean>('auth:loggedOut')) return
+      const matches = await bindLocalOwner(cached.current, true)
+      if (version !== generation.current) return
+      if (matches) publishUser(cached.current)
+      else setLocalSessionState('mismatch')
+      setLoading(false)
+    })()
+    return bootstrap.current
+  }, [publishUser])
 
-  // A data request may hit a 401 and exhaust the silent re-auth budget without
-  // this provider being the one that observed it. Drop the identity when that
-  // happens so RequireAuth can surface the manual session-expired screen.
-  useEffect(
-    () =>
-      onSessionLost(() => {
-        setReloading(false)
-        setSessionEstablished(false)
-        clearDeferredReauth()
+  const loadUser = useCallback((): Promise<void> => {
+    if (revoked.current) return Promise.resolve()
+    if (checking.current) return checking.current
+    const version = generation.current
+    setCheckingSession(true)
+    const pending = (async () => {
+      try {
+        await initialize()
+        if (version !== generation.current) return
+        // Unique search bypasses auth bodies stored by older NetworkFirst SWs.
+        // Workbox's old rule did not set ignoreSearch. Never accept HTTP cache
+        // or cached display identity as live proof.
+        const proofEpoch = getSessionEpoch()
+        const res = await fetchWithTimeout(`${base}/api/auth/me?probe=${crypto.randomUUID()}`, {
+          cache: 'no-store', redirect: 'manual',
+        }, AUTH_FETCH_TIMEOUT_MS)
+        if (version !== generation.current || proofEpoch !== getSessionEpoch()) return
+        if (res.ok) {
+          const next = await res.json() as UserInfo
+          if (version !== generation.current || proofEpoch !== getSessionEpoch()) return
+          if (!next || typeof next.id !== 'string' || typeof next.familyId !== 'string' || typeof next.email !== 'string' || typeof next.role !== 'string') throw new Error('Invalid identity')
+          const matches = (!current.current || sameLocalOwner(current.current, next)) && await bindLocalOwner(next)
+          if (version !== generation.current || proofEpoch !== getSessionEpoch()) return
+          if (!matches) {
+            setLocalSessionState('mismatch')
+            announceBoundary('mismatch')
+            return
+          }
+          await setSyncMeta('auth:loggedOut', false, () => {
+            if (version !== generation.current || proofEpoch !== getSessionEpoch()) throw new Error('Stale identity proof')
+          })
+          if (version !== generation.current || proofEpoch !== getSessionEpoch()) return
+          writeCachedIdentity(next)
+          publishUser(next)
+          markAuthenticated()
+          clearDeferredReauth()
+          setReloading(false)
+          const recovered = getLocalSessionState() !== 'live'
+          setLocalSessionState(canCoordinateBoundaries() ? 'live' : 'unavailable')
+          if (recovered) scheduleSync()
+        } else if (res.status === 401 || res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+          setLocalSessionState('reauth')
+          const disposition = await requestReauth()
+          if (version === generation.current && !current.current) setReloading(disposition === 'reloading')
+        } else {
+          if (getLocalSessionState() !== 'mismatch') {
+            setAvailabilityFailure(res.status === 403 ? 'permission' : 'server')
+            setLocalSessionState('unavailable')
+          }
+        }
+      } catch {
+        if (version === generation.current && getLocalSessionState() !== 'mismatch') {
+          setAvailabilityFailure('connection')
+          setLocalSessionState('unavailable')
+        }
+      } finally {
+        if (version === generation.current) {
+          setLoading(false)
+          setCheckingSession(false)
+        }
+      }
+    })()
+    checking.current = pending
+    void pending.finally(() => { if (checking.current === pending) checking.current = null })
+    return pending
+  }, [initialize, publishUser])
+
+  useEffect(() => {
+    setLocalSessionState('checking')
+    revoked.current = false
+    const stopVerifier = registerSessionVerifier(loadUser)
+    void loadUser()
+    const stopLost = onSessionLost(() => {
+      setReloading(false)
+      setLocalSessionState('reauth')
+      // Exhausted navigation budget is sync state, not local identity loss.
+    })
+    const stopReauth = onReauthStateChange(() => {
+      setReauthPending(isReauthDeferred())
+      if (isReauthDeferred()) setLocalSessionState('reauth')
+    })
+    const seen = new Set<string>()
+    const receiveBoundary = (kind: string, nonce: string) => {
+      if ((kind !== 'logout' && kind !== 'mismatch') || seen.has(nonce)) return
+      seen.add(nonce)
+      generation.current++
+      checking.current = null
+      setCheckingSession(false)
+      setLocalSessionState(kind === 'logout' ? 'logged-out' : 'mismatch')
+      if (kind === 'logout') {
+        revoked.current = true
         clearCachedIdentity()
-        setUser(null)
-      }),
-    []
-  )
+        publishUser(null)
+        setLoading(false)
+      }
+    }
+    const onBoundary = (event: StorageEvent) => {
+      if (event.key !== BOUNDARY_KEY || !event.newValue) return
+      try {
+        const { kind, nonce } = JSON.parse(event.newValue)
+        receiveBoundary(kind, nonce)
+      } catch { /* malformed event */ }
+    }
+    const stopBoundary = subscribeCrossTab(message => {
+      if (message.kind === 'auth-boundary') receiveBoundary(message.boundary, message.nonce)
+    })
+    window.addEventListener('storage', onBoundary)
+    return () => {
+      generation.current++
+      bootstrap.current = null
+      checking.current = null
+      setLocalSessionState('checking')
+      stopVerifier(); stopLost(); stopReauth(); stopBoundary()
+      window.removeEventListener('storage', onBoundary)
+    }
+  }, [loadUser, publishUser])
 
-  // Feed the live-events client the authenticated identity (design #104 D3):
-  // the SSE stream exists only while signed in, and its own-write echo gating
-  // needs the user id to recognize this user's changes coming back.
+  useEffect(() => { setLiveEventsUser(session === 'live' ? user?.id ?? null : null) }, [user, session])
+  const lastCheck = useRef(0)
   useEffect(() => {
-    setLiveEventsUser(user?.id ?? null)
-  }, [user])
-
-  // Reflect the deferred-reauth flag (set by the classifier when a 401 lands
-  // with unsynced work queued) so the UI can show the quiet "will sync" state.
-  useEffect(
-    () => onReauthStateChange(() => setReauthPending(isReauthDeferred())),
-    []
-  )
-
-  // Proactively re-check the session when the tab regains focus. On mobile the
-  // app is typically backgrounded for a long time, so the session often expires
-  // while it is hidden; re-checking on return lets the silent reload happen
-  // before the user taps anything, rather than surfacing a mid-action 401.
-  const lastCheckRef = useRef(0)
-  useEffect(() => {
-    const RECHECK_THROTTLE_MS = 5_000
     const recheck = () => {
-      if (document.visibilityState !== 'visible') return
-      const now = Date.now()
-      if (now - lastCheckRef.current < RECHECK_THROTTLE_MS) return
-      lastCheckRef.current = now
+      if (document.visibilityState !== 'visible' || Date.now() - lastCheck.current < 5_000) return
+      lastCheck.current = Date.now()
       void loadUser()
     }
     document.addEventListener('visibilitychange', recheck)
     window.addEventListener('focus', recheck)
+    window.addEventListener('online', recheck)
     return () => {
       document.removeEventListener('visibilitychange', recheck)
       window.removeEventListener('focus', recheck)
+      window.removeEventListener('online', recheck)
     }
   }, [loadUser])
 
-  const refreshUser = useCallback(async () => {
+  /**
+   * Accepting a family invitation moves the account to another family, which
+   * otherwise reads as an owner mismatch and wedges the workspace. The move is
+   * server-confirmed and client-initiated, so re-bind the durable owner (and
+   * the identity this tab holds) before verifying the new session.
+   */
+  const joinFamily = useCallback(async (familyId: string) => {
+    // Any /me still in flight predates the move; its answer would read as a
+    // mismatch against the family we are about to bind.
+    generation.current++
+    checking.current = null
+    await rebindLocalOwnerFamily(familyId)
+    if (current.current) publishUser({ ...current.current, familyId })
+    if (cached.current) cached.current = { ...cached.current, familyId }
     await loadUser()
-  }, [loadUser])
+  }, [loadUser, publishUser])
 
   const logout = useCallback(async () => {
-    // The sidecar owns /auth/logout and clears the hs_session cookie; the
-    // follow-up navigation lets it redirect to login again. It must bypass the
-    // service worker cache, or the sidecar never sees the navigation.
-    try {
-      await fetchWithTimeout(`${base}/auth/logout`, { method: 'POST' }, AUTH_FETCH_TIMEOUT_MS)
-    } catch {
-      // Ignore — navigating away is the important part.
-    }
-    setSessionEstablished(false)
+    // Revoke before awaiting transport, so a hanging logout or older /me cannot
+    // resurrect local access. Keep the durable owner and all pending work.
+    generation.current++
+    revoked.current = true
+    setCheckingSession(false)
+    setLocalSessionState('logged-out')
     clearCachedIdentity()
-    setUser(null)
+    publishUser(null)
+    setLoading(false)
+    announceBoundary('logout')
+    // Survives blocked/quota-failing localStorage cache removal. The durable
+    // owner/outbox remain untouched; only a fresh matching live proof clears it.
+    await setSyncMeta('auth:loggedOut', true).catch(() => {})
+    try { await fetchWithTimeout(`${base}/auth/logout`, { method: 'POST' }, AUTH_FETCH_TIMEOUT_MS) } catch { /* navigation handles recovery */ }
     await navigateForLogin()
-  }, [])
+  }, [publishUser])
 
-  const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, reloading, reauthPending, logout, refreshUser }),
-    [user, loading, reloading, reauthPending, logout, refreshUser]
-  )
-
+  const value = useMemo<AuthContextValue>(() => ({ user, loading, reloading, checkingSession, reauthPending,
+    liveSession: session === 'live', accountMismatch: session === 'mismatch', availabilityFailure, logout, refreshUser: loadUser, joinFamily,
+  }), [user, loading, reloading, checkingSession, reauthPending, session, availabilityFailure, logout, loadUser, joinFamily])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
-
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')

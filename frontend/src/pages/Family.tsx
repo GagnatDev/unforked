@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/api'
+import { SettingsUnavailable } from '@/components/SettingsUnavailable'
+import { COULD_NOT_REACH_SERVER_I18N_KEY } from '@/lib/loadErrors'
 import { BackLink } from '@/components/BackLink'
 import { useAsync } from '@/hooks/useAsync'
 import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
@@ -14,8 +16,8 @@ export default function Family() {
   const { t } = useTranslation()
   const { refreshUser } = useAuth()
   const [reloadKey, setReloadKey] = useState(0)
-  const { data: family, loading, error: loadError } = useAsync(
-    (_signal) => api.family.get(),
+  const { data: family, loading, error: loadError, errorStatus } = useAsync(
+    (signal) => api.family.get(signal),
     [reloadKey],
     { keepPreviousData: true },
   )
@@ -95,8 +97,10 @@ export default function Family() {
     }
   }
 
-  if (loading && !family) {
-    return <p className="text-muted-foreground">{t('common.loading')}</p>
+  if ((loading && !family) || loadError) {
+    return <SettingsUnavailable titleKey="family.title" busy={loading}
+      reason={loadError === COULD_NOT_REACH_SERVER_I18N_KEY ? 'connection' : errorStatus === 403 ? 'permission' : 'server'}
+      onRetry={refetch} />
   }
 
   return (

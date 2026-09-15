@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { BellIcon, CheckIcon } from 'lucide-react'
 import { api } from '@/api'
 import { Button } from '@/components/ui/button'
-import { mapAsyncCatchError } from '@/lib/loadErrors'
+import { formatLoadErrorMessage, mapAsyncCatchError } from '@/lib/loadErrors'
 import {
   getPushSubscription,
   isIosSafariNotInstalled,
@@ -50,6 +50,11 @@ export function NotificationSettings() {
     }
     void getPushSubscription().then((sub) => {
       if (!cancelled) setState(sub ? 'enabled' : 'disabled')
+    }).catch((e) => {
+      if (!cancelled) {
+        setState('disabled')
+        setError(mapAsyncCatchError(e))
+      }
     })
     return () => {
       cancelled = true
@@ -182,7 +187,7 @@ export function NotificationSettings() {
 
       {error && (
         <p className="text-sm text-destructive" role="alert">
-          {error}
+          {formatLoadErrorMessage(error, t)}
         </p>
       )}
     </section>
