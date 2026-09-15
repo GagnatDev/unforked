@@ -32,9 +32,18 @@ reads as one steady "syncing" instead of flickering once per GET. Transport time
 
 A cached identity mounts only its locally bound workspace (`user id + familyId`
 in IndexedDB sync metadata). Reauthentication pauses reconciliation, never local
-reads or edits. Transport failures, expired sessions and an empty outbox do not
-clear that workspace or force navigation. No cached identity means there is no
-trusted local workspace to mount.
+reads or edits, and nothing clears that workspace: not a transport failure, not
+an expired session, not the navigation that recovers one. No cached identity
+means there is no trusted local workspace to mount.
+
+Recovering a session needs a top-level load, and that load is meant to be
+invisible — the sidecar re-authenticates and the user lands back where they
+were. So a 401 re-auths on its own whenever nothing would be interrupted, and
+otherwise waits for a natural break: the user stepping away and coming back, or
+releasing in-page work that only lives in component state (`lib/unsavedWork.ts`
+— a half-typed recipe cannot survive a reload the way the outbox can). The app
+never navigates while offline, and every screen that reports the pending state
+also offers an explicit sign-in button for when the silent attempts are spent.
 
 A unique-query, no-store `/api/auth/me` proof enables live requests. Auth and
 domain GETs remain service-worker NetworkOnly; IndexedDB, not a stale HTTP body,

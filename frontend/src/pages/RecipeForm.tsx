@@ -32,6 +32,7 @@ export default function RecipeForm() {
     pullError,
     error,
     setError,
+    releaseUnsaved,
     update,
     addIngredient,
     updateIngredient,
@@ -61,6 +62,9 @@ export default function RecipeForm() {
         const created = await createRecipe(docToSave)
         navigate(`/recipes/${created.id}/edit`, { replace: true })
       }
+      // The draft is durable now (local store + outbox), so it no longer holds
+      // back a deferred re-auth: this is the break silent re-auth waits for.
+      releaseUnsaved()
     } catch (e) {
       setError((e as Error).message)
     } finally {

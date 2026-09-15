@@ -99,11 +99,14 @@ it.each(['hanging', 'offline', '401', '503'])('cached auth permits real local re
   expect(screen.queryByText('live settings')).toBeNull()
   expect(readCachedIdentity()).toEqual(owner)
   expect(navigateForLogin).not.toHaveBeenCalled()
-  expect(reloadForLogin).not.toHaveBeenCalled()
+  // A 401 is the one answer a silent re-auth load can fix, and with nothing
+  // queued at the time it is taken straight away. The others have no session to
+  // recover — navigating would only strand the workspace.
+  expect(reloadForLogin).toHaveBeenCalledTimes(mode === '401' ? 1 : 0)
   expect(fetcher.mock.calls.every(([url]) => String(url).includes('/api/auth/me?probe='))).toBe(true)
 })
 
-it('empty-outbox background 401 keeps the workspace mounted; explicit verification resumes drain', async () => {
+it('empty-outbox background 401 re-auths silently, keeps the workspace mounted and resumes drain', async () => {
   await seed()
   let authorized = true
   const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -131,7 +134,9 @@ it('empty-outbox background 401 keeps the workspace mounted; explicit verificati
   await act(async () => { await syncNow() })
   await waitFor(async () => expect(await listOutboxOps()).toHaveLength(0))
   expect(getLocalSessionState()).toBe('live')
-  expect(reloadForLogin).not.toHaveBeenCalled()
+  // One silent re-auth load, taken while the outbox was still empty; the edits
+  // that followed never triggered another (queued work waits for a break).
+  expect(reloadForLogin).toHaveBeenCalledTimes(1)
 })
 
 it('mismatched live owner retains original cached workspace and never sends pending work', async () => {
