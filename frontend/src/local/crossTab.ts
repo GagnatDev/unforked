@@ -21,9 +21,12 @@ import type { LocalStoreName } from './db'
 export type CrossTabMessage =
   /** A committed local write; receivers re-fire their in-tab store listeners. */
   | { kind: 'local-write'; stores: LocalStoreName[] }
-  /** A follower queued a mutation and asks the leader to drain the outbox. */
-  | { kind: 'outbox-kick' }
-  | { kind: 'sync-now'; requestId: string; keys: string[] }
+  /**
+   * A follower queued a mutation, or saw a lifecycle event, and asks the leader
+   * to reconcile: `keys` alone, or everything the profile demands (`catchUp`).
+   */
+  | { kind: 'outbox-kick'; keys: string[]; catchUp?: boolean }
+  | { kind: 'sync-now'; requestId: string; keys: string[]; catchUp?: boolean }
   | { kind: 'sync-complete'; requestId: string; failed: boolean }
   | { kind: 'sync-outcome'; sourceId: string; key: string; runId: string; outcome: import('./syncStatus').SyncOutcome }
   | { kind: 'sync-heartbeat'; sourceId: string }

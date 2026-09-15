@@ -65,13 +65,13 @@ describe('cross-tab message bus', () => {
     const seen: CrossTabMessage[] = []
     otherTab.onmessage = (event: MessageEvent<CrossTabMessage>) => seen.push(event.data)
 
-    postCrossTab({ kind: 'outbox-kick' })
+    postCrossTab({ kind: 'outbox-kick', keys: [] })
     await waitFor(() => seen.length > 0)
     otherTab.close()
 
     // A BroadcastChannel never echoes to the sender, so our own handler is quiet.
     expect(own).not.toHaveBeenCalled()
-    expect(seen).toEqual([{ kind: 'outbox-kick' }])
+    expect(seen).toEqual([{ kind: 'outbox-kick', keys: [] }])
   })
 
   it('stops delivering after unsubscribe', async () => {

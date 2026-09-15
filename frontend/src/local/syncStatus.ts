@@ -99,6 +99,29 @@ export const getSyncStatus = () => snapshot
 // Include failed remote-only keys in manual retry after their source departs.
 export const getFailedSyncKeys = () => [...outcomes].filter(([, failure]) => failure).map(([key]) => key)
 
+/**
+ * Key of the umbrella run covering a whole serialized reconciliation pass. Its
+ * per-key GETs each open and close their own run, so without it the header
+ * would settle to "synced" in every gap between them.
+ */
+const RUN_KEY = 'reconcile'
+
+/**
+ * Mark a reconciliation pass as active until the returned function is called.
+ * Outcomes stay per key: this run never records a failure of its own.
+ */
+export function trackSyncRun(): () => void {
+  startSyncStatus()
+  const runId = crypto.randomUUID()
+  publish(RUN_KEY, runId, { active: true, failure: null })
+  let ended = false
+  return () => {
+    if (ended) return
+    ended = true
+    publish(RUN_KEY, runId, { active: false, failure: null })
+  }
+}
+
 /** Retain each failure through unrelated successes and through retry startup. */
 export function trackSync(key: string, work: () => Promise<void>): Promise<void> {
   startSyncStatus()

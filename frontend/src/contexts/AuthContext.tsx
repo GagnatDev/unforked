@@ -6,7 +6,7 @@ import { clearDeferredReauth, isReauthDeferred, onReauthStateChange, requestReau
 import { getLocalSessionState, getSessionEpoch, registerSessionVerifier, setLocalSessionState, subscribeLocalSession } from '@/lib/localSession'
 import { bindLocalOwner, rebindLocalOwnerFamily, sameLocalOwner, getSyncMeta, setSyncMeta } from '@/local/db'
 import { canUseCrossTab, postCrossTab, subscribeCrossTab } from '@/local/crossTab'
-import { scheduleSync } from '@/local/outboxSync'
+import { scheduleCatchUp } from '@/local/outboxSync'
 import { setLiveEventsUser } from '@/local/liveEvents'
 
 export type UserInfo = { id: string; email: string; role: string; familyId: string }
@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setReloading(false)
           const recovered = getLocalSessionState() !== 'live'
           setLocalSessionState(canCoordinateBoundaries() ? 'live' : 'unavailable')
-          if (recovered) scheduleSync()
+          if (recovered) scheduleCatchUp()
         } else if (res.status === 401 || res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
           setLocalSessionState('reauth')
           const disposition = await requestReauth()
