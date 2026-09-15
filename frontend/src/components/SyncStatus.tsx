@@ -45,10 +45,10 @@ export function SyncStatus() {
 
   return (
     <Popover>
-      <PopoverTrigger aria-label={t(`sync.${state}`)} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring">
+      <PopoverTrigger aria-label={t(`sync.${state}`)} className="inline-flex size-11 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring">
         <span aria-hidden className={cn('size-2 rounded-full bg-muted-foreground',
           state === 'synced' && 'bg-primary', state === 'error' && 'bg-destructive')} />
-        <span role="status">{t(`sync.${state}`)}</span>
+        <span role="status" className="sr-only">{t(`sync.${state}`)}</span>
       </PopoverTrigger>
       <PopoverContent align="end" className="max-w-[calc(100vw-2rem)] gap-3 p-4">
         <PopoverTitle>{t(`sync.${state}`)}</PopoverTitle>
