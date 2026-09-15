@@ -1,4 +1,5 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react'
+import { holdUnsavedWork } from '@/lib/unsavedWork'
 import { getLocalRecipe } from '@/local/db'
 import { pullRecipe } from '@/local/pullDemand'
 import { useBackgroundPull } from '@/local/useBackgroundPull'
@@ -22,6 +23,17 @@ export function useRecipeFormState(id: string | undefined) {
   const [submitError, setSubmitError] = useState<string | null>(null)
   /** Once the user edits, background store updates must not clobber the form. */
   const editedRef = useRef(false)
+  /**
+   * A draft lives only in this component's state, so silent re-auth must not
+   * reload the page out from under it. Held from the first edit until the form
+   * is left or reset; re-auth takes that release as its break.
+   */
+  const unsavedHold = useRef<(() => void) | null>(null)
+  const releaseUnsaved = useCallback(() => {
+    unsavedHold.current?.()
+    unsavedHold.current = null
+  }, [])
+  useEffect(() => releaseUnsaved, [releaseUnsaved])
 
   const { data: localRecipe, loading: localLoading } = useLocal(
     () => getLocalRecipe(id ?? ''),
@@ -42,8 +54,9 @@ export function useRecipeFormState(id: string | undefined) {
 
   useEffect(() => {
     editedRef.current = false
+    releaseUnsaved()
     if (!id) setDocState(emptyDoc)
-  }, [id])
+  }, [id, releaseUnsaved])
 
   useEffect(() => {
     if (localRecipe && !editedRef.current) setDocState(localRecipe.doc)
@@ -51,6 +64,7 @@ export function useRecipeFormState(id: string | undefined) {
 
   const setDoc = useCallback((next: SetStateAction<RecipeDoc>) => {
     editedRef.current = true
+    unsavedHold.current ??= holdUnsavedWork()
     setDocState(next)
   }, [])
 
@@ -118,6 +132,7 @@ export function useRecipeFormState(id: string | undefined) {
     pullError,
     error,
     setError: setSubmitError,
+    releaseUnsaved,
     update,
     addIngredient,
     updateIngredient,

@@ -8,6 +8,8 @@ const countOutboxOps = vi.fn(async () => 0)
 vi.mock('./session', () => ({ reloadForLogin: () => reloadForLogin() }))
 vi.mock('@/local/db', () => ({ countOutboxOps: () => countOutboxOps() }))
 
+import { __resetUnsavedWorkForTests, holdUnsavedWork } from './unsavedWork'
+
 import { __resetCrossTabForTests, startLeaderElection } from '@/local/crossTab'
 import {
   __resetReauthForTests,
@@ -34,6 +36,7 @@ function fireVisibilityChange(state: DocumentVisibilityState): void {
 
 beforeEach(() => {
   __resetReauthForTests()
+  __resetUnsavedWorkForTests()
   __resetCrossTabForTests()
   reloadForLogin.mockClear().mockReturnValue(true)
   countOutboxOps.mockClear().mockResolvedValue(0)
@@ -43,6 +46,7 @@ beforeEach(() => {
 
 afterEach(() => {
   __resetReauthForTests()
+  __resetUnsavedWorkForTests()
   __resetCrossTabForTests()
   Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
 })
@@ -72,13 +76,33 @@ describe('requestReauth — classification', () => {
     expect(await requestReauth()).toBe('lost')
   })
 
-  it('keeps cached local access with an empty outbox', async () => {
+  it('re-auths silently mid-session when nothing is in flight', async () => {
     setSessionEstablished(true)
     countOutboxOps.mockResolvedValue(0)
+
+    expect(await requestReauth()).toBe('reloading')
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
+    expect(isReauthDeferred()).toBe(false)
+  })
+
+  it('waits rather than reloading a half-typed form away', async () => {
+    setSessionEstablished(true)
+    countOutboxOps.mockResolvedValue(0)
+    holdUnsavedWork()
 
     expect(await requestReauth()).toBe('deferred')
     expect(reloadForLogin).not.toHaveBeenCalled()
     expect(isReauthDeferred()).toBe(true)
+    // The outbox is not even consulted: in-page work already blocks the reload.
+    expect(countOutboxOps).not.toHaveBeenCalled()
+  })
+
+  it('re-auths anyway when the outbox read fails', async () => {
+    setSessionEstablished(true)
+    countOutboxOps.mockRejectedValue(new Error('IndexedDB unavailable'))
+
+    expect(await requestReauth()).toBe('reloading')
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
   })
 
   it('defers mid-session when unsynced work is queued', async () => {
@@ -109,7 +133,7 @@ describe('deferred re-auth — natural break', () => {
     countOutboxOps.mockResolvedValue(1)
   })
 
-  it('never navigates when the tab goes hidden and comes back visible', async () => {
+  it('re-auths once the user steps away and comes back', async () => {
     await requestReauth()
     expect(reloadForLogin).not.toHaveBeenCalled()
 
@@ -117,7 +141,7 @@ describe('deferred re-auth — natural break', () => {
     expect(reloadForLogin).not.toHaveBeenCalled()
 
     fireVisibilityChange('visible')
-    expect(reloadForLogin).not.toHaveBeenCalled()
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
   })
 
   it('does not navigate on a visible event that was never preceded by hidden', async () => {
@@ -126,12 +150,47 @@ describe('deferred re-auth — natural break', () => {
     expect(reloadForLogin).not.toHaveBeenCalled()
   })
 
-  it('keeps cached access when a background 401 is followed by return', async () => {
+  it('treats the return from a background 401 as the break', async () => {
     setVisibility('hidden')
     await requestReauth()
 
     fireVisibilityChange('visible')
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds the break open while a draft is still unsaved', async () => {
+    const release = holdUnsavedWork()
+    await requestReauth()
+
+    fireVisibilityChange('hidden')
+    fireVisibilityChange('visible')
     expect(reloadForLogin).not.toHaveBeenCalled()
+
+    // Saving (or leaving) the form is itself a break.
+    release()
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not re-auth on a release while the app is in the background', async () => {
+    const release = holdUnsavedWork()
+    await requestReauth()
+    fireVisibilityChange('hidden')
+
+    release()
+    expect(reloadForLogin).not.toHaveBeenCalled()
+
+    fireVisibilityChange('visible')
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
+  })
+
+  it('navigates only once when several breaks arrive', async () => {
+    await requestReauth()
+    fireVisibilityChange('hidden')
+    fireVisibilityChange('visible')
+    fireVisibilityChange('hidden')
+    fireVisibilityChange('visible')
+
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
   })
 
   it('does not navigate after the deferral is cleared', async () => {
@@ -203,20 +262,20 @@ describe('multi-tab coordination (phase 6)', () => {
 
     // A follower must never call reloadForLogin — the leader owns navigation.
     expect(reloadForLogin).not.toHaveBeenCalled()
-    expect(seen).toContainEqual({ kind: 'reauth-state', pending: true })
+    expect(seen).toContainEqual({ kind: 'reauth-request' })
   })
 
-  it('the leader pauses without navigating when a follower requests re-auth', async () => {
+  it('the leader performs the navigation a follower asked for', async () => {
     startReauthCrossTab() // this tab (sole leader by default) listens
     setSessionEstablished(true)
     countOutboxOps.mockResolvedValue(0)
 
     const otherTab = new BroadcastChannel(CHANNEL_NAME)
     otherTab.postMessage({ kind: 'reauth-request' })
-    await waitFor(() => isReauthDeferred())
+    await waitFor(() => reloadForLogin.mock.calls.length > 0)
     otherTab.close()
 
-    expect(reloadForLogin).not.toHaveBeenCalled()
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
   })
 
   it('mirrors another tab’s pending indicator', async () => {
@@ -250,5 +309,24 @@ describe('multi-tab coordination (phase 6)', () => {
     otherTab.close()
 
     expect(seen).toContainEqual({ kind: 'reauth-state', pending: false })
+  })
+})
+
+describe('deferred re-auth — exhausted budget', () => {
+  it('keeps listening so a later break can try again', async () => {
+    setSessionEstablished(true)
+    countOutboxOps.mockResolvedValue(1)
+    reloadForLogin.mockReturnValue(false)
+
+    await requestReauth()
+    fireVisibilityChange('hidden')
+    fireVisibilityChange('visible')
+    expect(reloadForLogin).toHaveBeenCalledTimes(1)
+
+    // The budget frees up (or the session recovers) before the next break.
+    reloadForLogin.mockReturnValue(true)
+    fireVisibilityChange('hidden')
+    fireVisibilityChange('visible')
+    expect(reloadForLogin).toHaveBeenCalledTimes(2)
   })
 })
