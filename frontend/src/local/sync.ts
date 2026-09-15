@@ -80,14 +80,14 @@ async function fetchMealPlan(weekId: string): Promise<void> {
   const check = sessionGuard()
   const guard = await beginWeekPull('mealPlans', weekId)
   const server = await api.mealPlans.getCurrent(weekId)
-  if (!await applyWeekPull('mealPlans', weekId, server, guard, check)) scheduleSync()
+  if (!await applyWeekPull('mealPlans', weekId, server, guard, check)) scheduleSync([`mealPlan:${weekId}`])
 }
 
 async function fetchShoppingList(weekId: string): Promise<void> {
   const check = sessionGuard()
   const guard = await beginWeekPull('shoppingLists', weekId)
   const server = await api.shoppingList.get(weekId)
-  if (!await applyWeekPull('shoppingLists', weekId, server, guard, check)) scheduleSync()
+  if (!await applyWeekPull('shoppingLists', weekId, server, guard, check)) scheduleSync([`shopping:${weekId}`])
 }
 
 /** The family default is optional context; failure is non-fatal by design. */

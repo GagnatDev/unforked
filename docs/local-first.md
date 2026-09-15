@@ -12,12 +12,20 @@ reason to wait for a pull. Domain edits update IndexedDB and enqueue durable
 outbox operations immediately. Storage failures can still reject a local write;
 network failures do not roll it back.
 
-The continuous engine in `local/outboxSync.ts` schedules push then catch-up pull
-on startup, online/focus/visibility events, and mutations. `local/pullDemand.ts`
-tracks known weeks independently of navigation. Existing field-level merges and
+The continuous engine in `local/outboxSync.ts` separates two scopes. A catch-up
+pass — push, then pull everything the profile still demands — belongs to
+lifecycle moments: startup, leadership takeover, reconnect, focus, becoming
+visible, a recovered session and the manual retry. Everything else reconciles
+only what it names: `local/pullDemand.ts` registers a view's durable demand and
+asks for that key alone, a realtime hint asks for its week, and a local write
+pushes and then refreshes just the view it touched. Navigating therefore costs
+the opened page's own GETs, never a replay of every week and recipe visited
+before it. Demand stays tracked independently of navigation, so an unopened
+route is still caught up in the background. Existing field-level merges and
 transaction-scoped session guards protect pending work. The top-bar `SyncStatus`
 is the single inspectable sync surface: state, pending count, reason and manual
-retry. Transport timeouts are not mistaken for successful sync just because
+retry. A whole serialized pass counts as one run, so a multi-key reconciliation
+reads as one steady "syncing" instead of flickering once per GET. Transport timeouts are not mistaken for successful sync just because
 `navigator.onLine` is true.
 
 ## Local identity is not server authorization

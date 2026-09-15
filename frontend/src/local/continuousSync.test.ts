@@ -209,12 +209,14 @@ it('keeps reconciling every view while a write stays parked', async () => {
   expect((await getLocalMealPlan(week))?.defaultPersons).toBeNull()
 })
 
-it('a local online write pushes then refreshes recipes without navigation', async () => {
+// The server re-categorizes a synced item, so the written week is worth a
+// refresh. Nothing else the profile has ever opened is.
+it('a local online write pushes then refreshes the week it touched', async () => {
   startOutboxSync()
   await syncNow()
   fetchMock.mockClear()
   await addShoppingItem(week, 'Milk')
-  await waitFor(() => fetchMock.mock.calls.some(([url, init]) => url.endsWith('/recipes') && !init?.method))
+  await waitFor(() => fetchMock.mock.calls.some(([url, init]) => url.includes('shopping-lists') && !init?.method))
   await syncNow()
   expect(fetchMock.mock.calls[0][1]?.method).toBe('POST')
   expect(await listOutboxOps()).toHaveLength(0)

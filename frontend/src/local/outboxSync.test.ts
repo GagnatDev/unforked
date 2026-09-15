@@ -559,7 +559,7 @@ describe('kickOutboxSync — leader gating (phase 6)', () => {
 
     // A follower broadcasts a kick to the leader; cross-tab delivery is async, so
     // wait for it to arrive instead of relying on a single event-loop turn.
-    await vi.waitFor(() => expect(seen).toContainEqual({ kind: 'outbox-kick' }))
+    await vi.waitFor(() => expect(seen).toContainEqual({ kind: 'outbox-kick', keys: [] }))
     leaderTab.close()
 
     // A follower must not touch the network — the broadcast, not a local drain,
