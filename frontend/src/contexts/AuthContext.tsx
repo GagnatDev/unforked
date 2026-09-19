@@ -247,7 +247,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await navigateForLogin()
   }, [publishUser])
 
-  const value = useMemo<AuthContextValue>(() => ({ user, loading, reloading, checkingSession, reauthPending,
+  const value = useMemo<AuthContextValue>(() => ({ user, loading, reloading, checkingSession,
+    // Silent re-auth is the norm, so a pending deferral is only one way to need
+    // a sign-in: when the navigation budget is spent the state says 'reauth'
+    // with nothing deferred, and the manual button is the only way back.
+    reauthPending: reauthPending || session === 'reauth',
     liveSession: session === 'live', accountMismatch: session === 'mismatch', availabilityFailure, logout, refreshUser: loadUser, joinFamily,
   }), [user, loading, reloading, checkingSession, reauthPending, session, availabilityFailure, logout, loadUser, joinFamily])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

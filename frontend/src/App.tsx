@@ -6,7 +6,7 @@ import { TopBar } from '@/components/TopBar'
 import { RequireAuth } from '@/components/RequireAuth'
 import { RequireLiveSession } from '@/components/RequireLiveSession'
 import { useAuth } from '@/contexts/AuthContext'
-import { usePWA } from '@/hooks/usePWA'
+import { useForegroundResume, usePWA } from '@/hooks/usePWA'
 import { PWAUpdateBanner } from '@/components/PWAUpdateBanner'
 import { PWAInstallBanner } from '@/components/PWAInstallBanner'
 import { PushToaster } from '@/components/PushToaster'
@@ -70,12 +70,20 @@ function AppLayout({
   )
 }
 
+/**
+ * Dismissing the update banner snoozes it until the next time the app is
+ * properly reopened, not forever: an installed app is resumed rather than
+ * reloaded, so "for this page" can mean weeks of running an old build.
+ */
+const UPDATE_SNOOZE_MS = 30 * 60 * 1000
+
 function App() {
   // PWA update handling lives outside RequireAuth: a stale client whose
   // session has expired must still be able to apply a waiting service-worker
   // update, otherwise it can stay pinned to an old build forever.
-  const { needRefresh, updateServiceWorker, canInstall, promptInstall } = usePWA()
+  const { needRefresh, applyUpdate, canInstall, promptInstall } = usePWA()
   const [updateDismissed, setUpdateDismissed] = useState(false)
+  useForegroundResume(() => setUpdateDismissed(false), UPDATE_SNOOZE_MS)
 
   return (
     <BrowserRouter>
@@ -91,7 +99,7 @@ function App() {
       </Routes>
       {needRefresh && !updateDismissed && (
         <PWAUpdateBanner
-          onUpdate={() => updateServiceWorker(true)}
+          onUpdate={applyUpdate}
           onDismiss={() => setUpdateDismissed(true)}
         />
       )}
