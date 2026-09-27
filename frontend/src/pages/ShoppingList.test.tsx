@@ -48,6 +48,7 @@ const actions = {
   reopen: vi.fn(),
   completeTrip: vi.fn(),
   undoTrip: vi.fn(),
+  setTripCost: vi.fn(),
 }
 
 function renderPage(
@@ -143,16 +144,54 @@ describe('ShoppingList trip status', () => {
     expect(screen.queryByRole('button', { name: 'Shopping done' })).toBeNull()
   })
 
-  it('offers "Shopping done" without a claim once ticking has started (the quick top-up run)', () => {
+  it('offers "Shopping done" without a claim once ticking has started (the quick top-up run)', async () => {
     renderPage([
       entry({ id: 'milk', name: 'Milk' }),
       entry({ id: 'butter', name: 'Butter', checked: true }),
     ])
 
     fireEvent.click(screen.getByRole('button', { name: 'Shopping done' }))
+    // With something in the cart the receipt question comes first.
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.textContent).toMatch(/1 item moves to Bought this week/)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Skip' }))
     expect(actions.completeTrip).toHaveBeenCalledTimes(1)
+    expect(actions.completeTrip).toHaveBeenCalledWith()
     expect(screen.queryByRole('button', { name: 'Ready to shop' })).toBeNull()
     expect(screen.getByRole('button', { name: "I'm going shopping" })).toBeTruthy()
+  })
+
+  it('records what the trip cost when "Finish trip" is pressed with an amount', async () => {
+    renderPage([
+      entry({ id: 'milk', name: 'Milk', checked: true }),
+      entry({ id: 'butter', name: 'Butter', checked: true }),
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Shopping done' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.textContent).toMatch(/2 items move to Bought this week/)
+    const field = within(dialog).getByLabelText('Total paid')
+
+    fireEvent.change(field, { target: { value: 'abc' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Finish trip' }))
+    expect(within(dialog).getByRole('alert').textContent).toMatch(/Enter an amount in kroner/)
+    expect(actions.completeTrip).not.toHaveBeenCalled()
+
+    fireEvent.change(field, { target: { value: '1 249,50' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Finish trip' }))
+    expect(actions.completeTrip).toHaveBeenCalledWith(1249.5)
+  })
+
+  it('completes straight away when nothing is checked — there is no trip to price', () => {
+    renderPage([entry({ id: 'milk', name: 'Milk' })], false, {
+      status: 'approved',
+      approvedByEmail: 'ann@example.com',
+      approvedAt: '2026-08-29T17:12:00.000Z',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Shopping done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(actions.completeTrip).toHaveBeenCalledTimes(1)
   })
 
   it('names who declared the list ready and lets anyone take it back', () => {
@@ -179,8 +218,7 @@ describe('ShoppingList trip status', () => {
 
     expect(screen.getByText(/ann@example\.com is shopping/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: "I'm going shopping" })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Shopping done' }))
-    expect(actions.completeTrip).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Shopping done' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel trip' }))
     expect(actions.reopen).toHaveBeenCalledTimes(1)
   })
@@ -208,6 +246,62 @@ describe('ShoppingList completed trips', () => {
 
     fireEvent.click(history.getByRole('button', { name: 'Put the items from trip 1 back on the list' }))
     expect(actions.undoTrip).toHaveBeenCalledWith('trip-1')
+  })
+
+  it('dates each trip under its heading and adds up what the week cost', () => {
+    renderPage([entry({ id: 'milk', name: 'Milk' })], false, {
+      trips: [
+        completedTrip({ totalCost: 349.5 }),
+        completedTrip({
+          id: 'trip-2',
+          completedAt: '2026-07-08T09:30:00.000Z',
+          items: [entry({ id: 'bread', name: 'Bread', checked: true })],
+          totalCost: 900,
+        }),
+      ],
+    })
+
+    const history = within(screen.getByRole('region', { name: 'Bought this week' }))
+    const dates = history.getAllByRole('time').map((el) => el.getAttribute('datetime'))
+    expect(dates).toEqual(['2026-07-08T09:30:00.000Z', '2026-07-06T15:04:00.000Z'])
+    // The day is spelled out — a record is read back later, not at 14:32 today.
+    expect(history.getAllByRole('time')[1].textContent).toMatch(/Mon, Jul 6/)
+    // On the row and again on the "Total paid" line inside it.
+    expect(history.getAllByText('349.5 kr')).toHaveLength(2)
+    expect(history.getAllByText('900 kr')).toHaveLength(2)
+    expect(history.getByText('3 items · 1,249.5 kr')).toBeTruthy()
+    expect(screen.getByText('1 to buy · 3 bought this week · 1,249.5 kr spent')).toBeTruthy()
+  })
+
+  it('lets the amount be added to a trip that was finished without one', () => {
+    renderPage([], false, { trips: [completedTrip()] })
+
+    const history = within(screen.getByRole('region', { name: 'Bought this week' }))
+    expect(history.getByText('Amount not recorded')).toBeTruthy()
+    expect(screen.queryByText(/spent/)).toBeNull()
+
+    fireEvent.click(history.getByRole('button', { name: 'Add what trip 1 cost' }))
+    fireEvent.change(history.getByLabelText('Total paid'), { target: { value: '620' } })
+    fireEvent.click(history.getByRole('button', { name: 'Save' }))
+    expect(actions.setTripCost).toHaveBeenCalledWith('trip-1', 620)
+  })
+
+  it('lets a recorded amount be corrected or cleared', () => {
+    renderPage([], false, { trips: [completedTrip({ totalCost: 620 })] })
+
+    const history = within(screen.getByRole('region', { name: 'Bought this week' }))
+    fireEvent.click(history.getByRole('button', { name: 'Edit what trip 1 cost' }))
+    const field = history.getByLabelText('Total paid') as HTMLInputElement
+    expect(field.value).toBe('620')
+
+    fireEvent.change(field, { target: { value: '650,50' } })
+    fireEvent.click(history.getByRole('button', { name: 'Save' }))
+    expect(actions.setTripCost).toHaveBeenCalledWith('trip-1', 650.5)
+
+    fireEvent.click(history.getByRole('button', { name: 'Edit what trip 1 cost' }))
+    fireEvent.change(history.getByLabelText('Total paid'), { target: { value: '' } })
+    fireEvent.click(history.getByRole('button', { name: 'Save' }))
+    expect(actions.setTripCost).toHaveBeenLastCalledWith('trip-1', null)
   })
 
   it('tells the difference between nothing planned and everything bought', () => {

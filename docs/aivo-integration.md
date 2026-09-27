@@ -320,11 +320,17 @@ alongside `items`:
       "completedAt": "2026-07-16T17:05:00.000Z",
       "completedBy": "77a0…-user-uuid",
       "completedByEmail": "bo@example.com",
+      "totalCost": 1249.5,
       "items": [ … ]
     }
   ]
 }
 ```
+
+`trips[].totalCost` is what the trip came to at the till, in kroner (NOK),
+and is **absent when the shopper did not record it** — so *"how much did we
+spend this week?"* is the sum of the trips that carry it, qualified by how
+many do not.
 
 `status` is one of `open` / `ready` / `approved`; the field is **absent
 while the list is open** (absent = `open`; older docs never carry it).

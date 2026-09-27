@@ -27,7 +27,8 @@
     "weeklyMenu": "Ukemeny",
     "shoppingList": "Handleliste",
     "menu": "Meny",
-    "profile": "Profil"
+    "profile": "Profil",
+    "insights": "Oversikt"
   },
   "profile": {
     "title": "Profil",
@@ -217,7 +218,24 @@
       "itemCount_other": "{{count}} varer",
       "toggleAria": "Vis varene fra handletur {{n}}",
       "undo": "Legg tilbake på listen",
-      "undoAria": "Legg varene fra handletur {{n}} tilbake på listen"
+      "undoAria": "Legg varene fra handletur {{n}} tilbake på listen",
+      "costLabel": "Betalt totalt",
+      "costMissing": "Beløp ikke registrert",
+      "costAdd": "Legg til beløp",
+      "costEdit": "Endre",
+      "costSave": "Lagre",
+      "costAddAria": "Legg til hva handletur {{n}} kostet",
+      "costEditAria": "Endre hva handletur {{n}} kostet"
+    },
+    "spentThisWeek": "{{amount}} brukt",
+    "completeDialog": {
+      "title": "Ferdig handlet",
+      "description_one": "Hvor mye kom handleturen på? {{count}} vare flyttes til Handlet denne uken.",
+      "description_other": "Hvor mye kom handleturen på? {{count}} varer flyttes til Handlet denne uken.",
+      "amountLabel": "Betalt totalt",
+      "amountInvalid": "Skriv inn et beløp i kroner, f.eks. 349 eller 349,50.",
+      "skip": "Hopp over",
+      "confirm": "Avslutt handleturen"
     }
   },
   "notifications": {
@@ -325,5 +343,39 @@
     "mismatchTitle": "Kontoen samsvarer ikke",
     "mismatchBody": "Logg inn med den opprinnelige kontoen og familien for å endre innstillinger uten å flytte lokalt arbeid.",
     "localAvailable": "Lokale oppskrifter, ukeplan og handleliste er fortsatt tilgjengelige."
+  },
+  "insights": {
+    "title": "Oversikt",
+    "subtitle": "Hva familien har planlagt og brukt, uke for uke.",
+    "granularity": "Grupper etter",
+    "byWeek": "Uker",
+    "byMonth": "Måneder",
+    "summary": "Sammendrag",
+    "spent": "Brukt i butikken",
+    "lastWeeks": "siste {{count}} uker",
+    "lastMonths": "siste {{count}} måneder",
+    "perWeek": "Per uke",
+    "perMonth": "Per måned",
+    "trips": "Handleturer",
+    "meals": "Planlagte middager",
+    "tripCount_one": "{{count}} handletur",
+    "tripCount_other": "{{count}} handleturer",
+    "mealCount_one": "{{count}} middag",
+    "mealCount_other": "{{count}} middager",
+    "unpricedNote_one": "{{count}} handletur mangler beløp, så summen er minst dette.",
+    "unpricedNote_other": "{{count}} handleturer mangler beløp, så summen er minst dette.",
+    "unpricedShort_one": "{{count}} uten beløp",
+    "unpricedShort_other": "{{count}} uten beløp",
+    "noAmount": "Uten beløp",
+    "persons_one": "{{count}} person",
+    "persons_other": "{{count}} personer",
+    "weekTitle": "Uke {{week}}",
+    "weeksHeading": "Uke for uke",
+    "monthsHeading": "Måned for måned",
+    "nothingRecorded": "Ingenting registrert",
+    "toggleAria": "Vis detaljer for {{period}}",
+    "chartCaption": "Brukt per periode",
+    "emptyTitle": "Ingenting å summere enda",
+    "emptyBody": "Når en handletur avsluttes med «Ferdig handlet» og beløpet registreres, vises familiens forbruk og planlagte middager her, uke for uke og måned for måned."
   }
 }

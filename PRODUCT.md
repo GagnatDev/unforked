@@ -62,9 +62,15 @@ mechanism a recipe app or a note-taking list cannot copy.
   done" archives the checked items as a completed trip and leaves the rest open. Dinners
   planned afterwards only add their still-unbought ingredients (a recipe bought for Monday
   stays bought when Wednesday needs the same ingredient), and a forgotten item can be added
-  and bought in a quick top-up trip without claiming anything. Completed trips are listed
-  under the open list ("Bought this week") and can be undone, which puts their items back,
-  still checked. "Cancel trip" releases a claim without archiving.
+  and bought in a quick top-up trip without claiming anything. "Shopping done" asks what the
+  trip came to (kroner, optional — skippable, and addable later from the history). Completed
+  trips are listed under the open list ("Bought this week") with their date, who shopped and
+  what they cost, and can be undone, which puts their items back, still checked. "Cancel
+  trip" releases a claim without archiving.
+- **Insights:** the family's record over time, reached from the menu — what was spent in the
+  shop, how many trips and how many dinners were planned, by week or by month (twelve at a
+  time, with a spend chart); each period unfolds to its trips and dinners. Trips count in
+  the period they were paid in; dinners on the day they were planned for.
 - **Recipes:** library with name search, photo, tags, servings, ingredients, numbered
   steps, source URL attribution, import-from-URL (best-effort, editable before saving),
   swipe to delete.

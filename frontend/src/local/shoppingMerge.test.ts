@@ -255,4 +255,31 @@ describe('applyShoppingOps — ready state and trips', () => {
     expect(merged?.items).toHaveLength(1)
     expect(merged?.trips).toBeUndefined()
   })
+
+  it('carries a pending trip\'s amount, and re-applies a pending amount edit on top of the server\'s trip', () => {
+    const completed = applyShoppingOps(
+      doc([entry({ checked: true })]),
+      [tripOp({ payload: { weekId: week, completedAt: 't', completedBy: 'u', completedByEmail: 'e', totalCost: 349 } })],
+      week,
+    )
+    expect(completed?.trips?.[0].totalCost).toBe(349)
+
+    // The server has the trip without an amount; our PATCH has not drained yet.
+    const server: PersistedShoppingListDoc = {
+      ...doc([]),
+      trips: [{ id: 'trip-1', completedAt: 't', completedBy: 'u', completedByEmail: 'e', items: [entry({ checked: true })] }],
+    }
+    const priced = applyShoppingOps(
+      server,
+      [op({ entity: 'shoppingTrip', type: 'update', key: 'trip-1', payload: { weekId: week, totalCost: 620 } })],
+      week,
+    )
+    expect(priced?.trips?.[0].totalCost).toBe(620)
+    const cleared = applyShoppingOps(
+      priced,
+      [op({ entity: 'shoppingTrip', type: 'update', key: 'trip-1', payload: { weekId: week, totalCost: null } })],
+      week,
+    )
+    expect('totalCost' in cleared!.trips![0]).toBe(false)
+  })
 })

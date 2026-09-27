@@ -18,6 +18,7 @@ import { recipePhotoRoutes, type PhotoRouteOptions } from "./routes/recipePhotos
 import { createS3PhotoStorage } from "./service/photoStorage.js";
 import { mealPlanRoutes } from "./routes/mealPlans.js";
 import { shoppingListRoutes } from "./routes/shoppingLists.js";
+import { insightsRoutes } from "./routes/insights.js";
 
 export interface AppDeps {
   db: Db;
@@ -72,6 +73,7 @@ export function buildApp(deps: AppDeps): Express {
   api.use(recipePhotoRoutes(deps.db, photos));
   api.use(mealPlanRoutes(deps.db));
   api.use(shoppingListRoutes(deps.db));
+  api.use(insightsRoutes(deps.db));
   api.use(eventRoutes(deps.db, deps.events));
   api.use(pushRoutes(deps.db, deps.push ?? { vapid: vapidConfig(env) }));
   app.use("/api", api);

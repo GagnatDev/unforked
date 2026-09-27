@@ -13,6 +13,8 @@ export interface CompleteTripInput {
   id?: string;
   /** Client clock at completion, so an offline "Shopping done" keeps its real time. */
   completedAt?: string;
+  /** What was paid at the till, in kroner; omitted when the shopper skipped it. */
+  totalCost?: number;
   /** Optimistic-concurrency precondition, same contract as item writes. */
   baseVersion?: number;
 }
@@ -77,6 +79,7 @@ export async function completeShoppingTrip(
         completedBy: user.id,
         completedByEmail: user.email,
         items: checked,
+        ...(input.totalCost !== undefined ? { totalCost: input.totalCost } : {}),
       };
       row.doc.trips = [...(row.doc.trips ?? []), trip];
       row.doc.items = row.doc.items.filter((item) => !item.checked);
@@ -125,6 +128,42 @@ export async function undoShoppingTrip(
     const remaining = (row.doc.trips ?? []).filter((t) => t.id !== tripId);
     if (remaining.length > 0) row.doc.trips = remaining;
     else delete row.doc.trips;
+
+    await shoppingLists.updateDoc(trx, row.id, row.doc, { bumpVersion: true });
+    return { status: "ok" as const, doc: row.doc, version: row.version + 1 };
+  });
+}
+
+export type SetTripCostOutcome =
+  | { status: "notFound" }
+  /** The trip already carries exactly this amount: no write, no event. */
+  | { status: "noop"; doc: PersistedShoppingListDoc; version: number }
+  | { status: "ok"; doc: PersistedShoppingListDoc; version: number };
+
+/**
+ * Record (or, with `null`, clear) what a completed trip cost. The receipt is
+ * often only to hand once the bags are unpacked, so this is allowed on any
+ * trip in the week's history, by any member, at any time. It is a genuine
+ * edit, so it bumps the version like the other trip writes.
+ */
+export async function setShoppingTripCost(
+  db: Db,
+  familyId: string,
+  weekId: string,
+  tripId: string,
+  totalCost: number | null,
+): Promise<SetTripCostOutcome> {
+  const shoppingLists = new ShoppingListRepository(db);
+  return db.transaction().execute(async (trx) => {
+    const row = await shoppingLists.findRowByWeekForUpdate(trx, familyId, weekId);
+    const trip = row?.doc.trips?.find((t) => t.id === tripId);
+    if (!row || !trip) return { status: "notFound" as const };
+
+    if ((trip.totalCost ?? null) === totalCost) {
+      return { status: "noop" as const, doc: row.doc, version: row.version };
+    }
+    if (totalCost === null) delete trip.totalCost;
+    else trip.totalCost = totalCost;
 
     await shoppingLists.updateDoc(trx, row.id, row.doc, { bumpVersion: true });
     return { status: "ok" as const, doc: row.doc, version: row.version + 1 };

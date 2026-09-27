@@ -138,7 +138,7 @@ export async function mockShoppingList(
     requests.push({ method, url, body })
 
     if (method === 'POST') {
-      const posted = body as { id: string; completedAt?: string }
+      const posted = body as { id: string; completedAt?: string; totalCost?: number }
       if (!trips.some((t) => t.id === posted.id)) {
         const bought = items.filter((i) => i.checked)
         items = items.filter((i) => !i.checked)
@@ -152,11 +152,31 @@ export async function mockShoppingList(
               completedBy: DEV_USER_ID,
               completedByEmail: DEV_USER_EMAIL,
               items: bought,
+              ...(posted.totalCost !== undefined ? { totalCost: posted.totalCost } : {}),
             },
           ]
         }
         version += 1
       }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(doc()),
+      })
+      return
+    }
+
+    if (method === 'PATCH') {
+      const id = new URL(url).pathname.split('/').pop()!
+      const trip = trips.find((t) => t.id === id)
+      if (!trip) {
+        await route.fulfill({ status: 404, body: '{"error":"not found"}' })
+        return
+      }
+      const { totalCost } = body as { totalCost: number | null }
+      if (totalCost === null) delete trip.totalCost
+      else trip.totalCost = totalCost
+      version += 1
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

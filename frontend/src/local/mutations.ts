@@ -11,6 +11,8 @@ import {
   type OutboxOp,
   type OutboxOpType,
   type ShoppingItemPatch,
+  type ShoppingTripCompletePayload,
+  type ShoppingTripCostPayload,
   writeRecipeRevision,
 } from './db'
 import { kickOutboxSync } from './outboxSync'
@@ -19,6 +21,7 @@ import {
   clearShoppingStatus,
   completeShoppingTripInDoc,
   markShoppingDocReady,
+  setShoppingTripCostInDoc,
   type TripMeta,
   undoShoppingTripInDoc,
 } from './shoppingDoc'
@@ -280,11 +283,13 @@ export async function reopenShoppingList(weekId: string): Promise<void> {
  * the list to open, optimistically and offline (the shop is where the signal
  * is worst). The trip id and time are minted here; the server archives
  * whatever is checked when the op drains — which, ops being FIFO, is the same
- * set our earlier check-off ops produced. Returns the new trip id.
+ * set our earlier check-off ops produced. `totalCost` is what was paid at the
+ * till, in kroner, when the shopper entered it. Returns the new trip id.
  */
 export async function completeShoppingTrip(
   weekId: string,
   shopper: { id: string; email: string },
+  totalCost?: number,
 ): Promise<string> {
   const baseVersion = (await getLocalShoppingList(weekId))?.version
   const meta: TripMeta = {
@@ -292,24 +297,54 @@ export async function completeShoppingTrip(
     completedAt: new Date().toISOString(),
     completedBy: shopper.id,
     completedByEmail: shopper.email,
+    ...(totalCost !== undefined ? { totalCost } : {}),
+  }
+  const payload: ShoppingTripCompletePayload = {
+    weekId,
+    completedAt: meta.completedAt,
+    completedBy: meta.completedBy,
+    completedByEmail: meta.completedByEmail,
+    ...(totalCost !== undefined ? { totalCost } : {}),
   }
   await mutateLocalShoppingList(weekId, (doc) => (doc ? completeShoppingTripInDoc(doc, meta) : doc), {
     opId: uuid(),
     entity: 'shoppingTrip',
     type: 'create',
     key: meta.id,
-    payload: {
-      weekId,
-      completedAt: meta.completedAt,
-      completedBy: meta.completedBy,
-      completedByEmail: meta.completedByEmail,
-    },
+    payload,
     baseVersion,
     createdAt: Date.now(),
     attempts: 0,
   })
   kickOutboxSync()
   return meta.id
+}
+
+/**
+ * Record (or clear, with `null`) what a completed trip cost, e.g. once the
+ * receipt turns up. Same optimistic path as the other trip writes; the op is
+ * keyed by the trip id so it stays ordered after that trip's create.
+ */
+export async function setShoppingTripCost(
+  weekId: string,
+  tripId: string,
+  totalCost: number | null,
+): Promise<void> {
+  const payload: ShoppingTripCostPayload = { weekId, totalCost }
+  await mutateLocalShoppingList(
+    weekId,
+    (doc) => (doc ? setShoppingTripCostInDoc(doc, tripId, totalCost) : doc),
+    {
+      opId: uuid(),
+      entity: 'shoppingTrip',
+      type: 'update',
+      key: tripId,
+      payload,
+      createdAt: Date.now(),
+      attempts: 0,
+    },
+  )
+  kickOutboxSync()
 }
 
 /** Undo a "Shopping done": the trip's items come back onto the open list, still checked. */

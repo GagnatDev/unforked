@@ -14,6 +14,7 @@ import {
   type ShoppingItemUpdatePayload,
   type ShoppingStatusPayload,
   type ShoppingTripCompletePayload,
+  type ShoppingTripCostPayload,
 } from './db'
 import { isLeader, onBecomeLeader, postCrossTab, startLeaderElection, subscribeCrossTab } from './crossTab'
 import { noteShoppingFlush } from './liveEvents'
@@ -350,17 +351,27 @@ async function sendShoppingStatusOp(op: OutboxOp): Promise<SendResult> {
  * already in its history the intent is satisfied; otherwise we retry against
  * the fresh version (the server archives whatever is checked *now*, which is
  * what the queue's earlier item ops produced). A `404` means the week has no
- * list (nothing to complete) or the trip is already gone (undo satisfied).
+ * list (nothing to complete) or the trip is already gone (undo satisfied, and
+ * a cost amendment has nothing left to amend).
+ *
+ * Recording what a trip cost (`update`, PATCH) is keyed by trip id and has no
+ * version precondition: it touches one field of one archived trip, so there is
+ * nothing for a concurrent item edit to clobber.
  */
 async function sendShoppingTripOp(op: OutboxOp): Promise<SendResult> {
   const { weekId } = op.payload as { weekId: string }
-  if (op.type === 'delete') {
+  if (op.type === 'delete' || op.type === 'update') {
+    const init: RequestInit =
+      op.type === 'delete'
+        ? { method: 'DELETE', headers: headers(op) }
+        : {
+            method: 'PATCH',
+            headers: headers(op),
+            body: JSON.stringify({ totalCost: (op.payload as ShoppingTripCostPayload).totalCost }),
+          }
     let res: Response
     try {
-      res = await fetch(`${base}/api/shopping-lists/trips/${op.key}${weekQuery(weekId)}`, {
-        method: 'DELETE',
-        headers: headers(op),
-      })
+      res = await fetch(`${base}/api/shopping-lists/trips/${op.key}${weekQuery(weekId)}`, init)
     } catch {
       return { ok: false, retry: 'queue', message: 'network unreachable' }
     }
@@ -374,12 +385,17 @@ async function sendShoppingTripOp(op: OutboxOp): Promise<SendResult> {
     return classifyFailure(res.status, await res.text().catch(() => ''))
   }
 
-  const { completedAt } = op.payload as ShoppingTripCompletePayload
+  const { completedAt, totalCost } = op.payload as ShoppingTripCompletePayload
   const url = `${base}/api/shopping-lists/trips${weekQuery(weekId)}`
   let baseVersion = shoppingVersions.get(weekId) ?? op.baseVersion
 
   for (let attempt = 0; attempt <= MAX_CONFLICT_RETRIES; attempt++) {
-    const body = { id: op.key, completedAt, ...(baseVersion === undefined ? {} : { baseVersion }) }
+    const body = {
+      id: op.key,
+      completedAt,
+      ...(totalCost === undefined ? {} : { totalCost }),
+      ...(baseVersion === undefined ? {} : { baseVersion }),
+    }
     let res: Response
     try {
       res = await fetch(url, { method: 'POST', headers: headers(op), body: JSON.stringify(body) })

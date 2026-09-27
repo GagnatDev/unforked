@@ -64,6 +64,38 @@ export function formatIsoTimeOrDateTime(iso: string, locale: string): string {
 }
 
 /**
+ * The day a thing happened, with its time — "Sat, Sep 26, 14:32" (en) or
+ * "lør. 26. sep., 14:32" (nb). For records read back later (a trip in the
+ * week's history), where the date is the point and never noise.
+ */
+export function formatIsoDayDateTime(iso: string, locale: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+/**
+ * An amount in kroner: "1 249,50 kr" (nb), "1,249.50 kr" (en). Whole amounts
+ * drop the decimals ("349 kr"). The unit is spelled the way the family says
+ * it, whatever the display language.
+ */
+export function formatKroner(value: number, locale: string): string {
+  return `${formatNumber(value, locale, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kr`
+}
+
+/** A calendar month for a heading: "September 2026" / "september 2026". */
+export function formatMonth(date: Date, locale: string): string {
+  const text = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(date)
+  return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1)
+}
+
+/**
  * Format a week identifier (e.g. "2025-W10") for display in the given locale.
  * Returns a human-readable string like "Week 10, 2025" (en) or "Uke 10, 2025" (nb).
  */

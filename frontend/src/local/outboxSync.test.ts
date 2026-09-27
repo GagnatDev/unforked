@@ -719,4 +719,40 @@ describe('drainOutbox — shopping trips ("Shopping done" / undo)', () => {
     await drainOutbox()
     expect(await listOutboxOps()).toHaveLength(0)
   })
+
+  it('sends what the trip cost with the completion, and PATCHes a later amount by trip id', async () => {
+    fetchMock.mockResolvedValueOnce(res(201, '{"weekIdentifier":"w","items":[],"version":3}'))
+    await appendOutboxOp(
+      completeOp({
+        payload: { weekId: 'w', completedAt: 't', completedBy: 'u', completedByEmail: 'e', totalCost: 349.5 },
+      }),
+    )
+    await drainOutbox()
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      id: 'trip-1',
+      completedAt: 't',
+      totalCost: 349.5,
+      baseVersion: 2,
+    })
+
+    fetchMock.mockResolvedValueOnce(res(200, '{"weekIdentifier":"w","items":[],"version":4}'))
+    await appendOutboxOp(
+      op({ entity: 'shoppingTrip', type: 'update', key: 'trip-1', payload: { weekId: 'w', totalCost: null } }),
+    )
+    await drainOutbox()
+    const [url, init] = fetchMock.mock.calls[1]
+    expect(url).toBe('/api/shopping-lists/trips/trip-1?week=w')
+    expect(init.method).toBe('PATCH')
+    expect(JSON.parse(init.body)).toEqual({ totalCost: null })
+    expect(noteShoppingFlushMock).toHaveBeenLastCalledWith('w', 4)
+    expect(await listOutboxOps()).toHaveLength(0)
+
+    // The trip was undone meanwhile: nothing left to price, intent spent.
+    fetchMock.mockResolvedValueOnce(res(404, '{"error":"Shopping trip not found"}'))
+    await appendOutboxOp(
+      op({ entity: 'shoppingTrip', type: 'update', key: 'trip-9', payload: { weekId: 'w', totalCost: 5 } }),
+    )
+    await drainOutbox()
+    expect(await listOutboxOps()).toHaveLength(0)
+  })
 })

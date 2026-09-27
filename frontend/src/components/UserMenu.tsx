@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { LogOutIcon, MenuIcon, UserIcon } from 'lucide-react'
+import { ChartColumnIcon, LogOutIcon, MenuIcon, UserIcon } from 'lucide-react'
 import { Link, useMatch } from 'react-router-dom'
 import {
   DropdownMenu,
@@ -19,18 +19,20 @@ type UserMenuProps = {
 }
 
 /**
- * Menu for the things that are neither a destination nor an action on the
- * current screen: profile (settings live there) and logout. The four
- * destinations are tabs, and the recipe actions live on the recipe library, so
- * nothing is duplicated here.
+ * Menu for the things that are neither a destination on the tab bar nor an
+ * action on the current screen: the family's record over time (Insights),
+ * profile (settings live there) and logout. The four everyday destinations
+ * are tabs, and the recipe actions live on the recipe library, so nothing is
+ * duplicated here.
  */
 export function UserMenu({ onLogout }: UserMenuProps) {
   const { t } = useTranslation()
 
+  const insightsMatch = useMatch({ path: '/insights', end: true })
   const profileMatch = useMatch({ path: '/profile', end: true })
   const familyMatch = useMatch({ path: '/family', end: true })
   const apiKeysMatch = useMatch({ path: '/api-keys', end: true })
-  const menuMatch = profileMatch ?? familyMatch ?? apiKeysMatch
+  const menuMatch = insightsMatch ?? profileMatch ?? familyMatch ?? apiKeysMatch
 
   return (
     <DropdownMenu>
@@ -46,6 +48,13 @@ export function UserMenu({ onLogout }: UserMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuGroup>
+          <DropdownMenuItem
+            render={<Link to="/insights" />}
+            className={cn(insightsMatch && activeItemClass)}
+          >
+            <ChartColumnIcon />
+            {t('nav.insights')}
+          </DropdownMenuItem>
           <DropdownMenuItem
             render={<Link to="/profile" />}
             className={cn(profileMatch && activeItemClass)}

@@ -9,6 +9,7 @@ import {
   markShoppingListReady,
   patchShoppingItem,
   reopenShoppingList,
+  setShoppingTripCost,
   undoShoppingTrip,
 } from '@/local/mutations'
 import { pullShoppingList } from '@/local/pullDemand'
@@ -42,10 +43,15 @@ export type UseShoppingListResult = {
   markReady: () => void
   /** Clear the approved / ready state (cancel the trip, back to editing) — allowed to any member. */
   reopen: () => void
-  /** "Shopping done": archive the checked items as a trip; the rest stays open. */
-  completeTrip: () => void
+  /**
+   * "Shopping done": archive the checked items as a trip; the rest stays open.
+   * `totalCost` is what was paid at the till, in kroner, when entered.
+   */
+  completeTrip: (totalCost?: number) => void
   /** Put a completed trip's items back on the open list. */
   undoTrip: (tripId: string) => void
+  /** Record (or clear, with null) what a completed trip cost, in kroner. */
+  setTripCost: (tripId: string, totalCost: number | null) => void
 }
 
 /**
@@ -131,13 +137,23 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
     void reopenShoppingList(weekId)
   }, [weekId])
 
-  const completeTrip = useCallback(() => {
-    if (user) void completeShoppingTrip(weekId, { id: user.id, email: user.email })
-  }, [user, weekId])
+  const completeTrip = useCallback(
+    (totalCost?: number) => {
+      if (user) void completeShoppingTrip(weekId, { id: user.id, email: user.email }, totalCost)
+    },
+    [user, weekId],
+  )
 
   const undoTrip = useCallback(
     (tripId: string) => {
       void undoShoppingTrip(weekId, tripId)
+    },
+    [weekId],
+  )
+
+  const setTripCost = useCallback(
+    (tripId: string, totalCost: number | null) => {
+      void setShoppingTripCost(weekId, tripId, totalCost)
     },
     [weekId],
   )
@@ -164,6 +180,7 @@ export function useShoppingList(weekId: string): UseShoppingListResult {
     reopen,
     completeTrip,
     undoTrip,
+    setTripCost,
   }
 }
 

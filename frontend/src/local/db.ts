@@ -102,16 +102,24 @@ export interface ShoppingStatusPayload {
  * trip id. Only who/when is carried — the archived items are recomputed from
  * whatever is checked when the op is applied (locally, on a pull-merge replay,
  * and on the server), so a completion always archives the checked state the
- * preceding item ops in the queue produced. `delete` (undo) carries just the week.
+ * preceding item ops in the queue produced. `delete` (undo) carries just the
+ * week; `update` records what the trip cost.
  */
 export interface ShoppingTripCompletePayload {
   weekId: string
   completedAt: string
   completedBy: string
   completedByEmail: string
+  /** Kroner paid, when entered on completion. */
+  totalCost?: number
 }
 export interface ShoppingTripUndoPayload {
   weekId: string
+}
+export interface ShoppingTripCostPayload {
+  weekId: string
+  /** null clears a recorded amount. */
+  totalCost: number | null
 }
 
 /**
