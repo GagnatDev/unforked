@@ -7,12 +7,14 @@ import type {
   ShoppingItemUpdatePayload,
   ShoppingStatusPayload,
   ShoppingTripCompletePayload,
+  ShoppingTripCostPayload,
 } from './db'
 import {
   approveShoppingDoc,
   clearShoppingStatus,
   completeShoppingTripInDoc,
   markShoppingDocReady,
+  setShoppingTripCostInDoc,
   undoShoppingTripInDoc,
 } from './shoppingDoc'
 
@@ -80,7 +82,11 @@ export function applyShoppingOps(
           completedAt: p.completedAt,
           completedBy: p.completedBy,
           completedByEmail: p.completedByEmail,
+          ...(p.totalCost !== undefined ? { totalCost: p.totalCost } : {}),
         })
+      } else if (op.type === 'update') {
+        const { totalCost } = op.payload as ShoppingTripCostPayload
+        doc = setShoppingTripCostInDoc(doc, op.key, totalCost)
       } else if (op.type === 'delete') {
         doc = undoShoppingTripInDoc(doc, op.key)
       }

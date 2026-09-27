@@ -1,6 +1,7 @@
 import { sessionFetch } from '@/lib/localSession'
 import type {
   ApiKey,
+  InsightsResponse,
   MealPlanDoc,
   PersistedShoppingListDoc,
   RecipeDoc,
@@ -195,6 +196,14 @@ export const api = {
       request<void>(
         `/api/shopping-lists/items/${id}${week ? `?week=${encodeURIComponent(week)}` : ''}`,
         { method: 'DELETE' }
+      ),
+  },
+  insights: {
+    /** Meals and trips per week over an inclusive range of ISO week ids. */
+    get: (range: { from: string; to: string }, signal?: AbortSignal) =>
+      request<InsightsResponse>(
+        `/api/insights?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`,
+        { signal, cache: 'no-store' },
       ),
   },
   apiKeys: {

@@ -146,6 +146,12 @@ export interface ShoppingTrip {
   /** Their email, denormalized for display without a join. */
   completedByEmail: string;
   items: ShoppingListEntry[];
+  /**
+   * What the trip cost at the till, in kroner (NOK; decimals allowed for øre).
+   * Additive and optional: entered when completing the trip or later from the
+   * history, absent when the family did not record it.
+   */
+  totalCost?: number;
 }
 
 export interface PersistedShoppingListDoc {

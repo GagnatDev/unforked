@@ -58,6 +58,8 @@ export interface TripMeta {
   completedAt: string
   completedBy: string
   completedByEmail: string
+  /** Kroner paid at the till; left off the trip when the shopper skipped it. */
+  totalCost?: number
 }
 
 /**
@@ -73,8 +75,33 @@ export function completeShoppingTripInDoc(
   const checked = doc.items.filter((i) => i.checked)
   const open = clearShoppingStatus(doc)
   if (checked.length === 0) return open
-  const trip: ShoppingTrip = { ...meta, items: checked }
+  const { totalCost, ...who } = meta
+  const trip: ShoppingTrip = {
+    ...who,
+    items: checked,
+    ...(totalCost !== undefined ? { totalCost } : {}),
+  }
   return { ...open, items: doc.items.filter((i) => !i.checked), trips: [...(doc.trips ?? []), trip] }
+}
+
+/**
+ * Record (or, with `null`, clear) what a completed trip cost. Unknown trips
+ * are left alone — the undo may already have removed it.
+ */
+export function setShoppingTripCostInDoc(
+  doc: PersistedShoppingListDoc,
+  tripId: string,
+  totalCost: number | null,
+): PersistedShoppingListDoc {
+  if (!doc.trips?.some((t) => t.id === tripId)) return doc
+  return {
+    ...doc,
+    trips: doc.trips.map((trip) => {
+      if (trip.id !== tripId) return trip
+      const { totalCost: _previous, ...rest } = trip
+      return totalCost === null ? rest : { ...rest, totalCost }
+    }),
+  }
 }
 
 /** Undo a "Shopping done": the trip's items return to the open list, still checked. */

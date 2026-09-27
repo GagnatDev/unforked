@@ -105,6 +105,38 @@ export interface ShoppingTrip {
   completedBy: string
   completedByEmail: string
   items: ShoppingListEntry[]
+  /** What the trip cost at the till, in kroner; absent when not recorded. */
+  totalCost?: number
+}
+
+/** A completed trip as the Insights summary receives it — who, when, how much. */
+export interface InsightsTrip {
+  id: string
+  completedAt: string
+  completedByEmail: string
+  itemCount: number
+  totalCost?: number
+}
+
+/** One planned dinner in the Insights summary. */
+export interface InsightsMeal {
+  day: string
+  recipeId: string
+  recipeName: string
+  persons?: number | null
+}
+
+export interface InsightsWeek {
+  weekId: string
+  meals: InsightsMeal[]
+  trips: InsightsTrip[]
+}
+
+export interface InsightsResponse {
+  from: string
+  to: string
+  /** Weeks with at least one meal or trip, oldest first. */
+  weeks: InsightsWeek[]
 }
 
 export interface PersistedShoppingListDoc {

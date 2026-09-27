@@ -6,6 +6,7 @@ import {
   clearShoppingStatus,
   completeShoppingTripInDoc,
   markShoppingDocReady,
+  setShoppingTripCostInDoc,
   undoShoppingTripInDoc,
 } from './shoppingDoc'
 
@@ -71,6 +72,30 @@ describe('completeShoppingTripInDoc', () => {
     expect(result.items).toHaveLength(1)
     expect(result.status).toBeUndefined()
     expect(result.readyBy).toBeUndefined()
+  })
+})
+
+describe('what a trip cost', () => {
+  it('is carried onto the archived trip when entered, and left off when skipped', () => {
+    const priced = completeShoppingTripInDoc(doc([entry({ checked: true })]), { ...meta, totalCost: 349.5 })
+    expect(priced.trips![0].totalCost).toBe(349.5)
+    const skipped = completeShoppingTripInDoc(doc([entry({ checked: true })]), meta)
+    expect('totalCost' in skipped.trips![0]).toBe(false)
+  })
+
+  it('can be added, corrected and cleared later; unknown trips are left alone', () => {
+    const archived = completeShoppingTripInDoc(doc([entry({ checked: true })]), meta)
+    const added = setShoppingTripCostInDoc(archived, 'trip-1', 620)
+    expect(added.trips![0]).toMatchObject({ id: 'trip-1', totalCost: 620, items: archived.trips![0].items })
+
+    const corrected = setShoppingTripCostInDoc(added, 'trip-1', 650)
+    expect(corrected.trips![0].totalCost).toBe(650)
+
+    const cleared = setShoppingTripCostInDoc(corrected, 'trip-1', null)
+    expect('totalCost' in cleared.trips![0]).toBe(false)
+
+    expect(setShoppingTripCostInDoc(archived, 'nope', 1)).toBe(archived)
+    expect(setShoppingTripCostInDoc(doc([]), 'trip-1', 1)).toEqual(doc([]))
   })
 })
 

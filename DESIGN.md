@@ -73,7 +73,7 @@ the most reachable pixel on the screen — the frequent gesture is ticking thing
 off, which is not an add.
 
 `components/TopBar.tsx` keeps only what must be true everywhere: the wordmark,
-one inspectable sync-status control, and the menu (profile, log out).
+one inspectable sync-status control, and the menu (insights, profile, log out).
 
 Settings sits off the tab bar: Profile is reached from that menu, and Family
 and API keys from rows on Profile. Installed as a PWA there is no browser back
@@ -102,7 +102,14 @@ has got (`3/10` plus a progress bar) and the trip itself — *Ready to shop* or
 *I'm going shopping*, or who is out (or finished the list) and since when, with
 *Shopping done*. Progress and the shared trip are one fact, so they are one
 object. Finished trips drop below the list as *Bought this week*: a quiet
-record, ticks only, never green.
+record, ticks only, never green — each trip dated under its heading, with what
+it came to on the right. *Shopping done* asks for that amount once, while the
+receipt is in hand, and never insists: *Skip* still finishes the trip.
+
+Insights, off the menu, is the same record read across weeks or months: one
+big number (spent), three counts, a row of plain bars, then folded rows per
+period. The bars are the one place green stands for money — spent in the shop
+is something done — and only the current period is at full strength.
 
 ## Forms
 

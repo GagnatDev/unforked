@@ -20,6 +20,7 @@ const Family = lazy(() => import('./pages/Family'))
 const ApiKeys = lazy(() => import('./pages/ApiKeys'))
 const JoinFamily = lazy(() => import('./pages/JoinFamily'))
 const Profile = lazy(() => import('./pages/Profile'))
+const Insights = lazy(() => import('./pages/Insights'))
 
 function AppLayout({
   canInstall,
@@ -59,6 +60,7 @@ function AppLayout({
           <Route path="/meal-plan" element={<MealPlan />} />
           <Route path="/shopping-list" element={<ShoppingList />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/insights" element={<RequireLiveSession titleKey="insights.title"><Insights /></RequireLiveSession>} />
           <Route path="/family" element={<RequireLiveSession titleKey="family.title"><Family /></RequireLiveSession>} />
           <Route path="/api-keys" element={<RequireLiveSession titleKey="apiKeys.title"><ApiKeys /></RequireLiveSession>} />
           <Route path="/register-invite" element={<RequireLiveSession><JoinFamily /></RequireLiveSession>} />

@@ -9,7 +9,11 @@ import { currentWeekIdentifier } from "../domain/weekIdentifier.js";
 import { publishShoppingListEvent, type ChangeActor } from "../service/changeEvents.js";
 import { getSyncedShoppingList } from "../service/shoppingListRead.js";
 import { clearStatusFields } from "../service/shoppingListSync.js";
-import { completeShoppingTrip, undoShoppingTrip } from "../service/shoppingListTrips.js";
+import {
+  completeShoppingTrip,
+  setShoppingTripCost,
+  undoShoppingTrip,
+} from "../service/shoppingListTrips.js";
 import { addManualItems } from "../service/shoppingListWrite.js";
 import { requireUuidParam, validateBody } from "../middleware/validate.js";
 import { IngredientCategoryRepository } from "../storage/ingredientCategoryRepository.js";
@@ -42,11 +46,21 @@ const statusSchema = z.object({
   baseVersion: z.number().int().nonnegative().optional(),
 });
 
+// What a trip cost at the till, in kroner. Bounded so a typo cannot store an
+// absurd amount; decimals are allowed for øre.
+const tripCostSchema = z.number().finite().nonnegative().max(1_000_000);
+
 const completeTripSchema = z.object({
   // Client-minted trip id + completion time (offline-first "Shopping done").
   id: z.string().uuid().optional(),
   completedAt: z.string().datetime({ offset: true }).optional(),
+  totalCost: tripCostSchema.optional(),
   baseVersion: z.number().int().nonnegative().optional(),
+});
+
+const tripCostPatchSchema = z.object({
+  // null clears a recorded amount.
+  totalCost: tripCostSchema.nullable(),
 });
 
 const addItemSchema = z.object({
@@ -299,6 +313,40 @@ export function shoppingListRoutes(db: Db): Router {
       version: outcome.version,
     });
   });
+
+  // Record what a completed trip cost (or clear it with null). The receipt
+  // often turns up after "Shopping done", so any trip in the history may be
+  // amended; the amount is what the family's spending summary adds up.
+  router.patch(
+    "/shopping-lists/trips/:id",
+    validateBody(tripCostPatchSchema),
+    async (req, res) => {
+      const { user, familyId } = await requireUserAndFamily(users, req);
+      const weekId = resolveWeek(req.query.week);
+      const tripId = requireUuidParam(req.params.id, res);
+      if (!tripId) return;
+      const { totalCost } = req.body as z.infer<typeof tripCostPatchSchema>;
+
+      const outcome = await setShoppingTripCost(db, familyId, weekId, tripId, totalCost);
+      if (outcome.status === "notFound") {
+        res.status(404).json({ error: "Shopping trip not found" });
+        return;
+      }
+      if (outcome.status === "ok") {
+        publishShoppingListEvent(
+          {
+            type: "shopping-list.changed",
+            familyId,
+            week: weekId,
+            version: outcome.version,
+            actor: userActor(user),
+          },
+          { status: outcome.doc.status ?? "open", approvedBy: outcome.doc.approvedBy },
+        );
+      }
+      res.json({ ...outcome.doc, version: outcome.version });
+    },
+  );
 
   // Undo a "Shopping done": the trip's items come back onto the open list
   // (still checked) and the trip leaves the history.

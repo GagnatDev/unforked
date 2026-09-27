@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { ShoppingCartIcon } from 'lucide-react'
@@ -7,12 +8,13 @@ import { Button } from '@/components/ui/button'
 import { useLocale } from '@/hooks/useLocale'
 import { usePersistedFlag } from '@/hooks/usePersistedFlag'
 import { groupItemsByCategory, hideCheckedItems } from '@/lib/shoppingCategories'
-import { formatIsoTimeOrDateTime } from '@/lib/format'
+import { formatIsoTimeOrDateTime, formatKroner } from '@/lib/format'
 import { formatLoadErrorMessage } from '@/lib/loadErrors'
 import { isWeekId } from '@/lib/week-id'
 import { AddItemForm } from './shopping-list/AddItemForm'
 import { CategorySection } from './shopping-list/CategorySection'
-import { CompletedTrips } from './shopping-list/CompletedTrips'
+import { CompleteTripDialog } from './shopping-list/CompleteTripDialog'
+import { CompletedTrips, totalSpent } from './shopping-list/CompletedTrips'
 import {
   buildShoppingListCsv,
   buildShoppingListTxt,
@@ -56,7 +58,9 @@ export default function ShoppingList() {
     reopen,
     completeTrip,
     undoTrip,
+    setTripCost,
   } = useShoppingList(weekId)
+  const [completing, setCompleting] = useState(false)
 
   const groups = items ? groupItemsByCategory(items) : []
   // Exports always cover the full list; only the rendered sections are filtered.
@@ -80,8 +84,17 @@ export default function ShoppingList() {
   const total = items?.length ?? 0
   const checkedCount = items?.filter((item) => item.checked).length ?? 0
   const boughtCount = trips.reduce((sum, trip) => sum + trip.items.length, 0)
+  const spent = totalSpent(trips)
   const shopping = status === 'approved'
   const ready = status === 'ready'
+
+  // "Shopping done" with something in the cart first asks what it came to —
+  // the receipt is in hand right now. With nothing checked there is no trip
+  // to price, only a claim to release, so it completes straight away.
+  const shoppingDone = () => {
+    if (checkedCount > 0) setCompleting(true)
+    else completeTrip()
+  }
 
   // The card's two actions follow the trip through its life. Primary: claim
   // the trip, then finish it. Secondary: before anything is in the cart, the
@@ -89,12 +102,12 @@ export default function ShoppingList() {
   // once ticking has started, "Shopping done" is a tap away even without a
   // claim — the quick top-up run is not a ceremony.
   const primaryAction = shopping
-    ? { label: t('shoppingList.shoppingDone'), onClick: completeTrip }
+    ? { label: t('shoppingList.shoppingDone'), onClick: shoppingDone }
     : { label: t('shoppingList.goShopping'), onClick: approve }
   const secondaryAction = shopping
     ? { label: t('shoppingList.cancelTrip'), onClick: reopen }
     : checkedCount > 0
-      ? { label: t('shoppingList.shoppingDone'), onClick: completeTrip }
+      ? { label: t('shoppingList.shoppingDone'), onClick: shoppingDone }
       : ready
         ? { label: t('shoppingList.backToEditing'), onClick: reopen }
         : { label: t('shoppingList.readyToShop'), onClick: markReady }
@@ -109,6 +122,7 @@ export default function ShoppingList() {
               {[
                 total > 0 ? t('shoppingList.itemCount', { count: total }) : null,
                 boughtCount > 0 ? t('shoppingList.boughtThisWeek', { count: boughtCount }) : null,
+                spent !== null ? t('shoppingList.spentThisWeek', { amount: formatKroner(spent, locale) }) : null,
               ]
                 .filter(Boolean)
                 .join(' · ')}
@@ -242,9 +256,15 @@ export default function ShoppingList() {
               </Button>
             </p>
           )}
-          <CompletedTrips trips={trips} onUndo={undoTrip} />
+          <CompletedTrips trips={trips} onUndo={undoTrip} onSetCost={setTripCost} />
         </div>
       )}
+      <CompleteTripDialog
+        open={completing}
+        onOpenChange={setCompleting}
+        itemCount={checkedCount}
+        onComplete={completeTrip}
+      />
     </div>
   )
 }

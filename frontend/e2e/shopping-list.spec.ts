@@ -355,8 +355,15 @@ test.describe('shopping a week in several trips', () => {
     await page.getByRole('checkbox', { name: 'Mark Milk as in cart' }).click()
     await page.getByRole('button', { name: 'Shopping done' }).click()
 
+    // The receipt is in hand right now, so the trip asks what it came to.
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText('2 items move to Bought this week')
+    await dialog.getByRole('textbox', { name: 'Total paid' }).fill('1 249,50')
+    await dialog.getByRole('button', { name: 'Finish trip' }).click()
+    await expect(dialog).toHaveCount(0)
+
     // Milk and the pre-checked Butter are bought; Tomatoes and Chicken stay open.
-    await expect(page.getByText('2 to buy · 2 bought this week')).toBeVisible()
+    await expect(page.getByText('2 to buy · 2 bought this week · 1,249.5 kr spent')).toBeVisible()
     await expect(page.getByRole('region', { name: 'Dairy & eggs' })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'Fruit & vegetables' }).getByText('Tomatoes')).toBeVisible()
     await expect(page.getByRole('region', { name: 'Meat' }).getByText('Chicken breast')).toBeVisible()
@@ -367,16 +374,22 @@ test.describe('shopping a week in several trips', () => {
     const history = page.getByRole('region', { name: 'Bought this week' })
     await expect(history).toBeVisible()
     await expect(history.getByText('Trip 1')).toBeVisible()
+    // The day of the trip sits under its heading, ahead of who shopped.
+    const today = new Intl.DateTimeFormat('en', { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date())
+    await expect(history.getByText(today, { exact: false })).toBeVisible()
     await expect(history.getByText('dev@local.test', { exact: false })).toBeVisible()
+    await expect(history.getByText('2 items · 1,249.5 kr')).toBeVisible()
     await history.getByLabel('Show items bought on trip 1').click()
     await expect(history.getByText('Milk')).toBeVisible()
     await expect(history.getByText('Butter')).toBeVisible()
+    await expect(history.getByText('Total paid')).toBeVisible()
 
     // Offline-first: the client mints the trip id and POSTs it in the background.
     await expect.poll(() => requests.filter((r) => r.url.includes('/trips')).length).toBe(1)
     const posted = requests.find((r) => r.url.includes('/trips'))!
     expect(posted.method).toBe('POST')
     expect((posted.body as { id: string }).id).toMatch(/^[0-9a-f-]{36}$/)
+    expect((posted.body as { totalCost: number }).totalCost).toBe(1249.5)
   })
 
   test('a quick top-up: shopping done needs no claim once something is in the cart', async ({
@@ -395,11 +408,26 @@ test.describe('shopping a week in several trips', () => {
     await page.getByRole('checkbox', { name: 'Mark Tomatoes as in cart' }).click()
     await expect(page.getByRole('button', { name: 'Shopping done' })).toBeVisible()
     await page.getByRole('button', { name: 'Shopping done' }).click()
+    // No receipt to hand: skipping still finishes the trip.
+    await page.getByRole('dialog').getByRole('button', { name: 'Skip' }).click()
 
     await expect(page.getByText('1 to buy · 1 bought this week')).toBeVisible()
-    await expect(page.getByRole('region', { name: 'Bought this week' }).getByText('Trip 1')).toBeVisible()
+    const history = page.getByRole('region', { name: 'Bought this week' })
+    await expect(history.getByText('Trip 1')).toBeVisible()
     await expect.poll(() => requests.filter((r) => r.url.includes('/trips')).length).toBe(1)
+    expect(requests.find((r) => r.url.includes('/trips'))!.body).not.toHaveProperty('totalCost')
     expect(statusWrites(requests)).toEqual([])
+
+    // The amount can still be added once the receipt turns up.
+    await history.getByLabel('Show items bought on trip 1').click()
+    await expect(history.getByText('Amount not recorded')).toBeVisible()
+    await history.getByRole('button', { name: 'Add what trip 1 cost' }).click()
+    await history.getByRole('textbox', { name: 'Total paid' }).fill('89')
+    await history.getByRole('button', { name: 'Save' }).click()
+    await expect(history.getByText('1 item · 89 kr')).toBeVisible()
+    await expect.poll(() => requests.filter((r) => r.method === 'PATCH' && r.url.includes('/trips/')).length).toBe(1)
+    const patched = requests.find((r) => r.method === 'PATCH' && r.url.includes('/trips/'))!
+    expect(patched.body).toEqual({ totalCost: 89 })
   })
 
   test('undoing a trip puts its items back on the list, still checked', async ({ page }) => {

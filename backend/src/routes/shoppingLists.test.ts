@@ -804,7 +804,7 @@ describe("POST /api/shopping-lists/trips — shopping a week in several rounds",
   }
 
   async function completeTrip(
-    body: { id?: string; completedAt?: string; baseVersion?: number } = {},
+    body: { id?: string; completedAt?: string; totalCost?: number; baseVersion?: number } = {},
     identity = token,
   ): Promise<request.Response> {
     return withAuth(request(app).post(`/api/shopping-lists/trips?week=${week}`), identity).send(body);
@@ -1077,6 +1077,105 @@ describe("POST /api/shopping-lists/trips — shopping a week in several rounds",
         token,
       );
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("what the trip cost", () => {
+    async function checkedCoffee(): Promise<void> {
+      const coffee = await addManual("Coffee");
+      await setChecked(coffee.id);
+    }
+
+    function patchCost(tripId: string, totalCost: number | null, identity = token) {
+      return withAuth(
+        request(app).patch(`/api/shopping-lists/trips/${tripId}?week=${week}`),
+        identity,
+      ).send({ totalCost });
+    }
+
+    it("records the amount paid when the trip is completed", async () => {
+      await checkedCoffee();
+      const done = await completeTrip({ totalCost: 349.5 });
+      expect(done.status).toBe(201);
+      expect(done.body.trips[0].totalCost).toBe(349.5);
+      expect((await getList()).body.trips[0].totalCost).toBe(349.5);
+    });
+
+    it("leaves the amount off when the shopper skipped it", async () => {
+      await checkedCoffee();
+      const done = await completeTrip();
+      expect(done.body.trips[0]).not.toHaveProperty("totalCost");
+    });
+
+    it("rejects negative, absurd and non-numeric amounts", async () => {
+      await checkedCoffee();
+      for (const totalCost of [-1, 2_000_000, "349" as unknown as number]) {
+        const res = await completeTrip({ totalCost });
+        expect(res.status, `totalCost ${String(totalCost)}`).toBe(400);
+      }
+      expect((await getList()).body.trips).toBeUndefined();
+    });
+
+    it("PATCH adds the amount to a trip later, from any member, and bumps the version", async () => {
+      await checkedCoffee();
+      const done = await completeTrip();
+      const tripId = done.body.trips[0].id as string;
+      const partner: TestIdentity = { id: "hs-partner", email: "partner@example.com", role: "user" };
+      await setupAdmin(app, partner);
+      const invite = await withAuth(request(app).post("/api/family/invites"), token).send({
+        email: partner.email,
+      });
+      await withAuth(request(app).post("/api/family/invites/accept"), partner)
+        .send({ token: invite.body.token })
+        .expect(200);
+
+      const res = await patchCost(tripId, 1249, partner);
+      expect(res.status).toBe(200);
+      expect(res.body.trips[0]).toMatchObject({ id: tripId, totalCost: 1249 });
+      expect(res.body.version).toBe(done.body.version + 1);
+      expect((await getList()).body.trips[0].totalCost).toBe(1249);
+    });
+
+    it("PATCH with null clears a recorded amount; repeating the same amount is a no-op", async () => {
+      await checkedCoffee();
+      const done = await completeTrip({ totalCost: 200 });
+      const tripId = done.body.trips[0].id as string;
+
+      const same = await patchCost(tripId, 200);
+      expect(same.status).toBe(200);
+      expect(same.body.version).toBe(done.body.version);
+
+      const cleared = await patchCost(tripId, null);
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.trips[0]).not.toHaveProperty("totalCost");
+      expect(cleared.body.version).toBe(done.body.version + 1);
+    });
+
+    it("PATCH 404s for an unknown trip and 400s for a bad amount", async () => {
+      await checkedCoffee();
+      const done = await completeTrip();
+      const tripId = done.body.trips[0].id as string;
+      const unknown = await patchCost("00000000-0000-4000-8000-000000000000", 10);
+      expect(unknown.status).toBe(404);
+      const bad = await withAuth(
+        request(app).patch(`/api/shopping-lists/trips/${tripId}?week=${week}`),
+        token,
+      ).send({});
+      expect(bad.status).toBe(400);
+    });
+
+    it("another family cannot see or amend the trip", async () => {
+      await checkedCoffee();
+      const done = await completeTrip({ totalCost: 100 });
+      // A fresh identity is JIT-provisioned into a family of its own.
+      const stranger = await setupAdmin(app, {
+        id: "hs-stranger",
+        email: "stranger@example.com",
+        role: "user",
+      });
+      const res = await patchCost(done.body.trips[0].id as string, 1, stranger);
+      expect(res.status).toBe(404);
+      expect((await getList()).body.trips[0].totalCost).toBe(100);
     });
   });
 

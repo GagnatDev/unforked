@@ -27,7 +27,8 @@
     "weeklyMenu": "Weekly menu",
     "shoppingList": "Shopping list",
     "menu": "Menu",
-    "profile": "Profile"
+    "profile": "Profile",
+    "insights": "Insights"
   },
   "profile": {
     "title": "Profile",
@@ -217,7 +218,24 @@
       "itemCount_other": "{{count}} items",
       "toggleAria": "Show items bought on trip {{n}}",
       "undo": "Put back on the list",
-      "undoAria": "Put the items from trip {{n}} back on the list"
+      "undoAria": "Put the items from trip {{n}} back on the list",
+      "costLabel": "Total paid",
+      "costMissing": "Amount not recorded",
+      "costAdd": "Add amount",
+      "costEdit": "Edit",
+      "costSave": "Save",
+      "costAddAria": "Add what trip {{n}} cost",
+      "costEditAria": "Edit what trip {{n}} cost"
+    },
+    "spentThisWeek": "{{amount}} spent",
+    "completeDialog": {
+      "title": "Shopping done",
+      "description_one": "How much did the trip come to? {{count}} item moves to Bought this week.",
+      "description_other": "How much did the trip come to? {{count}} items move to Bought this week.",
+      "amountLabel": "Total paid",
+      "amountInvalid": "Enter an amount in kroner, e.g. 349 or 349,50.",
+      "skip": "Skip",
+      "confirm": "Finish trip"
     }
   },
   "notifications": {
@@ -325,5 +343,39 @@
     "mismatchTitle": "Account does not match",
     "mismatchBody": "Sign in to the original account and family to manage settings without moving your local work.",
     "localAvailable": "Your local recipes, plan and shopping list are still available."
+  },
+  "insights": {
+    "title": "Insights",
+    "subtitle": "What the family planned and spent, week by week.",
+    "granularity": "Group by",
+    "byWeek": "Weeks",
+    "byMonth": "Months",
+    "summary": "Summary",
+    "spent": "Spent in the shop",
+    "lastWeeks": "last {{count}} weeks",
+    "lastMonths": "last {{count}} months",
+    "perWeek": "Per week",
+    "perMonth": "Per month",
+    "trips": "Shopping trips",
+    "meals": "Dinners planned",
+    "tripCount_one": "{{count}} trip",
+    "tripCount_other": "{{count}} trips",
+    "mealCount_one": "{{count}} dinner",
+    "mealCount_other": "{{count}} dinners",
+    "unpricedNote_one": "{{count}} trip has no amount recorded, so the total is at least this.",
+    "unpricedNote_other": "{{count}} trips have no amount recorded, so the total is at least this.",
+    "unpricedShort_one": "{{count}} without amount",
+    "unpricedShort_other": "{{count}} without amount",
+    "noAmount": "No amount",
+    "persons_one": "{{count}} person",
+    "persons_other": "{{count}} people",
+    "weekTitle": "Week {{week}}",
+    "weeksHeading": "Week by week",
+    "monthsHeading": "Month by month",
+    "nothingRecorded": "Nothing recorded",
+    "toggleAria": "Show details for {{period}}",
+    "chartCaption": "Spent per period",
+    "emptyTitle": "Nothing to sum up yet",
+    "emptyBody": "Once a shopping trip is finished with \"Shopping done\" and the amount paid is entered, the family’s spending and planned dinners show up here, by week and by month."
   }
 }
