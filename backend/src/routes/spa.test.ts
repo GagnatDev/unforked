@@ -1,3 +1,6 @@
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
@@ -22,6 +25,26 @@ describe("SPA serving", () => {
     expect(res.text).toContain('<div id="root">');
     expect(res.headers["cache-control"]).toMatch(/no-cache/);
   });
+
+  it.each(["deployment", ".deployment"])(
+    "serves client-side routes from a web root under %s",
+    async (directory) => {
+      const deploymentRoot = await mkdtemp(path.join(tmpdir(), "unforked-spa-"));
+      try {
+        const deployedWebRoot = path.join(deploymentRoot, directory, "web");
+        await cp(webRoot, deployedWebRoot, { recursive: true });
+        const deployedApp = buildApp({ db: testDb(), webRoot: deployedWebRoot });
+
+        const res = await request(deployedApp).get("/recipes/123");
+
+        expect(res.status).toBe(200);
+        expect(res.text).toContain('<div id="root">');
+        expect(res.headers["cache-control"]).toMatch(/no-cache/);
+      } finally {
+        await rm(deploymentRoot, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("serves hashed assets with a long immutable cache", async () => {
     const res = await request(app).get("/assets/app-abcd1234.js");
