@@ -83,7 +83,6 @@ export function buildApp(deps: AppDeps): Express {
   // when the directory is absent (e.g. local dev / tests), matching Ktor.
   const webRoot = deps.webRoot ?? path.resolve(process.cwd(), "web");
   if (existsSync(webRoot)) {
-    const indexHtml = path.join(webRoot, "index.html");
     app.use(express.static(webRoot, { setHeaders: setStaticCacheHeaders }));
     // Express 5: no bare "*" route — use a named splat and skip API paths.
     app.get("/*splat", (req, res, next) => {
@@ -92,7 +91,7 @@ export function buildApp(deps: AppDeps): Express {
         return;
       }
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.sendFile(indexHtml);
+      res.sendFile("index.html", { root: webRoot });
     });
   }
 
