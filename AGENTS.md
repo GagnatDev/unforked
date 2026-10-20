@@ -11,7 +11,7 @@ This repo uses **pnpm** exclusively (a pnpm workspace with `frontend` and `backe
 ## Testing
 
 - **Run everything:** `pnpm -r run test` runs both packages' unit suites (backend Vitest + frontend Vitest). Add `pnpm -r run build` and `pnpm --filter @unforked/backend run typecheck` before committing.
-- **Backend tests need a Postgres and can't use Testcontainers in the web/CI sandbox.** Docker Hub and the ECR blob CDNs are blocked by egress policy, so Testcontainers can't pull `postgres:16-alpine`. Use the built-in escape hatch instead — an apt-installed Postgres plus the `TEST_DATABASE_URL` override:
+- **Backend tests need a Postgres and can't use Testcontainers in the web/CI sandbox.** Docker Hub and the ECR blob CDNs are blocked by egress policy, so Testcontainers can't pull `postgres:17-alpine`. Use the built-in escape hatch instead — an apt-installed Postgres plus the `TEST_DATABASE_URL` override:
   ```sh
   sudo apt-get install -y postgresql          # Postgres 16
   # create a `test`/`test` superuser and an empty `test` database, then:

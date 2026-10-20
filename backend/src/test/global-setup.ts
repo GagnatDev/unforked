@@ -23,7 +23,7 @@ let container: StartedPostgreSqlContainer | undefined;
 export async function setup(project: TestProject): Promise<void> {
   let uri = process.env.TEST_DATABASE_URL;
   if (!uri) {
-    container = await new PostgreSqlContainer("postgres:16-alpine").start();
+    container = await new PostgreSqlContainer("postgres:17-alpine").start();
     uri = container.getConnectionUri();
   }
   await runMigrations(uri);

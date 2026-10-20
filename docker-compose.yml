@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: meals
       POSTGRES_PASSWORD: meals
@@ -11,6 +11,9 @@ services:
       # port (and DATABASE_URL's postgres:5432, below) is unchanged.
       - "5632:5432"
     volumes:
+      # Postgres 17 data directory. A volume created by the previous
+      # postgres:16-alpine image will not start; remove it and recreate
+      # (`docker compose down -v`).
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U meals -d meals"]
