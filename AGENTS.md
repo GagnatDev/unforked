@@ -11,9 +11,9 @@ This repo uses **pnpm** exclusively (a pnpm workspace with `frontend` and `backe
 ## Testing
 
 - **Run everything:** `pnpm -r run test` runs both packages' unit suites (backend Vitest + frontend Vitest). Add `pnpm -r run build` and `pnpm --filter @unforked/backend run typecheck` before committing.
-- **Backend tests need a Postgres and can't use Testcontainers in the web/CI sandbox.** Docker Hub and the ECR blob CDNs are blocked by egress policy, so Testcontainers can't pull `postgres:16-alpine`. Use the built-in escape hatch instead — an apt-installed Postgres plus the `TEST_DATABASE_URL` override:
+- **Backend tests need a Postgres and can't use Testcontainers in the web/CI sandbox.** Docker Hub and the ECR blob CDNs are blocked by egress policy, so Testcontainers can't pull `postgres:17-alpine` (Compose, unit tests, and the Playwright backend all target PostgreSQL 17 to match production). Use the built-in escape hatch instead — an apt-installed Postgres plus the `TEST_DATABASE_URL` override:
   ```sh
-  sudo apt-get install -y postgresql          # Postgres 16
+  sudo apt-get install -y postgresql          # Ubuntu noble ships 16; SQL-compatible stand-in
   # create a `test`/`test` superuser and an empty `test` database, then:
   TEST_DATABASE_URL=postgresql://test:test@localhost:5432/test pnpm -r run test
   ```
@@ -23,11 +23,11 @@ This repo uses **pnpm** exclusively (a pnpm workspace with `frontend` and `backe
 
 For `*.spec.ts`, `playwright.config.*`, or `frontend/e2e/`, read [`.agents/skills/playwright-best-practices/SKILL.md`](.agents/skills/playwright-best-practices/SKILL.md) first and follow it.
 
-**Browser-revision mismatch in the sandbox.** The preinstalled browsers under `/opt/pw-browsers` are revision **1194**, but `@playwright/test ^1.60` expects **1223**, and downloading browsers is discouraged by the egress policy. Symlink the expected revision onto the installed one rather than downloading:
+**Browser-revision mismatch in the sandbox.** The preinstalled browsers under `/opt/pw-browsers` are revision **1194**, but `@playwright/test ^1.64` expects Chromium **1248**, and downloading browsers is discouraged by the egress policy. Symlink the expected revision onto the installed one rather than downloading:
 
 ```sh
 cd /opt/pw-browsers
-ln -s chromium-1194 chromium-1223
+ln -s chromium-1194 chromium-1248
 ln -s chromium-1194/chrome-linux/headless_shell \
       chrome-headless-shell-linux64/chrome-headless-shell   # adjust paths to match the installed layout
 ```
