@@ -43,6 +43,8 @@ pnpm install
 docker compose up -d postgres
 ```
 
+Compose uses **PostgreSQL 17**. A volume initialized by the previous `postgres:16-alpine` image will not start; recreate it with `docker compose down -v` before `up`.
+
 ### 3. Backend
 
 ```bash
