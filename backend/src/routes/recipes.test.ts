@@ -1,3 +1,4 @@
+import { gzipSync } from "node:zlib";
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildTestApp, setupAdmin, withAuth, type TestIdentity } from "../test/app.js";
@@ -70,6 +71,22 @@ describe("recipe CRUD", () => {
     expect(del.status).toBe(204);
     const get = await withAuth(request(app).get(`/api/recipes/${created.id}`), token);
     expect(get.status).toBe(404);
+  });
+
+  it("parses a gzip-encoded JSON body through Express inflate", async () => {
+    // body-parser 2.4.0 patched the compressed-body path (GHSA-27r3-jxmh-p828)
+    // and added zstd; this is the inflate route that default express.json()
+    // enables and that no other case here exercises.
+    const payload = gzipSync(Buffer.from(JSON.stringify({ name: "Gzipped" })));
+    const req = withAuth(request(app).post("/api/recipes"), token);
+    // Superagent JSON-encodes Buffers unless serialize is a no-op.
+    req.serialize((body) => body as string);
+    const res = await req
+      .set("Content-Type", "application/json")
+      .set("Content-Encoding", "gzip")
+      .send(payload);
+    expect(res.status).toBe(201);
+    expect(res.body.doc.name).toBe("Gzipped");
   });
 });
 

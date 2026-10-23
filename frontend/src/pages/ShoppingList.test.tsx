@@ -307,10 +307,19 @@ describe('ShoppingList completed trips', () => {
   it('tells the difference between nothing planned and everything bought', () => {
     const { unmount } = renderPage([])
     expect(screen.getByText(/No ingredients for the selected week/)).toBeTruthy()
+    // Trans components={{ 1: <Link /> }} — react-i18next 17.1.x changed how
+    // indexed component maps resolve; the weekly-menu link must stay a real
+    // anchor, not inner text or a single character.
+    expect(screen.getByRole('link', { name: 'Weekly menu' }).getAttribute('href')).toBe(
+      '/meal-plan',
+    )
     unmount()
 
     renderPage([], false, { trips: [completedTrip()] })
     expect(screen.getByText(/Everything on the list has been bought/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Weekly menu' }).getAttribute('href')).toBe(
+      '/meal-plan',
+    )
     expect(screen.queryByText(/No ingredients for the selected week/)).toBeNull()
     expect(screen.getByText('2 bought this week')).toBeTruthy()
     // No open items, so no green status card — the history is the record.

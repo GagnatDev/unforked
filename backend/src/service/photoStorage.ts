@@ -52,6 +52,11 @@ export function createS3PhotoStorage(config: S3Config): PhotoStorage {
       accessKeyId: config.accessKey,
       secretAccessKey: config.secretKey,
     },
+    // Default CRC32 checksums get baked into presigned PUT query strings as
+    // x-amz-checksum-crc32=AAAAAA== (empty body). The browser then PUTs JPEG
+    // bytes; stores that validate the query checksum reject the upload.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 
   return {
