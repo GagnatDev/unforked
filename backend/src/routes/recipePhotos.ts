@@ -82,11 +82,12 @@ export function recipePhotoRoutes(db: Db, options: PhotoRouteOptions = {}): Rout
     res.json({ available: storage !== null });
   });
 
-  // Mint presigned PUT URLs for one photo (full + thumbnail). The client must
-  // upload with exactly the returned Content-Type — it is part of the signature.
-  // No Cache-Control is signed or returned: sending that request header on the
-  // cross-origin PUT forces a CORS preflight the bucket rejects (long-lived
-  // caching is applied to the download instead).
+  // Mint presigned PUT URLs for one photo (full + thumbnail). The client sends
+  // the returned Content-Type so the object is stored with it. The AWS S3
+  // presigner leaves Content-Type unsigned by design, so a mismatch is not a
+  // signature failure. No Cache-Control is signed or returned: sending that
+  // request header on the cross-origin PUT forces a CORS preflight the bucket
+  // rejects (long-lived caching is applied to the download instead).
   router.post("/recipes/:id/photo/uploads", validateBody(uploadsSchema), async (req, res) => {
     const { familyId } = await requireUserAndFamily(users, req);
     const id = requireUuidParam(req.params.id, res);
