@@ -4,3 +4,7 @@ packages:
 
 onlyBuiltDependencies:
   - sharp
+
+# Hold jsdom 31 (major, 2026-11-05) until it is past the weekly cooldown.
+overrides:
+  jsdom: 30.1.3

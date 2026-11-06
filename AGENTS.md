@@ -23,11 +23,11 @@ This repo uses **pnpm** exclusively (a pnpm workspace with `frontend` and `backe
 
 For `*.spec.ts`, `playwright.config.*`, or `frontend/e2e/`, read [`.agents/skills/playwright-best-practices/SKILL.md`](.agents/skills/playwright-best-practices/SKILL.md) first and follow it.
 
-**Browser-revision mismatch in the sandbox.** The preinstalled browsers under `/opt/pw-browsers` are revision **1194**, but `@playwright/test ^1.65` expects Chromium **1254**, and downloading browsers is discouraged by the egress policy. Symlink the expected revision onto the installed one rather than downloading:
+**Browser-revision mismatch in the sandbox.** The preinstalled browsers under `/opt/pw-browsers` are revision **1194**, but `@playwright/test ^1.64` expects Chromium **1248**, and downloading browsers is discouraged by the egress policy. Symlink the expected revision onto the installed one rather than downloading:
 
 ```sh
 cd /opt/pw-browsers
-ln -s chromium-1194 chromium-1254
+ln -s chromium-1194 chromium-1248
 ln -s chromium-1194/chrome-linux/headless_shell \
       chrome-headless-shell-linux64/chrome-headless-shell   # adjust paths to match the installed layout
 ```
