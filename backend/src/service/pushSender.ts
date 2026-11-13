@@ -1,4 +1,4 @@
-import webpush from "web-push";
+import { sendNotification } from "web-push";
 import type { VapidConfig } from "../config/env.js";
 import type { Db } from "../db/kysely.js";
 import { logger } from "../logger.js";
@@ -65,7 +65,7 @@ export function createPushSender(
   const send: PushTransport =
     transport ??
     (async (subscription, payload) => {
-      await webpush.sendNotification(subscription, payload, {
+      await sendNotification(subscription, payload, {
         vapidDetails: {
           subject: vapid.subject,
           publicKey: vapid.publicKey,
