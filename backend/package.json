@@ -20,18 +20,18 @@
     "e2e:server": "tsx src/e2e-server.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1162.0",
-    "@aws-sdk/s3-request-presigner": "^3.1162.0",
+    "@aws-sdk/client-s3": "^3.1168.0",
+    "@aws-sdk/s3-request-presigner": "^3.1168.0",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "date-fns": "^4.4.0",
     "express": "^5.3.0",
-    "kysely": "^0.29.8",
+    "kysely": "^0.29.9",
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
-    "web-push": "^3.6.7",
+    "web-push": "^4.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -44,7 +44,7 @@
     "@types/web-push": "^3.6.4",
     "@vitest/coverage-v8": "^5.1.0",
     "pino-pretty": "^13.2.0",
-    "supertest": "^7.3.1",
+    "supertest": "^7.3.2",
     "tsup": "^9.0.0",
     "tsx": "^4.23.15",
     "typescript": "~7.0.2",
