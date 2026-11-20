@@ -5,6 +5,22 @@ packages:
 onlyBuiltDependencies:
   - sharp
 
-# Pin jsdom 31.0.0 (2026-11-05). 31.0.1 landed 2026-11-13 and stays out this week.
+# Hold releases published after 2026-11-19T08:16Z that are not security fixes.
+# Drop a pin once that release is older than 24 hours.
 overrides:
-  jsdom: 31.0.0
+  "@aws-sdk/client-s3": 3.1172.0
+  "@aws-sdk/s3-request-presigner": 3.1172.0
+  "@testcontainers/postgresql": 12.2.1
+  "@vitest/istanbul-lib-coverage": 2.1.0
+  "@vitest/istanbul-lib-report": 2.1.0
+  bare-fs: 4.8.4
+  baseline-browser-mapping: 2.11.38
+  electron-to-chromium: 1.5.491
+  i18next: 27.2.1
+  lucide-react: 1.76.0
+  source-map-js: 1.2.3
+  tailwind-merge: 3.7.0
+  testcontainers: 12.2.1
+  tldts: 7.5.4
+  tldts-core: 7.5.4
+  "undici@^8": 8.12.4
